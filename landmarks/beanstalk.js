@@ -490,8 +490,8 @@ export function build(H, group) {
   const climBody = new THREE.InstancedMesh(cBodyGeo, steelMat, N);
   const climLit = new THREE.InstancedMesh(cLitGeo, new THREE.MeshBasicMaterial({ vertexColors: true, fog: false }), N);
   for (const m of [climBody, climLit]) { m.frustumCulled = false; group.add(m); }
-  const climbers = Array.from({ length: MOVING }, (_, k) => ({ up: k % 2 === 0, u0: (k >> 1) / (MOVING / 2) + (k % 2) * .037, T: 260 + (k % 3) * 40 }));
-  const BASE = DOCK + 30, TOP = 9600, M = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = V3(0, 0, 0), SC = V3(1, 1, 1), Y = V3(0, 1, 0);
+  const climbers = Array.from({ length: MOVING }, (_, k) => ({ up: k % 2 === 0, u0: (k >> 1) / (MOVING / 2) + (k % 2) * .037 }));
+  const BASE = DOCK + 30, TOP = 9600, ACCEL = 6, TRIP = Math.sqrt(2 * (TOP - BASE) / ACCEL), M = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = V3(0, 0, 0), SC = V3(1, 1, 1), Y = V3(0, 1, 0);
   const place = (i, y, up, s) => {
     Q.setFromAxisAngle(Y, up ? 0 : Math.PI); P.set(0, y, 0); SC.setScalar(s);
     M.compose(P, Q, SC); climBody.setMatrixAt(i, M); climLit.setMatrixAt(i, M);
@@ -517,11 +517,12 @@ export function build(H, group) {
     pod(y) { solo = y != null; place(TOUR, y ?? 0, true, solo ? grown(y) : 0); },
     update(t) {
       climbers.forEach((c, i) => {
-        const u = ((t / c.T + c.u0) % 1 + 1) % 1, e = c.up ? u : 1 - u;
+        const u = ((t / TRIP + c.u0) % 1 + 1) % 1, e = c.up ? u : 1 - u;
 
-        // Climbers creep near the Root and gain speed with height.
+        // Climbers accelerate at ACCEL m/s² from the Root, so a trip takes TRIP seconds (about a minute). Down
+        // climbers run the same curve backwards and brake to a stop at the collar.
 
-        const y = BASE + (TOP - BASE) * e ** 3;
+        const y = BASE + (TOP - BASE) * e ** 2;
         const grow = Math.min(1, (c.up ? u : 1 - u) * 60);
         place(i, y, c.up, solo && c.up ? 0 : grow * grown(y));
       });
