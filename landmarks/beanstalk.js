@@ -491,7 +491,7 @@ export function build(H, group) {
   const climLit = new THREE.InstancedMesh(cLitGeo, new THREE.MeshBasicMaterial({ vertexColors: true, fog: false }), N);
   for (const m of [climBody, climLit]) { m.frustumCulled = false; group.add(m); }
   const climbers = Array.from({ length: MOVING }, (_, k) => ({ up: k % 2 === 0, u0: (k >> 1) / (MOVING / 2) + (k % 2) * .037 }));
-  const BASE = DOCK + 30, TOP = 9600, ACCEL = 6, TRIP = Math.sqrt(2 * (TOP - BASE) / ACCEL), M = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = V3(0, 0, 0), SC = V3(1, 1, 1), Y = V3(0, 1, 0);
+  const BASE = DOCK + 30, TOP = 9600, ACCEL = 12, TRIP = Math.sqrt(2 * (TOP - BASE) / ACCEL), M = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = V3(0, 0, 0), SC = V3(1, 1, 1), Y = V3(0, 1, 0);
   const place = (i, y, up, s) => {
     Q.setFromAxisAngle(Y, up ? 0 : Math.PI); P.set(0, y, 0); SC.setScalar(s);
     M.compose(P, Q, SC); climBody.setMatrixAt(i, M); climLit.setMatrixAt(i, M);
@@ -519,7 +519,7 @@ export function build(H, group) {
       climbers.forEach((c, i) => {
         const u = ((t / TRIP + c.u0) % 1 + 1) % 1, e = c.up ? u : 1 - u;
 
-        // Climbers accelerate at ACCEL m/s² from the Root, so a trip takes TRIP seconds (about a minute). Down
+        // Climbers accelerate at ACCEL m/s² from the Root, so a trip takes TRIP seconds (about 40 s). Down
         // climbers run the same curve backwards and brake to a stop at the collar.
 
         const y = BASE + (TOP - BASE) * e ** 2;
