@@ -105,7 +105,8 @@
   #card img[hidden], #card a[hidden] { display: none; }
   #cMin { position: absolute; top: 8px; right: 40px; z-index: 1; background: rgba(0,0,0,.6); color: #fff; border: 0; border-radius: 50%; width: 26px; height: 26px; min-height: 0; padding: 0; cursor: pointer; font-size: 15px; line-height: 1; }
   #card.min img, #card.min .kicker, #card.min .type, #card.min #cSum, #card.min #cLink { display: none; }
-  #card.min .body { padding: 10px 76px 10px 14px; }
+  #card.min .body { padding: 10px 76px 10px 14px; min-height: 46px; box-sizing: border-box; display: flex; align-items: center; }
+  #card.min #close, #card.min #cMin { top: 50%; transform: translateY(-50%); }
   #card.min h2 { margin: 0; font-size: 15px; }
   #card .kicker { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #6fd8e8; }
   #card h2 { margin: 4px 0 2px; font-size: 18px; }
@@ -265,6 +266,7 @@
   @media (pointer: coarse) {
     #close, #cMin, #helpClose { width: 40px; height: 40px; line-height: 40px; font-size: 20px; }
     #cMin { right: 54px; }
+    #card.min .body { min-height: 58px; padding-right: 108px; }
   }
   @media (max-height: 500px) {
     #card img { display: none; }
