@@ -157,7 +157,7 @@ function buildAtlas() {
     const page = pageOf(d);
     return `<details class="d" data-d="${di}"><summary><span>${esc(nameOf(d))}</span><b>${d.places.length + d.marks.length}</b></summary>
       <p class="sum">${esc(SUMMARY[d.id] ?? '')}${page ? ` <a href="${site()}locations/${page.slug}/" target="_blank">District page →</a>` : ''}</p>
-      ${d.places.length ? `<div class="hd">Crew places</div>${d.places.map((p, i) => leaf(p.title, 'p', i, rgb(p.color ?? [1, 1, 1]))).join('')}` : ''}
+      ${d.places.length ? `<div class="hd">${STANDALONE ? 'Places' : 'Crew places'}</div>${d.places.map((p, i) => leaf(p.title, 'p', i, rgb(p.color ?? [1, 1, 1]))).join('')}` : ''}
       ${d.marks.length ? `<div class="hd">Landmarks</div>${d.marks.map((l, i) => leaf(l.name, 'm', i, '#bfefff')).join('')}` : ''}
     </details>`;
   }).join('');
