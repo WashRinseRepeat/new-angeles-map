@@ -107,7 +107,8 @@ function blocked(at, dir, dist, r) {
   if (merged) solid.push(merged);
   return sight.intersectObjects(solid, false).length > 0;
 }
-// face, a world direction from the place toward the camera, overrides the place's own front.
+// The card camera aims at the middle of the place, so the orbit turns about it. face, a world direction from the
+// place toward the camera, overrides the place's own front.
 
 export function viewPlace(p, dur, face) {
   const h = p.top.y, f = p.frame;
@@ -115,7 +116,7 @@ export function viewPlace(p, dur, face) {
   const half = Math.min(camera.fov, 2 * THREE.MathUtils.radToDeg(Math.atan(Math.tan(camera.fov * Math.PI / 360) * (camera.aspect || 1)))) * Math.PI / 360;
   const cap = f.face ? 400 : 120, r = Math.max(Math.hypot(Math.min(f.w, cap), Math.min(f.d, cap)) / 2, h * .6);
   const { x, z } = f.face ? { x: f.face[0], z: f.face[1] } : PLACES.includes(p) ? { x: 0, z: 1 } : frontOf(f), dir = new THREE.Vector3(x * f.c + z * f.s, .75, -x * f.s + z * f.c).normalize();
-  const dist = THREE.MathUtils.clamp(r / Math.sin(half) * 1.1, 60, 1600), at = new THREE.Vector3(f.cx, h * .35, f.cz);
+  const dist = THREE.MathUtils.clamp(r / Math.sin(half) * 1.1, 60, 1600), at = new THREE.Vector3(f.cx, h * .5, f.cz);
 
   // A tower between the camera and the place tilts the view steeper, up to almost top-down.
 
