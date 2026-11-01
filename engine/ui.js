@@ -483,9 +483,9 @@ renderer.setAnimationLoop(now => {
   if (locked && !fly) { _t.subVectors(lockAt, controls.target).multiplyScalar(Math.min(1, dt * 5)); controls.target.add(_t); camera.position.add(_t); }
 
   // On a phone the card covers the lower third, so an open card shifts the view up and the place sits higher on
-  // screen. The orbit target stays on the place.
+  // screen. A minimized card leaves the view centred. The orbit target stays on the place.
 
-  lift += ((locked && innerWidth < 700 ? innerHeight * .17 : 0) - lift) * Math.min(1, dt * 5);
+  lift += ((locked && innerWidth < 700 && !card.classList.contains('min') ? innerHeight * .17 : 0) - lift) * Math.min(1, dt * 5);
   if (lift > .5) camera.setViewOffset(innerWidth, innerHeight, 0, lift, innerWidth, innerHeight);
   else if (camera.view?.enabled) { lift = 0; camera.clearViewOffset(); }
   const k = U.uFocusK.value;
