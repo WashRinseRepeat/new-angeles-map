@@ -41,7 +41,8 @@ Serve the folder over HTTP and open it in a browser:
 python3 -m http.server 8000
 ```
 
-Then open http://localhost:8000/. Three.js r160 loads from the jsDelivr CDN. Every other file is in this
+Then open http://localhost:8000/. The live version runs at
+https://washrinserepeat.github.io/new-angeles-map/. Three.js r160 loads from the jsDelivr CDN. Every other file is in this
 repository. Any static host works, GitHub Pages included.
 
 ## Controls
@@ -164,5 +165,10 @@ belong to their owners.
 The map, its models and its code are original work. Some landmark names and descriptions draw on the Android
 setting books and on Genesys Foundry fan supplements. No official artwork or book text is included. The
 audio guide narration and the ride music are AI-generated.
+
+## License
+
+MIT, see `LICENSE`. The license covers the original work in this repository: the code, the models, the card
+texts and the audio. It grants no rights to the Android names and setting, which belong to their owners.
 
 Built with [Three.js](https://threejs.org/).
