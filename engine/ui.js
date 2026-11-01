@@ -410,8 +410,19 @@ const setMode = v => {
   if (v !== 'auto') applyQuality(v);
   try { localStorage.setItem('na-map-quality', v); } catch {}
 };
-qSel.onchange = () => setMode(qSel.value);
+const hq = document.getElementById('hq'), showHq = () => hq.setAttribute('aria-pressed', qSel.value === 'ultra');
+qSel.onchange = () => { setMode(qSel.value); showHq(); };
 setMode(qSel.value);
+showHq();
+
+// The smooth-edges switch picks ultra, and a second press returns to auto.
+
+hq.onclick = () => {
+  qSel.value = qSel.value === 'ultra' ? 'auto' : 'ultra';
+  setMode(qSel.value);
+  if (qSel.value === 'auto') applyQuality(START);
+  showHq();
+};
 let fpsN = 0, fpsT = 0;
 
 // three draws a transparent double-sided mesh twice, back faces then front, and resolves its program both times.

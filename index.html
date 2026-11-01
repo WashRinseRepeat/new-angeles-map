@@ -73,6 +73,11 @@
   #helpPanel h2 { font-size: 14px; margin: 0 0 6px; letter-spacing: .12em; text-transform: uppercase; color: #7ff3ff; }
   #helpPanel p { margin: 8px 0; color: #c9d6e0; }
   #helpPanel b { color: #e6f4ff; font-weight: 600; }
+
+  /* Smooth edges sits in the bottom-right corner, under cards and players. */
+
+  #hq { position: fixed; z-index: 3; right: 12px; bottom: 12px; background: rgba(6, 9, 18, .8); color: #8ea3b3; border: 1px solid #1d3546; border-radius: 999px; padding: 4px 10px; font-size: 11px; cursor: pointer; }
+  #hq[aria-pressed=true] { color: #7ff3ff; border-color: #3d7a99; }
   #helpPanel kbd { font: 11px ui-monospace, monospace; border: 1px solid #2a4a5a; border-radius: 4px; padding: 0 4px; color: #9fd; }
   #helpPanel h2 { padding-right: 30px; }
   #helpClose { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,.6); color: #fff; border: 0; border-radius: 50%; width: 26px; height: 26px; min-height: 0; padding: 0; font-size: 18px; line-height: 26px; cursor: pointer; }
@@ -254,6 +259,7 @@
     #atour, #ride { left: 8px; right: 8px; bottom: 8px; width: auto; }
     #atSub { bottom: 168px; max-width: calc(100vw - 32px); font-size: 14px; }
     #minimap { left: 8px; bottom: 8px; width: calc(100vw - 16px); }
+    #hq { right: 8px; bottom: 8px; padding: 8px 12px; }
     #minimap svg { height: 46vh; }
     .panel button, #chips button, #results .r, #nav .leaf, details.d > summary { min-height: 40px; }
     #chips button { flex: none; }
@@ -317,7 +323,7 @@
     <input id="blend" type="range" min="5" max="500" value="230">
   </label>
   <div class="hint" id="stats"></div>
-  <div class="hint">Quality <select id="quality"><option value="auto">Auto</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select> <span id="fps"></span></div>
+  <div class="hint">Quality <select id="quality"><option value="auto">Auto</option><option value="ultra">Ultra</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select> <span id="fps"></span></div>
   <details id="tune" hidden>
     <summary>Tuning</summary>
     <div class="tabs" id="ttabs"></div>
@@ -334,6 +340,7 @@
     <text x="22" y="7.6" text-anchor="middle" font-family="system-ui" font-size="6.5" font-weight="700" fill="#ffd0d6">N</text>
   </g>
 </svg></button>
+<button id="hq" aria-pressed="false" title="Renders more pixels and smooths jagged edges. Use it on a fast graphics card.">Smooth edges</button>
 <button id="help" aria-label="Help" aria-expanded="false" aria-controls="helpPanel">?</button>
 <div id="welcome" class="panel" role="dialog" aria-labelledby="wTitle" hidden>
   <h2 id="wTitle">Welcome to New Angeles</h2>

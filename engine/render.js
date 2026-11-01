@@ -6,6 +6,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { Pass } from 'three/addons/postprocessing/Pass.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -300,22 +301,31 @@ output.render = (r, writeBuffer, readBuffer, ...rest) => {
 };
 composer.addPass(output);
 
+// SMAA smooths jagged edges in the final image. Only the ultra level turns it on.
+
+const smaa = new SMAAPass(innerWidth, innerHeight);
+smaa.enabled = false;
+composer.addPass(smaa);
+
 // Quality levels trade sharpness, bloom, traffic and prop range for frame rate. Auto starts at medium on touch
 // screens and steps down when frames drop. cars scales street and highway traffic; detail is the prop range in metres;
 // fog scales the fog distances, and tiles past the fog stop drawing.
+// Ultra is picked by hand. It renders at 1.5 times the screen's pixel ratio, up to 3, and adds SMAA.
 
 export const QUALITY_LEVELS = {
+  ultra: { dpr: 3, ss: 1.5, smaa: true, bloom: true, cars: 1, detail: 1400, fog: 1 },
   high: { dpr: 2, bloom: true, cars: 1, detail: 1400, fog: 1 },
   medium: { dpr: 1.5, bloom: true, cars: .55, detail: 1000, fog: .85 },
   low: { dpr: 1, bloom: false, cars: .3, detail: 650, fog: .6 },
 };
 export const QUALITY = { mode: 'auto', level: matchMedia('(pointer: coarse)').matches ? 'medium' : 'high', ...QUALITY_LEVELS.high };
 export function applyQuality(level) {
-  Object.assign(QUALITY, QUALITY_LEVELS[level], { level });
-  const dpr = Math.min(devicePixelRatio, QUALITY.dpr);
+  Object.assign(QUALITY, { ss: 1, smaa: false }, QUALITY_LEVELS[level], { level });
+  const dpr = Math.min(devicePixelRatio * QUALITY.ss, QUALITY.dpr);
   renderer.setPixelRatio(dpr);
   composer.setPixelRatio(dpr);
   bloom.enabled = QUALITY.bloom;
+  smaa.enabled = QUALITY.smaa;
 }
 applyQuality(QUALITY.level);
 

@@ -25,6 +25,8 @@ browser with no build step.
 - **Search, atlas and minimap.** Search finds any landmark or district, the atlas lists them by district, and the
   minimap jumps anywhere.
 - **Mouse, trackpad and touch.** Phones and tablets work, and quality adapts to the device.
+- **Smooth edges.** A switch in the corner renders at 1.5 times the screen's pixel ratio and adds SMAA, for
+  fast graphics cards.
 
 | | |
 |---|---|
