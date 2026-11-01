@@ -1,0 +1,66 @@
+{
+  "Los Barrancos": {
+    "kicker": "The builders' camp the Beanstalk left behind",
+    "category": "civic",
+    "text": [
+      "Los Barrancos hangs on the slope of Volcán Cayambe, just east of the Root. The warehouses, dorms and kitchens here once fed and housed the crews who built the Beanstalk. When the work ended, the crews stayed. Families now live in the old halls. Scaffold towers and hand-built bridges join the roofs across the streets, and bare bulbs hang from every span.",
+      "The Polecats gang claims the neighbourhood. They tag every wall inside and out with a polecat curled round a spike, a joke on the Root above. The biggest tag faces the Beanstalk itself. The gang sells cheap counterfeits and keeps outsiders on the main stairs. The Root glows over the rooftops, close enough to touch."
+    ]
+  },
+  "SlotWhizz": {
+    "kicker": "A marble-game hall on the Root approach",
+    "category": "shop",
+    "text": [
+      "SlotWhizz fills a bright notch at the foot of a tower on the road to the Root. Travellers with hours to kill before their beanpod drift in from the plaza. A holographic mascot of gold balls tumbles down the facade from the overhang to the door, all night, on a loop. Inside, the noise never stops.",
+      "The main game is chinquieros, a loud marble machine like pinball. Winners get Ardcoins instead of credits. Ardcoins only buy prizes from SlotWhizz's own shelves, and the prize list changes all the time. Many travellers leave with a plush Beanstalk and an empty account. Regulars say the back room sells guns to anyone who asks the right way."
+    ]
+  },
+  "Cayambe Geo Labs": {
+    "kicker": "A walled lab fort on volcanic rock",
+    "category": "corp",
+    "text": [
+      "Cayambe Geo Labs sits on bare volcanic rock east of the Root. It rents lab space to firms that want to work near real bedrock and far from inspectors. Smooth black plasteel walls with an oily sheen ring the compound. Private guards walk the top, and floodlights burn on every corner. Researchers live on site and rarely leave.",
+      "Most of the labs are underground, so machinery hums under the street. Jinteki breeds clone miners in one wing. Another tenant drills deep into the volcano, and Eastside feels small tremors when the rig runs. Nobody at Geo Labs will say which firm owns the drill. Beanstalk engineers watch the readings very closely."
+    ]
+  },
+  "Spurline Storage Warrens": {
+    "kicker": "A storage maze that nobody watches",
+    "category": "corp",
+    "text": [
+      "The Spurline Storage Warrens fill a block beside the freight spur out of the Root. Thousands of rental storage cubes stand up to six high in narrow rows, and gantry cranes span the lanes. Weyland subsidiaries own most of them. Cargo that waits for a slot on the Beanstalk ends up here, and so does cargo that nobody comes back for. Machines run almost everything. Cargo drones lift boxes off one stack and set them down on another, day and night.",
+      "Bioroids and clones walk the service lanes to fix what the machines cannot. Pipes hiss. Strip lights mark the main aisles, and small yellow status lights glow on the cubes. A few families of unmodified humans live hidden deep in the maze. Lately, runaway clones have moved in too. The two groups share water and keep each other secret."
+    ]
+  },
+  "Chakana Public Library": {
+    "kicker": "Old books in front, runners in back",
+    "category": "civic",
+    "text": [
+      "The Chakana Public Library is one of the oldest buildings in El Centro Historico. It is mostly falling apart. By some accident of automated budgeting, the city still pays for it. A few very old librarians keep the stacks. They also keep printed almanacs of every city office and paper logs from the Beanstalk build. The lantern on the roof still burns every night.",
+      "Mercenary runners have taken over the back computer room. The librarians cannot keep them out, so they charge them rent and help them work. Decades of running cheap networks made the librarians very good at it. A runner who needs an old permit or a lost record comes here first. The librarians want cash and quiet."
+    ]
+  },
+  "Drone On & the Junk Flats": {
+    "kicker": "A drone shop at the edge of a junkyard",
+    "category": "shop",
+    "text": [
+      "Drone On is a single painted shipping container on the derelict east bank of the Waterways. Behind it, the Junk Flats stretch under a dead expressway deck. Mounds of broken electronics and stacked containers fill the dark between the old pillars. The lights under the deck look like stars. They are spotlights on standby that nobody ever switched off.",
+      "Gertie runs the shop alone. They build custom drones and can fix nearly any gun, rig or implant. Their drones search the junk heaps for parts all day and all night. Gangs from Antiguo bring their gear here, and nobody starts trouble near the container. Gertie fixes things for everyone, and everyone knows it."
+    ]
+  },
+  "Jackson Howard Prep & PS'71": {
+    "kicker": "A rich school that looks down on a poor one",
+    "category": "civic",
+    "text": [
+      "Jackson Howard Executive Preparatory School trains the children of Laguna Velasco's executives and officials. It stands on a lawn deck above the street. A gold art deco front and an arched gold marquee face a row of holographic sculptures. Almost every graduate goes on to an elite university. The school's ads say most end up running something.",
+      "Public School 4071, which everyone calls PS'71, sits one level down in the shade under the deck. It has a grey slab, cold tube lights and too many pupils. The prep students fly toy drones off the deck edge to bother the kids below. Their teachers let them. The PS'71 kids have started to shoot back with slingshots."
+    ]
+  },
+  "Builders' Playground": {
+    "kicker": "A play park older than the blocks",
+    "category": "civic",
+    "text": [
+      "The Builders' Playground was built for the children of the first Beanstalk crews, before Stalingrad had a single block. The barracks grew round it and shut it in. Burned-out husks stand on all four sides, and gangplanks cross over the top. Maintenance lamps on the walls light it a flat, steady white all night.",
+      "Engineered grass grows through the old asphalt. A rusty rocket climber and a swing frame stand in the middle of a small wild wood. Animals live here, and their eyes shine in the trees. Old workers say they played here as children. Few others know the place exists, and the people who find it tend to keep it to themselves."
+    ]
+  }
+}

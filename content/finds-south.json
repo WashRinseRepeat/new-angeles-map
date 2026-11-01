@@ -1,0 +1,50 @@
+{
+  "Scrapper's Square Mural": {
+    "kicker": "The wall the haters cannot paint over",
+    "category": "civic",
+    "text": [
+      "Scrapper's Square is a bare lot of rubble between two empty apartment blocks near Workers' Wall. Drunks and petty thieves gather here after dark. They light trash fires and shout slogans against the androids who took their jobs. Most of them once worked in the factories, and the bots work there now.",
+      "Above the crowd, a giant mural covers the taller wall. It shows a human arm and a bioroid arm reaching up to clasp hands, in cyan and gold. A pro-simulant artist painted it in paint that resists cleaning, and nobody has managed to scrub it off. It is the only colour for blocks around."
+    ]
+  },
+  "Green Valley Boulevard": {
+    "kicker": "The trees are plastic, but the rent went up",
+    "category": "civic",
+    "text": [
+      "Planners and landowners want Chone to have a new name. They call it Green Valley now, and the main boulevard is their proof. Bioplastic trees stand in perfect rows on both sides of the walk, and each one glows from inside after dark. The grass is EverGreen and never needs water. G-modded bushes stay in bloom all year.",
+      "Behind the trees, the old grey slabs look the same as before. The same families live in them, and the same lifts are broken. A bright gantry at the end of the walk welcomes visitors to Green Valley. Most locals still call the place Chone."
+    ]
+  },
+  "Arms and Hammers": {
+    "kicker": "Dumb guns for people who hate smart machines",
+    "category": "shop",
+    "text": [
+      "Arms and Hammers is a squat two-floor shop in Colonche, behind a steel roller shutter and barred windows. Its sign shows a rifle crossed with a sledgehammer in hot orange. The guns on the shelves are simple and the hammers are heavy. Nothing in the shop has a chip in it.",
+      "The regulars belong to anti-simulant groups. They stand on the pavement outside and talk politics late into the night. Quinde has a quiet war between people who welcome bioroids and people who hate them, and this shop arms one side. The owner says he only sells to sportsmen. Bioroids cross the street to avoid the door."
+    ]
+  },
+  "Golem Grove Chop Shops": {
+    "kicker": "Parts in, parts out, no questions",
+    "category": "shop",
+    "text": [
+      "The chop shops crowd an alley just outside Golem Grove. Haas-Bioroid builds bioroids behind the clean steel-blue wall at the back. In the lean-tos against that wall, bioroids come to change themselves. Mechanics swap arms, tune joints and fit optics under cold work lamps. Robot limbs hang from the awnings like meat in a market.",
+      "None of the shops has a licence, and none of the parts has a serial number. Some parts fall off factory trucks. Some come from bioroids who did not choose to sell them. Hand-made signs name what each stall does. Welding sparks light the alley all night, and the corporation next door looks the other way."
+    ]
+  },
+  "La Costa Floating Nightclub": {
+    "kicker": "The best party in La Costa is offshore",
+    "category": "food",
+    "text": [
+      "The floating club sits on a round raft just off the La Costa shore. Shuttle boats run guests out from a small hub on the beach all night, along a line of lit buoys. The dance floor fills a magenta glass drum, and the sea moves under your feet. A cyan bar deck sits on top under a wide canopy. A hologram turns above the canopy, lasers sweep the water, and rings of light spread across the black sea around the raft.",
+      "Risties book the upper deck for the view back to the farmland lights and the city beyond. The bar serves g-modded seafood from the nearby fish farms. The club is one of several water-borne nightspots on this coast, and it is the closest one to the shore. Nobody leaves before the last boat."
+    ]
+  },
+  "G-mod Vineyard": {
+    "kicker": "Grapes that grow in a week",
+    "category": "food",
+    "text": [
+      "The g-mod vineyard climbs a terraced slope at the edge of La Costa's Agricultural Plots. Its vines are tuned to fruit fast and grow sweet in the coastal heat. After dark, a thin line of violet or gold grow-light runs along every row. From far away the slope looks like a striped, glowing hillside among the dark fields.",
+      "A low winery hall stands at the top of the slope, with warm windows and a tasting terrace under string lights. Tourists come by the busload to taste the wine, and risties from the city buy whole cases. The guidebooks list it next to the waterfalls and beach resorts. The owners never say which corporation made the vines."
+    ]
+  }
+}

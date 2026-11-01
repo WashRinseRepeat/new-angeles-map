@@ -1,0 +1,58 @@
+{
+  "Ac!d Dr0p": {
+    "kicker": "The couriers' bar went bad, and busier",
+    "category": "food",
+    "text": [
+      "Ac!d Dr0p is a narrow three-storey bar deep in the neon of New Akiba. Two tall Akiba stacks press in on either side. Acid-green and magenta tubes frame the front, and a glowing drop drips from the roof sign. Bikes and a few hoverbikes crowd the kerb all night. The music is loud and the drinks are strange.",
+      "The bar used to be The Mailroom, a quiet place where couriers traded routes, gossip and job leads. The old mail-slot wall still covers the ground floor, half sprayed over. Then the owners changed overnight. Now runners, thrill-seekers and fixers fill the booths. You can find a job here or a fix. Some nights you find both at the same table."
+    ]
+  },
+  "Shinseibutsu Zoological Garden": {
+    "kicker": "Tiny animals under glass, big fish below",
+    "category": "civic",
+    "text": [
+      "The Shinseibutsu Zoological Garden sits on the roof of a huge aquarium in the Tourist Quarter. The tank stands on stilts above the street, and its glass walls glow blue-green all night. Shoals of fish and tall kelp drift past the glass, and a whale-sized shape glides along the front. Glass lifts carry visitors from the street to the roof.",
+      "Up on the roof, lit paths lead from a tile-roof gate to glass domes. G-modded animals live under the domes. The petting zoo is the favourite part. There, children hold teacup tigers and pocket elephants that never grow up. Jinteki logos sit on the small plaques by each enclosure and each tank, because every animal here is a product."
+    ]
+  },
+  "Jinteki Clone Barracks": {
+    "kicker": "Hundreds of identical rooms, kept very clean",
+    "category": "corp",
+    "text": [
+      "Jinteki's clone barracks lie just below plaza level in the Residential Quarter. High walls close the compound in, and a garden deck covers most of it. Through a wide light-well you look down on long rows of white blocks, all the same, lit in cool even lines. A running track glows along one side.",
+      "Clones wake, eat and jog the same loop on a fixed schedule. Corporate security sweeps the halls and the streets around the walls. So crime stays away, and the nearby undercity is the safest in Nihongai. Residents stroll the garden deck above and rarely look down. When they do, they see clean white light and no one out of line."
+    ]
+  },
+  "Levy University AI Tower": {
+    "kicker": "Where the city's thinking machines learn",
+    "category": "civic",
+    "text": [
+      "Levy University spreads across Laguna Velasco like a small city of halls and quads. It ranks among the ten best universities in the world. Its pride is the AI tower at the centre of the campus. The glass tower rises over two hundred metres, and a cyan lattice core glows through every floor. Pulses of light climb the core all night.",
+      "The best students of artificial intelligence and network architecture work here late into the night. Haas-Bioroid spends heavily to hire them, and its name hangs on the skybridge to the lab block. Recruiters wait at the doors on graduation day. Some students sign before they finish. The lab floors glow blue long after the quads go dark."
+    ]
+  },
+  "Heureka": {
+    "kicker": "Tomorrow's big idea, drawn on a whiteboard",
+    "category": "corp",
+    "text": [
+      "Heureka fills a bright campus in the Manta business belt. White boxes with orange and teal trim stand round a lit courtyard, linked by glass walkways. Young technocrats work in open rooms and on warm roof terraces. A tall orange sign with a light bulb crowns the highest block and faces the street.",
+      "Many people believe Manta will become the next tech hotbed, and Heureka wants to prove them right. The coffee is free and the hours are long. Investors visit every week to see what is new. Most ideas fail. A few sell for millions. The lights stay on late, because nobody here wants to miss the next big thing."
+    ]
+  },
+  "I/O Secure Data, Inc.": {
+    "kicker": "Whatever you build, they keep quiet",
+    "category": "corp",
+    "text": [
+      "I/O Secure Data looks like nothing at all. Its matte black block has no windows, and thin red seams are the only light on it. A fence and floodlights ring the site. There is no door on the street side and no sign you can read from the road. It stands like a dark hole among the bright offices near the Haas Arcology.",
+      "Corporations pay I/O Secure Data to develop their newest research projects and to hide them. Guards check every badge twice at the back gate. Nobody outside knows what is inside, and that is the whole product. Even the delivery drones drop in through a closed bay in the roof."
+    ]
+  },
+  "Esmeraldas Work-Wear Hall": {
+    "kicker": "If you build it yourself, shop here",
+    "category": "shop",
+    "text": [
+      "The Work-Wear Hall is the biggest store in The Streets. Its flat roof is the one big lit shape in a grid of small houses. A glass front shows racks of tools and boots, and a red and yellow sign runs along the fascia. Floodlights keep the car park bright all night, and a pylon sign marks the corner.",
+      "Most Esmeraldans work with their hands, so the district has the best choice of work clothes and gear in the city. The hall sells boots, gloves, hard hats and every tool a builder needs. Contractors fill their trucks at dawn. On weekends, families buy paint and parts to fix their own homes. The staff know most customers by name."
+    ]
+  }
+}

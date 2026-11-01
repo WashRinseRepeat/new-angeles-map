@@ -1,0 +1,1 @@
+{"private":true,"type":"module","dependencies":{"@types/d3-quadtree":"^1.0.13","d3-quadtree":"^1.0.7","esbuild":"^0.21.5","isect":"^3.0.3","jsts":"^2.1.2","loglevel":"^1.9.2","polyk":"^0.24.0","simplex-noise":"^2.4.0","simplify-js":"^1.2.4"}}

@@ -1,0 +1,58 @@
+{
+  "Rutherford Flight Control Tower": {
+    "kicker": "Every hopper in the sky answers here",
+    "category": "civic",
+    "text": [
+      "The flight control tower rises above the starscrapers of Downtown Rutherford like a needle. A wide disc cab sits near the top, ringed with pale green windows, and it watches the whole sky over New Angeles. A radar arm turns on its roof. Red strobes climb the shaft so pilots can find it in smog. At night thin cyan beams fan out from the cab and mark the main hopper lanes.",
+      "Most hopper taxis fly themselves. The traffic algorithms in this tower plan their routes and keep them apart. Human controllers watch for everything the algorithms miss, from private craft to drones with no flight plan. When the tower closes a lane, traffic backs up across the city in minutes. A crew that wants to fly unseen has to fool the people in this cab."
+    ]
+  },
+  "Humanity Labor Main Offices": {
+    "kicker": "Jobs for people, and only for people",
+    "category": "corp",
+    "text": [
+      "Humanity Labor runs its main offices from a plain stone-grey tower in Downtown Rutherford. There are no maintenance androids on its facade, and a big banner screen shows two clasped hands. The agency finds work for human workers and also bargains for them as a union. Each morning job-seekers line up at the doors before the sun clears the towers.",
+      "Humanity Labor has strong political friends, and many politicians answer its calls. It says it has no link to Human First. Few people in the city believe that, because the two groups say the same things about bioroids and androids. The posters in the lobby never show an android. A crew that needs a human-only work crew, or a reason to stir up a protest, starts here."
+    ]
+  },
+  "Junction Gaming: Semyon's Arcade": {
+    "kicker": "Walk into the bear's mouth to play",
+    "category": "shop",
+    "text": [
+      "Semyon's is one of many Junction Gaming arcades in Akeidito. A giant cartoon bear head fills its street front, and a pink and yellow marquee arcs over it. Visitors walk in through the bear's open mouth. Inside, rows of sensedep tanks glow blue. Players climb in and become cute animal heroes on quests across the Sunshine Junction worlds.",
+      "Some of those quests are not games. Semyon bends them so that players solve real netrun problems for his clients, and the players never know. He also rents private game lobbies to gangs and orgcrime as meeting rooms. He says he wipes the records afterwards. A crew can hire him for either service, if it pays well and asks no questions."
+    ]
+  },
+  "NAPD Akeidito Precinct": {
+    "kicker": "Six police buildings that rarely talk",
+    "category": "civic",
+    "text": [
+      "The Akeidito Precinct marks the line between the Heights and the Gallows. It is not one building but a ring of navy blocks, one for each unit, from vice and narcotics to homicide. They stand round a shared glass lobby. The jail sits in the middle and runs down a shaft below the street, deep into the undercity.",
+      "An AI receptionist greets visitors in the lobby. Next to it, a public bounty board lists fresh targets all day. The police here are overwhelmed, so bounty hunters do much of the real work. The units compete for cases more than they share them, and each one guards its own files. A crew that plays one unit against another can learn a lot."
+    ]
+  },
+  "Botanical Gardens": {
+    "kicker": "A jungle in glass bubbles",
+    "category": "civic",
+    "text": [
+      "The Botanical Gardens fill a cluster of glass spheres that run into each other. Jinteki and NBN run them together. Gravel paths wind through a dense jungle of real and engineered plants under a holographic blue sky. That sky stays on at night, so the largest sphere glows like a blue bead above Akeidito. Visitors rarely notice when a path moves from one sphere to the next.",
+      "Jinteki butterflies and bees pollinate the plants. Rats and other pests found their own way in, and they have adapted to life in the glass. Catwalks and service tunnels run inside the walls, out of sight of the paths. Staff use them to tend the domes. Other people use them to meet or to vanish for an hour."
+    ]
+  },
+  "Hivic Channel": {
+    "kicker": "A rain-soaked river of condensate",
+    "category": "civic",
+    "text": [
+      "Every building in New Angeles runs air conditioning, and the runoff has to go somewhere. Hivic Channel carries Akeidito's share out of the city. It is a long slot cut down through the plaza decks, one of the few deep places open to the sky. At its head, three huge outfall pipes pour condensate down the wall. More drips from the decks above, so it rains here without stop. The water runs fast, grey and streaked with oil.",
+      "The poorest people in Akeidito live in shacks along its banks and on a ledge halfway up the walls. They barter instead of paying, and they grow pale mushrooms with the tainted water. Few police come down here. A person who wants to drop out of sight can find a dry corner and a meal, as long as they bring something to trade."
+    ]
+  },
+  "Akeidito Community College": {
+    "kicker": "A temple college on giant pillars",
+    "category": "civic",
+    "text": [
+      "Akeidito Community College sits where the Heights meet the Gallows. Giant buckycomposite pillars hold its main hall high above a ring of open plazas. The halls wear the tiered roofs of old Korean temples, with amber lights along each eave. Mirrors and emitters bounce a little real sunlight down to the quad, and students crowd the benches below.",
+      "The college never has enough money. Scaffolding never leaves its walls, and repairs always run late. The students are sharp anyway, and they argue about research late into the night. A famous anarch netrunner hunts for talent here. A crew that needs a cheap, clever hacker with no corporate ties can find one between classes."
+    ]
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "Base de Cayambe NAPD Precinct": {
+    "kicker": "A police tower with too few police",
+    "category": "civic",
+    "text": [
+      "The Base de Cayambe precinct towers over Oldtown. It looks strong from the street. A blast wall guards the doors, slit windows run up the faces, and police hoppers land on the roof. The blue NAPD sign at the crown stays lit all night, and you can see it from most of the Base.",
+      "Inside, half the floors stand empty, because the precinct never has enough officers. Commissioner Sarah Watson runs it like an outpost in hostile land. Los Scorpiones run the streets outside and sell protection to the shops. Most locals see trouble and keep walking. They know the patrols will not come back soon."
+    ]
+  },
+  "Old City Hall": {
+    "kicker": "The government left, the dome stayed",
+    "category": "civic",
+    "text": [
+      "Old City Hall still stands in the middle of Oldtown. The city government moved to Laguna Velasco years ago and left the building behind. The dome, the colonnade and the clock tower stayed, and the clock still keeps time. Scaffolding climbs one wing, as it does on half the buildings in the Base, but nobody seems to work on it.",
+      "Now shops and cheap offices rent the old chambers, and food stalls fill the arcade under the columns. Tourists on their way up to the Root stop for a photo of the dome. The clock is often wrong. Nobody in Oldtown is in a hurry to fix it, and the stallholders set their own hours anyway."
+    ]
+  },
+  "Watts-Watson Neo-Broadway Yard": {
+    "kicker": "Bare towers and cranes that never sleep",
+    "category": "corp",
+    "text": [
+      "Watts-Watson Industrial Solutions owns most of the cranes in the Base. The company bought what Weyland left behind when the Beanstalk opened and became the district's main developer. Neo-Broadway is its biggest promise. Tower frames rise over cheap housing here, open to the wind, with no walls yet. Trucks bring steel in at all hours.",
+      "Work floods burn all night on the live sites, and red lights blink on the crane tips. The tallest crane swings slowly over the yard. One frame stopped years ago and has gone to rust. The hoarding on the street still says the district opens soon. Locals bet on which tower will open first, and nobody has won yet."
+    ]
+  },
+  "Ani-Ink & Famous Faces": {
+    "kicker": "Glow ink and borrowed faces on Mercado lane",
+    "category": "shop",
+    "text": [
+      "Ani-Ink and Famous Faces face each other across a lane at the north edge of Mercado Baja. Both are small body-mod shops that keep the work light. Ani-Ink sells moving tattoos, glow ink and small g-mods. Its pink tattoo-gun sign points at the street from the roof, and you can see it from the market stalls.",
+      "Famous Faces sells cheap face work, so you can look a little like your favourite holostar. A wall of celebrity holos changes every few seconds over the door. Neither shop cuts deep. Both take credits and favours. The queue is longest on payday, and the prices are fair if you haggle."
+    ]
+  },
+  "Oldtown Hotel Row": {
+    "kicker": "Cheap beds on the road to the Root",
+    "category": "shop",
+    "text": [
+      "Hotel Row runs through Oldtown on the road up to the Root. Narrow hotels stand shoulder to shoulder, and each one hangs a vertical HOTEL sign over the street. At night the signs make a long lit spine that you can follow from the plaza. Travellers with economy tickets stay here while they wait for their beanpod.",
+      "The rooms are small and the beds are clean. Families run the restaurants downstairs and cook the dishes their grandparents cooked. Signs in many languages point the way to the Root. Every morning the row empties toward the Beanstalk, and every night it fills up again with new faces and new bags."
+    ]
+  },
+  "Benny's CultiMeats Shack": {
+    "kicker": "Lab-grown burgers under the Neo-Broadway cranes",
+    "category": "food",
+    "text": [
+      "Benny's is a one-storey diner and bar squeezed between tenements near the Neo-Broadway sites. An old neon burger sign pulls it out of the dark. Crane crews eat here after shift, and Scorpiones runners eat at the next table. The meat of the day is engineered, natural or something in between, and it is worth the walk.",
+      "Benny used to engineer meat for Jinteki. Now he buys stock off the back of lab trucks on their way down from the Root. The homebrew is bad, but nobody tells Benny. People from uptown come here to make quiet deals. Everyone stays polite, because Benny is large and keeps guns hidden all over the room."
+    ]
+  },
+  "Gracie's Gearheads": {
+    "kicker": "A wedge-shaped hopper shop that asks no questions",
+    "category": "shop",
+    "text": [
+      "Gracie's Gearheads sits on a wedge of land beside the highway, where hopper lanes meet over the freight traffic. The upper floor is a row of roll-up garage doors, and hoppers fly straight in. Technicians strip and fix vehicles day and night under white work lights. Welding torches flicker blue in the back bays.",
+      "Any criminal can bring work here, as long as they pay and behave. Gracie herself is small, gruff and always greasy. She is also an escaped clone. She quietly helps runaway clones and bioroids leave the city in the backs of repaired hoppers, and very few people know it. She would like to keep it that way."
+    ]
+  }
+}

@@ -1,0 +1,466 @@
+{
+ "lines": [
+  {
+   "t": 0.0,
+   "d": 4.6,
+   "who": "GUIDE",
+   "text": "Somewhere in this square, right now, a camera is pointed at you."
+  },
+  {
+   "t": 4.95,
+   "d": 2.31,
+   "who": "GUIDE",
+   "text": "But don't worry. You look wonderful!"
+  },
+  {
+   "t": 9.12,
+   "d": 6.5,
+   "who": "GUIDE",
+   "text": "Welcome to New Angeles, the greatest city on Earth, and the only one with a ladder to the sky!"
+  },
+  {
+   "t": 15.97,
+   "d": 8.07,
+   "who": "GUIDE",
+   "text": "I'm Carmen, your NBN-certified guide, and this episode is brought to you by NBN. Always on. Always for you."
+  },
+  {
+   "t": 24.39,
+   "d": 5.56,
+   "who": "GUIDE",
+   "text": "Today we're in Rutherford, the New Angeles you've seen on every screen you've ever owned."
+  },
+  {
+   "t": 30.3,
+   "d": 6.5,
+   "who": "GUIDE",
+   "text": "And we'll answer a simple question. What does it take to live at the top of the world, and who keeps it shining?"
+  },
+  {
+   "t": 38.14,
+   "d": 9.77,
+   "who": "GUIDE",
+   "text": "This is Broadcast Square, the heart of New Angeles. Several square kilometres of plaza, no traffic, and crowds at every hour of the day."
+  },
+  {
+   "t": 48.26,
+   "d": 9.64,
+   "who": "GUIDE",
+   "text": "The towers around it are so tall they hide the sun. Nobody minds, because every surface glows with news, shows and adverts, day and night."
+  },
+  {
+   "t": 58.25,
+   "d": 8.55,
+   "who": "GUIDE",
+   "text": "The tower in front of you is NBN Headquarters. Its whole outside is one single screen, playing hundreds of channels at once."
+  },
+  {
+   "t": 67.16,
+   "d": 9.02,
+   "who": "GUIDE",
+   "text": "And that is only a small part of what NBN broadcasts. More than half of the best-loved shows on three worlds start inside this building."
+  },
+  {
+   "t": 76.53,
+   "d": 6.34,
+   "who": "GUIDE",
+   "text": "Inside, the atrium is pure white, and perfectly quiet. All that noise is for the outside."
+  },
+  {
+   "t": 84.22,
+   "d": 4.49,
+   "who": "GUIDE",
+   "text": "At the foot of the tower lies Central Plaza, the raised part of the square."
+  },
+  {
+   "t": 89.06,
+   "d": 7.13,
+   "who": "GUIDE",
+   "text": "When New Angeles has something to say, it comes here to say it. Rallies, vigils, the occasional protest."
+  },
+  {
+   "t": 96.54,
+   "d": 7.57,
+   "who": "GUIDE",
+   "text": "And NBN's own reporters often stand right in the crowd, to remind everyone that NBN is on the public's side."
+  },
+  {
+   "t": 104.46,
+   "d": 10.45,
+   "who": "GUIDE",
+   "text": "Broadcast Square is also the safest square in the city. Drones, cameras and NAPD patrols see to that. As NBN likes to say, the world is watching."
+  },
+  {
+   "t": 116.26,
+   "d": 8.79,
+   "who": "GUIDE",
+   "text": "Across the square squats a steel beehive, the New Angeles Stock Exchange, where the wealth of three worlds changes hands every day."
+  },
+  {
+   "t": 125.4,
+   "d": 8.89,
+   "who": "GUIDE",
+   "text": "The brokers on the floor still shout, for tradition. The real trading is done by AIs, millions of trades a day, faster than any human thought."
+  },
+  {
+   "t": 134.63,
+   "d": 9.66,
+   "who": "GUIDE",
+   "text": "Firms even pay extra for servers closer to the main computer, because a few metres of cable cost them a few nanoseconds, and nanoseconds cost money."
+  },
+  {
+   "t": 144.65,
+   "d": 9.34,
+   "who": "GUIDE",
+   "text": "Here in Broadcasters' Corporate Park, the media firms rent their offices in vertical slices. The interns work at the bottom, and the bosses sit at the top."
+  },
+  {
+   "t": 154.33,
+   "d": 6.02,
+   "who": "GUIDE",
+   "text": "In Rutherford you can always tell someone's rank. Just ask which floor they can reach without a pass."
+  },
+  {
+   "t": 161.7,
+   "d": 6.73,
+   "who": "GUIDE",
+   "text": "That needle above everything is City Flight Control. On cloudy days its top disappears completely."
+  },
+  {
+   "t": 168.79,
+   "d": 8.19,
+   "who": "GUIDE",
+   "text": "Up in its cab, a two-storey hologram of the whole city tracks every registered hopper in the sky, in real time."
+  },
+  {
+   "t": 177.33,
+   "d": 9.12,
+   "who": "GUIDE",
+   "text": "Look along any tower and you'll see a belt of hopper pads, a few floors above the plaza. In Rutherford, people with places to be don't take the stairs."
+  },
+  {
+   "t": 186.8,
+   "d": 9.49,
+   "who": "GUIDE",
+   "text": "And the most exclusive towers have no entrance from below at all. You arrive by hopper, or by skywalk, or you don't arrive."
+  },
+  {
+   "t": 197.64,
+   "d": 3.69,
+   "who": "GUIDE",
+   "text": "So, what's it like up there? Let me paint you a picture."
+  },
+  {
+   "t": 201.68,
+   "d": 10.31,
+   "who": "GUIDE",
+   "text": "A luxury arcology is a city of its own, with its own water, its own power, its own parks and beaches. Some residents go years without coming down."
+  },
+  {
+   "t": 212.35,
+   "d": 6.19,
+   "who": "GUIDE",
+   "text": "Android staff anticipate every wish, and clones cook the dishes that need a gentle hand."
+  },
+  {
+   "t": 218.89,
+   "d": 9.64,
+   "who": "GUIDE",
+   "text": "The steak comes from real grass-fed cattle. The fruit is grown in actual sunlight. And dinner arrives on crystal as thin as a fingernail."
+  },
+  {
+   "t": 228.88,
+   "d": 11.73,
+   "who": "GUIDE",
+   "text": "Business happens on hologolf courses. The children ride roller coasters that drop through hundreds of floors. And there is a gala every night, for any reason at all."
+  },
+  {
+   "t": 240.96,
+   "d": 7.73,
+   "who": "GUIDE",
+   "text": "The highest floors rise above the clouds. When a storm comes, great vanes fold over the roof decks, and the party carries on."
+  },
+  {
+   "t": 250.04,
+   "d": 7.2,
+   "who": "GUIDE",
+   "text": "And when the people at the top go shopping, they come down to La Concordia, the finest market street in New Angeles."
+  },
+  {
+   "t": 257.6,
+   "d": 10.05,
+   "who": "GUIDE",
+   "text": "Smartfabrics from Mumbad that change colour and cut with every season, for a small fee each time. Designer cybernetics, fitted while you wait."
+  },
+  {
+   "t": 268.0,
+   "d": 8.72,
+   "who": "GUIDE",
+   "text": "In Rutherford, anyone with credits can pay to look like a sensie star. Many do. You'll see the same nose on three people before lunch."
+  },
+  {
+   "t": 277.07,
+   "d": 5.46,
+   "who": "GUIDE",
+   "text": "Bioroid couriers carry the bags home, so your hands stay free for the next shop."
+  },
+  {
+   "t": 283.93,
+   "d": 5.32,
+   "who": "AD",
+   "text": "Your news. Your shows. Your life, beautifully curated."
+  },
+  {
+   "t": 289.6,
+   "d": 4.45,
+   "who": "AD",
+   "text": "NBN knows what you love before you do, so you never miss a thing."
+  },
+  {
+   "t": 294.4,
+   "d": 3.58,
+   "who": "AD",
+   "text": "NBN. Always on. Always for you."
+  },
+  {
+   "t": 298.33,
+   "d": 12.39,
+   "who": "AD",
+   "text": "Content tailored using your viewing, purchasing, location and biometric data. Data may be shared with partners, employers and the NAPD. Opting out requires leaving the Network. NBN is not responsible for what you see."
+  },
+  {
+   "t": 312.11,
+   "d": 9.71,
+   "who": "GUIDE",
+   "text": "Of course, Rutherford isn't only risties. Hundreds of thousands of office workers keep its towers running, and many of them work for NBN."
+  },
+  {
+   "t": 322.17,
+   "d": 7.2,
+   "who": "GUIDE",
+   "text": "Below the plaza, factories make the very clothes and gadgets sold in the shops above. It's wonderfully efficient."
+  },
+  {
+   "t": 329.72,
+   "d": 9.74,
+   "who": "GUIDE",
+   "text": "A family down there lives on about what a ristie spends on one good lunch. But NBN's rags-to-riches shows prove that anyone can make it to the top. Several people have."
+  },
+  {
+   "t": 339.81,
+   "d": 10.06,
+   "who": "GUIDE",
+   "text": "This plain grey tower belongs to Humanity Labor, the city's biggest union for human workers. It's only seventy-five storeys, which here counts as modest."
+  },
+  {
+   "t": 350.22,
+   "d": 8.57,
+   "who": "GUIDE",
+   "text": "Every morning, job-seekers queue at its doors, on the most valuable land somewhere desirable in the three worlds. It's a very motivated city."
+  },
+  {
+   "t": 360.13,
+   "d": 5.46,
+   "who": "GUIDE",
+   "text": "Let's ask a local! Greta has worked the top floors of Rutherford for twelve years."
+  },
+  {
+   "t": 366.24,
+   "d": 5.91,
+   "who": "GRETA",
+   "text": "Weddings, launches, birthdays. I've been to every big party in this district."
+  },
+  {
+   "t": 372.5,
+   "d": 1.29,
+   "who": "GRETA",
+   "text": "Through the service lift."
+  },
+  {
+   "t": 374.14,
+   "d": 6.67,
+   "who": "GRETA",
+   "text": "Up there, I once saw a woman change the colour of her dress four times in one evening, because her feed told her to."
+  },
+  {
+   "t": 381.17,
+   "d": 7.02,
+   "who": "GRETA",
+   "text": "Then I take the Clay line home. Forty minutes down, and when I get there, the sun is gone already."
+  },
+  {
+   "t": 388.84,
+   "d": 3.3,
+   "who": "GUIDE",
+   "text": "Thank you, Greta! The people behind the magic, everyone."
+  },
+  {
+   "t": 392.49,
+   "d": 7.72,
+   "who": "GUIDE",
+   "text": "When I was a little girl in Guayaquil, I watched this square every night on my grandmother's screen. I thought everybody in Rutherford lived at the top."
+  },
+  {
+   "t": 400.56,
+   "d": 2.16,
+   "who": "GUIDE",
+   "text": "Ha! Well. Some of them do!"
+  },
+  {
+   "t": 404.07,
+   "d": 7.76,
+   "who": "GUIDE",
+   "text": "South and east of the square lies Akeidito, Rutherford's arcade quarter. The name comes from the Korean word for arcade."
+  },
+  {
+   "t": 412.18,
+   "d": 9.92,
+   "who": "GUIDE",
+   "text": "Old tiered facades, a Kwiky Seven on every corner, and more games than you could play in a lifetime. NBN made and owns most of them, naturally."
+  },
+  {
+   "t": 422.46,
+   "d": 8.33,
+   "who": "GUIDE",
+   "text": "At Semyon's Arcade you walk in through a giant bear's mouth. Children love it, and so do grown-ups who should be at work."
+  },
+  {
+   "t": 431.13,
+   "d": 18.74,
+   "who": "GUIDE",
+   "text": "And for the more spiritually minded or to pray for the next highscore, you can go next door to the Big Church. The omnidenominational Church rents itself to any faith that pays, by the hour. A chapel at ten, a mosque at eleven, a satanic temple at midnight. Do check the schedule before you kneel."
+  },
+  {
+   "t": 451.23,
+   "d": 2.58,
+   "who": "GUIDE",
+   "text": "Time for \"Speak like a local!\""
+  },
+  {
+   "t": 454.15,
+   "d": 8.06,
+   "who": "GUIDE",
+   "text": "Ristie. From aristocrat. Anyone who lives high in a secure tower. Use it with a smile, but maybe not to their face."
+  },
+  {
+   "t": 462.56,
+   "d": 7.38,
+   "who": "GUIDE",
+   "text": "Prisec. Private security. In the best towers there are more prisec than police, and they're much better dressed."
+  },
+  {
+   "t": 470.3,
+   "d": 9.79,
+   "who": "GUIDE",
+   "text": "And sensie. A show you don't watch, you feel. The star tastes the champagne, and so do you. Experience them in the arcade square!"
+  },
+  {
+   "t": 481.43,
+   "d": 8.06,
+   "who": "GUIDE",
+   "text": "Rutherford is the face New Angeles shows the world. Every evening, millions of people on three worlds look at it and dream."
+  },
+  {
+   "t": 489.84,
+   "d": 4.68,
+   "who": "GUIDE",
+   "text": "Next time we head north to Esmeraldas, where the city builds and ships."
+  },
+  {
+   "t": 494.87,
+   "d": 3.78,
+   "who": "GUIDE",
+   "text": "Then on to Nihongai, where it plays and grows."
+  },
+  {
+   "t": 499.0,
+   "d": 7.67,
+   "who": "GUIDE",
+   "text": "Want to know how the other half lives? Look for our special edition, Risties, a Field Guide to the Rich, wherever you get your NBN audio."
+  },
+  {
+   "t": 507.02,
+   "d": 4.59,
+   "who": "GUIDE",
+   "text": "This was Carmen. Stay bright, stay safe, and stay on plaza level."
+  }
+ ],
+ "cams": [
+  {
+   "t": 0.0,
+   "cue": "orbit \"NBN Headquarters\" t=8.8 az=250 turn=-60 el=2.5 el2=.55 r=700 blend=0"
+  },
+  {
+   "t": 8.77,
+   "cue": "dolly \"NBN Headquarters\" t=29 az=250 el=.6 r=1100 push=350"
+  },
+  {
+   "t": 37.79,
+   "cue": "dolly \"NBN Headquarters\" t=46 az=295 el=.25 r=450 rise=220"
+  },
+  {
+   "t": 83.87,
+   "cue": "dolly \"Central Plaza\" t=32 az=150 el=1.6 r=220 push=90 rise=-50"
+  },
+  {
+   "t": 115.91,
+   "cue": "pan \"New Angeles Stock Exchange\" t=28.4 az=290 el=.3 r=320 tilt=10"
+  },
+  {
+   "t": 144.3,
+   "cue": "dolly \"Broadcasters' Corporate Park\" t=17 az=40 el=.25 r=400 rise=140"
+  },
+  {
+   "t": 161.35,
+   "cue": "pan \"Rutherford Flight Control Tower\" t=36 az=120 el=.1 r=650 tilt=24"
+  },
+  {
+   "t": 197.29,
+   "cue": "spiral \"Jade Light Arcology\" t=52 turns=1.25 r=260 az=90"
+  },
+  {
+   "t": 249.69,
+   "cue": "dolly \"La Concordia\" t=33.8 az=180 el=1.1 r=180 side=110"
+  },
+  {
+   "t": 283.53,
+   "cue": "pan \"NBN Headquarters\" t=28.6 az=200 el=.12 r=480 tilt=28 turn=-10"
+  },
+  {
+   "t": 312.11,
+   "cue": "dolly \"Humanity Labor Main Offices\" t=47.7 az=16 el=.75 r=330 push=-160 rise=120"
+  },
+  {
+   "t": 359.78,
+   "cue": "dolly \"Broadcasters' Corporate Park\" t=44 az=220 el=.6 r=420 side=-220"
+  },
+  {
+   "t": 403.72,
+   "cue": "view \"Junction Gaming: Semyon's Arcade\" spin=0"
+  },
+  {
+   "t": 430.78,
+   "cue": "view \"Big Church\""
+  },
+  {
+   "t": 450.88,
+   "cue": "district \"Rutherford\" t=5"
+  },
+  {
+   "t": 481.08,
+   "cue": "wide t=6"
+  },
+  {
+   "t": 489.49,
+   "cue": "district \"Esmeraldas\" t=4"
+  },
+  {
+   "t": 494.52,
+   "cue": "district \"Nihongai\" t=4"
+  },
+  {
+   "t": 498.65,
+   "cue": "view \"NBN Headquarters\" t=10"
+  }
+ ]
+}

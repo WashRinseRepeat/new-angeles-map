@@ -1,0 +1,632 @@
+// Layers, labels, pins, the place card, the tuning panel and the frame loop. Entry point.
+
+import * as THREE from 'three';
+import { updateFireworks } from './fireworks.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { S, H } from './state.js';
+import { CITY, DX, DZ, PLACES, PLAZA_R, STALK, STALK_PLACE, STANDALONE, STYLES, density, hash, inMercado, lerp, rng, smooth, styleAt, vnoise } from './core.js';
+import { FOG, FOG_BASE, LOCK, QUALITY, SURFACE, U, applyQuality, bloom, camera, composer, controls, fadeTwin, flatGeo, hemi, label, labelRoot, labels, lockCamera, moon, renderer, scene } from './render.js';
+import { DETAIL_R, SHAPES, TILE, TILES, glows, pools, put, signs, yawAt } from './instances.js';
+import { ARCHETYPES, MERGED_MAT, TALLY, decor, insidePoly, merged } from './grammar.js';
+import { rideFocus, rideTick, riding } from './ride.js';
+import { STREETS, TRAFFIC, cars, climbers, hwCars, hwTraffic, moveCars, nearHighway, stalk, sweep, track, uploadUsed } from './transport.js';
+import { BLOCK_MAX, CITYTUNE, FRAMES, QUERY, SITES, frontOf, generate } from './generator.js';
+import { LANDMARKS, LANDMARK_LABELS } from './api.js';
+import { UNDER, UNDER_LABELS, buildUnder, centroidOf } from './undercity.js';
+import { initNav } from './nav.js';
+
+// ---------- layers: a horizontal slice through the city ----------
+
+export const LAYERS = { all: 600, undercity: -.5 };
+export const clipPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 1e5);
+export let layer = 'all', clipTop = 600, cutOpen = false;
+export function setLayer(name) {
+
+  // The first switch to the undercity waits one frame, so the button shows its busy state while the build runs.
+
+  if (name === 'undercity' && !UNDER.children.length) {
+    document.body.classList.add('busy');
+    return setTimeout(() => { buildUnder(); document.body.classList.remove('busy'); setLayer(name); }, 50);
+  }
+  layer = name;
+  const under = name === 'undercity';
+  for (const m of SURFACE) m.visible = !under;
+  UNDER.visible = under;
+  U.uMistBase.value = under ? -30 : 0;
+  for (const el of UNDER_LABELS) el.obj.visible = under;
+  for (const b of document.querySelectorAll('[data-layer]')) b.classList.toggle('on', b.dataset.layer === name);
+}
+for (const b of document.querySelectorAll('[data-layer]')) b.onclick = () => setLayer(b.dataset.layer);
+if (LAYERS[QUERY.get('layer')] !== undefined) { setLayer(QUERY.get('layer')); clipTop = LAYERS[QUERY.get('layer')]; }
+
+// ---------- labels, pins, card ----------
+
+
+export const QUARTER_LABELS = [];
+for (const q of CITY.quarters ?? []) {
+  const c = centroidOf(q.poly);
+  QUARTER_LABELS.push(label(q.name, 'district quarter', new THREE.Vector3(c[0], 70, c[1])));
+}
+export const DISTRICT_LABELS = new Map();
+for (const d of CITY.districts) {
+  const c = d.poly.reduce((a, [x, z]) => [a[0] + x / d.poly.length, a[1] + z / d.poly.length], [0, 0]);
+  DISTRICT_LABELS.set(d.id, label(d.name.replace(/\s+District$/i, ''), 'district', new THREE.Vector3(c[0], 160, c[1])));
+}
+
+// A pin holds a campaign place and its label. It draws nothing; the label marks the place.
+
+export const pins = [];
+for (const p of [...PLACES, STALK_PLACE].filter(p => p.top)) {
+  const pin = new THREE.Object3D();
+  pin.userData = { place: p, base: p.top.y + (p === STALK_PLACE ? 30 : 14) };
+  pin.position.copy(p.top);
+  pins.push(pin);
+  const el = label(p.title, 'place', new THREE.Vector3(p.top.x, pin.userData.base + 6, p.top.z), p.color);
+  el.place = p;
+  pin.userData.label = el;
+}
+
+export const card = document.getElementById('card');
+let shownPlace = null;
+
+// Minimizing keeps only the title, so the map stays clear on a phone. A new selection opens the card in full.
+
+const cMin = document.getElementById('cMin');
+cMin.onclick = () => { cMin.textContent = card.classList.toggle('min') ? '+' : '–'; cMin.ariaLabel = card.classList.contains('min') ? 'Expand card' : 'Minimize card'; };
+document.getElementById('close').onclick = () => {
+  card.style.display = 'none';
+  shownPlace = null;
+  rideFocus(null);
+  if (home) { flyCam(home.t, home.c); home = null; }
+};
+
+// A tour that takes the camera closes the card quietly, without the flight back.
+
+export function hideCard() {
+  card.style.display = 'none';
+  shownPlace = home = null;
+}
+// The spike runs from the repo root locally and as /map/ next to the built site.
+
+export const LOCAL = location.pathname.includes('/spikes/');
+if (STANDALONE) document.getElementById('back').hidden = true;
+else if (LOCAL) document.getElementById('back').href = 'http://localhost:1313/';
+
+// A selected place fills the view from its street side. Closing the card flies back to the view before.
+
+let home = null;
+
+// True when a building stands on the line from the camera spot to within r of the target.
+
+const sight = new THREE.Raycaster(), seen = new THREE.Vector3();
+function blocked(at, dir, dist, r) {
+  sight.set(seen.copy(at).addScaledVector(dir, dist), dir.clone().negate());
+  sight.far = dist - r;
+  const walls = new Set(Object.values(SHAPES).map(s => s.material));
+  const solid = TILES.filter(t => !t.detail && walls.has(t.mesh.material)).map(t => t.mesh);
+  if (merged) solid.push(merged);
+  return sight.intersectObjects(solid, false).length > 0;
+}
+// face, a world direction from the place toward the camera, overrides the place's own front.
+
+export function viewPlace(p, dur, face) {
+  const h = p.top.y, f = p.frame;
+  if (!f) return flyTo(new THREE.Vector3(p.top.x, h * .5, p.top.z), THREE.MathUtils.clamp(h * 2.6, 150, 1600), null, dur);
+  const half = Math.min(camera.fov, 2 * THREE.MathUtils.radToDeg(Math.atan(Math.tan(camera.fov * Math.PI / 360) * (camera.aspect || 1)))) * Math.PI / 360;
+  const cap = f.face ? 400 : 120, r = Math.max(Math.hypot(Math.min(f.w, cap), Math.min(f.d, cap)) / 2, h * .6);
+  const { x, z } = f.face ? { x: f.face[0], z: f.face[1] } : PLACES.includes(p) ? { x: 0, z: 1 } : frontOf(f), dir = new THREE.Vector3(x * f.c + z * f.s, .75, -x * f.s + z * f.c).normalize();
+  const dist = THREE.MathUtils.clamp(r / Math.sin(half) * 1.1, 60, 1600), at = new THREE.Vector3(f.cx, h * .35, f.cz);
+
+  // A tower between the camera and the place tilts the view steeper, up to almost top-down.
+
+  if (face) dir.copy(face).normalize();
+  const flat = new THREE.Vector2(dir.x, dir.z).normalize();
+  for (const up of face ? [] : [.75, 1.5, 3, 8]) {
+    dir.set(flat.x, up, flat.y).normalize();
+    if (!blocked(at, dir, dist, r)) break;
+  }
+
+  flyTo(at, dist, dir, dur);
+}
+export function select(p) {
+  if (card.style.display !== 'block' && !riding()) home = { t: controls.target.clone(), c: camera.position.clone() };
+
+  // Campaign places carry a slug, an image and a page. District and landmark cards may have neither,
+  // can hold several paragraphs, and bring their own camera move.
+
+  const img = document.getElementById('cImg'), link = document.getElementById('cLink');
+  img.hidden = !p.slug || STANDALONE;
+  if (!img.hidden) { img.onerror = () => { img.hidden = true; }; img.src = `${LOCAL ? '/content/images/' : '../images/'}${p.slug}.png`; }
+  document.getElementById('cDist').textContent = (p.district ?? '').replace(/\s+District$/i, '');
+  document.getElementById('cTitle').textContent = p.title;
+  document.getElementById('cType').textContent = p.type ?? '';
+  const sum = document.getElementById('cSum');
+  sum.replaceChildren(...[p.summary ?? ''].flat().map(t => Object.assign(document.createElement('p'), { textContent: t })));
+  const href = p.link ?? (p.slug && !STANDALONE && `${LOCAL ? 'http://localhost:1313/locations/' : '../locations/'}${p.slug}/`);
+  link.hidden = !href;
+  if (href) link.href = href;
+  card.classList.remove('min'); cMin.textContent = '–';
+  card.style.display = 'block';
+  shownPlace = p;
+
+  // On the train the camera stays aboard and turns to follow the place.
+
+  if (riding()) rideFocus(p);
+  else if (p.view) p.view(); else viewPlace(p);
+
+  // The orbit locks on where the card's camera lands. A place or landmark also thins out what stands in front,
+  // on the map and on the train.
+
+  lockAt = riding() ? null : (fly?.toT ?? controls.target).clone();
+  fadeOn = !!p.top;
+  if (fadeOn) focusOn(p);
+}
+let lockAt = null, fadeOn = false, tourFocus = false;
+
+// The fade box wraps a place's lot up to its top, or the Root's base. A place without a lot gets a 20 m box.
+
+function focusOn(p) {
+  const F = U.uFocus.value, B = U.uFocusB.value, K = U.uFocusK.value;
+  if (p === 'root') { F.set(STALK.x, 200, STALK.y, 30); B.set(90, 200, 90); K.x = 1; K.y = 0; return; }
+  const f = p.frame, h = Math.max(p.top.y, 10);
+  F.set(f?.cx ?? p.top.x, h / 2, f?.cz ?? p.top.z, 12);
+  B.set(f ? Math.min(f.w, BLOCK_MAX) / 2 - 2 : 10, h / 2, f ? Math.min(f.d, BLOCK_MAX) / 2 - 2 : 10);
+  K.x = f?.c ?? 1; K.y = f?.s ?? 0;
+}
+
+// An audio tour names the subject of each shot: a place, 'root' or null.
+
+export function tourFade(s) {
+  tourFocus = !!s;
+  if (s) focusOn(s);
+}
+
+// The compass needle points to map north, world -z. A click turns the view north up about the same target.
+
+const needle = document.getElementById('needle'), UP_Y = new THREE.Vector3(0, 1, 0);
+let spin = null, needleDeg = null;
+document.getElementById('compass').onclick = () => {
+  const o = camera.position.clone().sub(controls.target);
+  spin = { t: 0, turn: -Math.atan2(o.x, o.z) };
+};
+function turnCompass(dt) {
+  if (spin) {
+    const e = x => 1 - (1 - x) ** 3, t = Math.min(1, spin.t + dt / .8);
+    camera.position.sub(controls.target).applyAxisAngle(UP_Y, spin.turn * (e(t) - e(spin.t))).add(controls.target);
+    spin.t = t;
+    if (t >= 1) spin = null;
+  }
+  const deg = Math.round(THREE.MathUtils.radToDeg(Math.atan2(camera.position.x - controls.target.x, camera.position.z - controls.target.z)));
+  if (deg !== needleDeg) needle.setAttribute('transform', `rotate(${needleDeg = deg} 22 22)`);
+}
+
+export let fly = null;
+export const flying = () => !!fly;
+const flyCam = (toT, toC, dur = 1.2) => { fly = { t: 0, dur, fromT: controls.target.clone(), toT, fromC: camera.position.clone(), toC }; };
+export function flyTo(target, dist = 150, dir = null, dur = 1.2) {
+  if (!dir) { dir = camera.position.clone().sub(controls.target).normalize(); dir.y = Math.max(dir.y, .55); dir.normalize(); }
+  flyCam(target.clone(), target.clone().addScaledVector(dir, dist), dur);
+}
+
+export const FOCUS = PLACES.find(p => p.slug === QUERY.get('focus'));
+if (FOCUS) { controls.target.set(FOCUS.x, 10, FOCUS.z); camera.position.set(FOCUS.x + 110, 190, FOCUS.z + 150); select(FOCUS); }
+
+window.spike = { H, generate, renderer, composer, TILES: () => TILES, getSites: () => SITES, scene, CITY, density, styleAt, STYLES, getMerged: () => merged, TALLY, ARCHETYPES, SHAPES, select, PLACES, STALK_PLACE, camera, controls, track, FRAMES, nearHighway, STALK, PLAZA_R };
+
+export const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
+export let down = null;
+// A second finger turns the touch into a gesture, so lifting it never selects.
+
+// Touching the map stops a flight, so gestures never fight it.
+
+renderer.domElement.addEventListener('pointerdown', e => { down = e.isPrimary ? [e.clientX, e.clientY] : null; fly = spin = null; });
+renderer.domElement.addEventListener('wheel', () => { fly = null; }, { passive: true });
+
+// Labels thin out where they would crowd. Every sixth frame each label is projected to the screen and accepted in
+// priority order: the open card's place, district names, quarters, campaign places, then landmarks, nearest first.
+// A label whose box overlaps an accepted one fades out. Places and landmarks also fade beyond their range, so
+// they appear as the camera comes closer.
+
+let declutterTick = 0;
+const labelCam = new THREE.Matrix4();
+const PLACE_RANGE = 2200, MARK_RANGE = 1600, _lp = new THREE.Vector3();
+// A label's width is read once, because each read after a class change forces a layout. Fonts that finish
+// loading later change the widths, so they are read again then.
+
+let widthGen = 0;
+document.fonts?.ready.then(() => { widthGen++; });
+function declutter() {
+  const cands = [], W = innerWidth, Hgt = innerHeight;
+  const add = (el, rank, range) => {
+    if (!el || el.classList.contains('off') || !el.obj.visible) return;
+    const d = el.obj.position.distanceTo(camera.position);
+    _lp.copy(el.obj.position).project(camera);
+    if (d > range || _lp.z > 1) { el.classList.add('faded'); return; }
+    cands.push({ el, rank: el.place && el.place === shownPlace ? -1 : rank, d, x: (_lp.x + 1) / 2 * W, y: (1 - _lp.y) / 2 * Hgt });
+  };
+  for (const el of DISTRICT_LABELS.values()) add(el, 0, Infinity);
+  for (const el of QUARTER_LABELS) add(el, 1, 3000);
+  for (const pin of pins) add(pin.userData.label, 2, PLACE_RANGE);
+  for (const el of LANDMARK_LABELS) add(el, 3, MARK_RANGE);
+  cands.sort((a, b) => a.rank - b.rank || a.d - b.d);
+  const taken = [];
+  for (const c of cands) {
+    if (c.el.__g !== widthGen || !c.el.__w) { c.el.__w = c.el.offsetWidth; c.el.__g = widthGen; }
+    const w = c.el.__w || 90, h = 16;
+    const box = [c.x - w / 2 - 4, c.y - h / 2 - 3, c.x + w / 2 + 4, c.y + h / 2 + 3];
+    const clear = c.rank < 0 || !taken.some(t => box[0] < t[2] && box[2] > t[0] && box[1] < t[3] && box[3] > t[1]);
+    c.el.classList.toggle('faded', !clear);
+    if (clear) taken.push(box);
+  }
+}
+
+// Labels let pointers and wheel through to the map, so they never block a gesture. A tap selects the label under it.
+
+const labelAt = (x, y) => document.body.classList.contains('editing') ? null : [...labels.domElement.querySelectorAll('.place, .link')].find(el => {
+  const r = el.getBoundingClientRect();
+  return el.place && !el.classList.contains('faded') && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+});
+renderer.domElement.addEventListener('pointerup', e => {
+  if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return;
+  const el = labelAt(e.clientX, e.clientY);
+  if (el) return select(el.place);
+  ptr.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1);
+  ray.setFromCamera(ptr, camera);
+  const hit = ray.intersectObjects([stalk, decor], true).find(h => h.object.userData.place);
+  if (hit) select(hit.object.userData.place);
+});
+
+export const blendInput = document.getElementById('blend');
+blendInput.oninput = () => {
+  U.uBlend.value = +blendInput.value;
+  document.getElementById('bv').textContent = blendInput.value;
+  generate(U.uBlend.value);
+};
+
+// ---------- tuning panel (temporary) ----------
+
+// Groups show as tabs. City values rebuild the city when a slider is released.
+
+export const TUNE = {
+  Light: [
+    ['exposure', 'Exposure', .3, 2.5, .05, 1, v => { renderer.toneMappingExposure = v; }],
+    ['sky', 'Sky light', 0, 4, .1, 1.6, v => { hemi.intensity = v; }],
+    ['moon', 'Moonlight', 0, 3, .1, 1.1, v => { moon.intensity = v; }],
+    ['windows', 'Window light', 0, 3, .05, 1.25, v => { U.uWin.value = v; }],
+    ['edges', 'Tower edge glow', 0, 3, .05, 0.6, v => { U.uEdge.value = v; }],
+    ['neon', 'Neon signs', 0, 3, .05, 1.25, v => { signs.material.color.setScalar(v); }],
+    ['glows', 'Street and roof lights', 0, 3, .05, 1.5, v => { glows.material.color.setScalar(v); }],
+    ['pools', 'Light pools on the ground', 0, 3, .05, 0.8, v => { pools.material.color.setScalar(v); }],
+    ['bloomStrength', 'Bloom strength', 0, 2, .05, 0.65, v => { bloom.strength = v; }],
+    ['bloomThreshold', 'Bloom threshold', .2, 2, .05, 0.7, v => { bloom.threshold = v; }],
+    ['bloomRadius', 'Bloom radius', 0, 1, .05, 0.2, v => { bloom.radius = v; }],
+  ],
+  Air: [
+    ['fogNear', 'Fog start (m)', 0, 3000, 50, 500, v => { FOG_BASE.near = v; }],
+    ['fogFar', 'Fog end (m)', 500, 9000, 100, 1600, v => { FOG_BASE.far = v; }],
+    ['mist', 'Street mist', 0, 1.5, .02, 0.7, v => { U.uMist.value = v; }],
+    ['mistBase', 'Mist height (m)', -20, 60, 1, 16, v => { U.uMistBase.value = v; }],
+  ],
+  Traffic: [
+    ['cars', 'Street cars', 0, 1, .02, 1, v => { TRAFFIC.ground = v; }],
+    ['hover', 'Hovercars', 0, 1, .02, 1, v => { TRAFFIC.hover = v; }],
+    ['highway', 'Highway traffic', 0, 1, .02, 1, v => { TRAFFIC.highway = v; }],
+    ['speed', 'Traffic speed', 0, 3, .05, 0.3, v => { TRAFFIC.speed = v; }],
+  ],
+  City: [
+    ['height', 'Building height', .4, 2, .05, 1.35, v => { CITYTUNE.height = v; }, true],
+    ['fill', 'Built lots', .3, 1.15, .01, 1.15, v => { CITYTUNE.fill = v; }, true],
+    ['mega', 'Mega-housing blocks', 0, 3, .1, 3, v => { CITYTUNE.mega = v; }, true],
+    ['industry', 'Industry blocks', 0, 3, .1, 1, v => { CITYTUNE.industry = v; }, true],
+    ['chakana', 'Chakana Root blocks', 0, 3, .1, 1.4, v => { CITYTUNE.chakana = v; }, true],
+    ['lights', 'Street light density', .3, 3, .05, 0.9, v => { CITYTUNE.lights = v; }, true],
+  ],
+};
+export const TUNE_KEY = 'na-map-tune';
+export let saved = {};
+try { saved = JSON.parse(localStorage.getItem(TUNE_KEY)) || {}; } catch {}
+export const tuned = {};
+export const sliders = document.getElementById('sliders'), tabs = document.getElementById('ttabs');
+export const resets = [];
+export const rebuild = () => generate(U.uBlend.value);
+for (const [group, rows] of Object.entries(TUNE)) {
+  const box = document.createElement('div');
+  box.className = 'group';
+  const tab = document.createElement('button');
+  tab.textContent = group;
+  tab.onclick = () => {
+    for (const b of tabs.children) b.classList.toggle('on', b === tab);
+    for (const g of sliders.children) g.hidden = g !== box;
+  };
+  tabs.appendChild(tab);
+  sliders.appendChild(box);
+  for (const [key, name, min, max, step, def, apply, regen] of rows) {
+    const el = document.createElement('label');
+    el.innerHTML = `<span>${name} <small class="def">(${def})</small></span><output></output><input type="range" min="${min}" max="${max}" step="${step}">`;
+    const input = el.querySelector('input'), out = el.querySelector('output');
+    const set = v => { tuned[key] = v; input.value = v; out.textContent = v; apply(v); };
+    input.oninput = () => {
+      if (regen) out.textContent = input.value;
+      else set(+input.value);
+    };
+    input.onchange = () => {
+      set(+input.value);
+      if (regen) rebuild();
+      try { localStorage.setItem(TUNE_KEY, JSON.stringify(tuned)); } catch {}
+    };
+    resets.push(() => set(def));
+    set(saved[key] ?? def);
+    box.appendChild(el);
+  }
+  if (group === 'Air') {
+    const fogInput = document.createElement('label');
+    fogInput.innerHTML = '<span>Fog and sky colour</span><input type="color" value="#' + FOG.getHexString() + '">';
+    fogInput.querySelector('input').oninput = e => { FOG.set(e.target.value); scene.fog.color.copy(FOG); };
+    box.appendChild(fogInput);
+  }
+  if (group === 'City') box.insertAdjacentHTML('beforeend', '<div class="note">The city rebuilds when you release a slider.</div>');
+}
+tabs.firstChild.click();
+if (TUNE.City.some(([k, , , , , def]) => (saved[k] ?? def) !== def)) rebuild();
+document.getElementById('treset').onclick = () => {
+  resets.forEach(f => f());
+  rebuild();
+  try { localStorage.removeItem(TUNE_KEY); } catch {}
+};
+document.getElementById('tcopy').onclick = () => navigator.clipboard.writeText(JSON.stringify({ ...tuned, fog: '#' + FOG.getHexString() }));
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight); labels.setSize(innerWidth, innerHeight);
+  labelCam.identity();
+});
+
+// ---------- loop ----------
+
+export const clock = new THREE.Clock();
+export const _p = new THREE.Vector3(), _t = new THREE.Vector3();
+export const waving = [];
+decor.traverse(m => { if (m.userData.wave) waving.push(m); });
+const fpsEl = document.getElementById('fps');
+
+// Auto quality: four slow half-second windows in a row step down a level; twelve fast ones step back up,
+// never above the level auto started at. Hidden tabs are skipped, because the browser throttles them.
+
+const ORDER = ['low', 'medium', 'high'], START = QUALITY.level;
+let slow = 0, fast = 0;
+function autoQuality(fps) {
+  if (QUALITY.mode !== 'auto' || document.hidden) return;
+  slow = fps < 28 ? slow + 1 : 0;
+  fast = fps > 52 ? fast + 1 : 0;
+  const k = ORDER.indexOf(QUALITY.level);
+  if (slow >= 4 && k > 0) { applyQuality(ORDER[k - 1]); slow = 0; }
+  if (fast >= 12 && k < ORDER.indexOf(START)) { applyQuality(ORDER[k + 1]); fast = 0; }
+}
+const qSel = document.getElementById('quality');
+try { qSel.value = localStorage.getItem('na-map-quality') || 'auto'; } catch {}
+const setMode = v => {
+  QUALITY.mode = v;
+  if (v !== 'auto') applyQuality(v);
+  try { localStorage.setItem('na-map-quality', v); } catch {}
+};
+qSel.onchange = () => setMode(qSel.value);
+setMode(qSel.value);
+let fpsN = 0, fpsT = 0;
+
+// three draws a transparent double-sided mesh twice, back faces then front, and resolves its program both times.
+// One pass draws the same pixels when the blend is additive without depth writes, or when the mesh is flat.
+
+const isFlat = g => { g.boundingBox ?? g.computeBoundingBox(); const s = g.boundingBox.getSize(_p); return Math.min(s.x, s.y, s.z) < 1e-4; };
+const users = new Map();
+scene.traverse(o => { if (o.material?.transparent && o.material.side === THREE.DoubleSide) users.set(o.material, [...users.get(o.material) ?? [], o]); });
+for (const [m, os] of users) {
+  if ((m.blending === THREE.AdditiveBlending && !m.depthWrite) || os.every(o => isFlat(o.geometry))) m.forceSinglePass = true;
+}
+
+// While a card thins the view, opaque built-in meshes off the ground draw with their fadeTwin. The list is taken
+// fresh each time, so tiles from a city rebuild join. Twins compile at start, so the first card does not stall.
+
+let swapped = null;
+function thin(on) {
+  if (on === !!swapped) return;
+  if (!on) { for (const [o, m] of swapped) o.material = m; swapped = null; return; }
+  const ground = new Set();
+  for (const s of SURFACE) s.traverse(o => ground.add(o));
+  swapped = [];
+  scene.traverse(o => {
+    const m = o.material;
+    if (o.isMesh && !ground.has(o) && m && !Array.isArray(m) && m.visible && !m.transparent && !m.isShaderMaterial) swapped.push([o, m]);
+  });
+  for (const [o, m] of swapped) o.material = fadeTwin(m);
+}
+thin(true);
+renderer.compileAsync(scene, camera).catch(() => {});
+thin(false);
+
+// Frames are capped at 60 per second. On faster screens the loop skips a refresh until a 60 Hz slot has passed;
+// carrying the remainder keeps 120 and 144 Hz screens near 60 instead of dropping to 48.
+
+const SLOT = 1000 / 60, flickered = new Map();
+let lastFrame = 0, lift = 0;
+renderer.setAnimationLoop(now => {
+  const since = now - lastFrame;
+  if (since < SLOT - 2) return;
+  lastFrame = now - since % SLOT;
+  const dt = Math.min(clock.getDelta(), .1), t = clock.elapsedTime;
+
+  // Frames per second, counted over half-second windows.
+
+  fpsN++; fpsT += dt;
+  if (fpsT > .5) {
+    const fps = fpsN / fpsT;
+    fpsEl.textContent = `${Math.round(fps)} fps · ${QUALITY.level}`;
+    autoQuality(fps);
+    fpsN = 0; fpsT = 0;
+  }
+  S.trafficT += dt * TRAFFIC.speed;
+  U.uTime.value = t;
+
+  if (fly) {
+    fly.t = Math.min(1, fly.t + dt / fly.dur);
+    const e = 1 - (1 - fly.t) ** 3;
+    controls.target.lerpVectors(fly.fromT, fly.toT, e);
+    camera.position.lerpVectors(fly.fromC, fly.toC, e);
+    if (fly.t >= 1) fly = null;
+  }
+
+  // An open card holds the orbit on its subject, except while a tour, a ride or edit mode drives the camera.
+  // A flight cut short by a touch eases the target the rest of the way.
+
+  const locked = !!lockAt && card.style.display === 'block' && controls.enabled && !document.body.classList.contains('focus') && !document.body.classList.contains('editing');
+  if (locked !== LOCK.on) lockCamera(locked);
+  if (locked && !fly) { _t.subVectors(lockAt, controls.target).multiplyScalar(Math.min(1, dt * 5)); controls.target.add(_t); camera.position.add(_t); }
+
+  // On a phone the card covers the lower third, so an open card shifts the view up and the place sits higher on
+  // screen. The orbit target stays on the place.
+
+  lift += ((locked && innerWidth < 700 ? innerHeight * .17 : 0) - lift) * Math.min(1, dt * 5);
+  if (lift > .5) camera.setViewOffset(innerWidth, innerHeight, 0, lift, innerWidth, innerHeight);
+  else if (camera.view?.enabled) { lift = 0; camera.clearViewOffset(); }
+  const k = U.uFocusK.value;
+  const fading = tourFocus || fadeOn && (locked || riding() && card.style.display === 'block');
+  k.z = THREE.MathUtils.clamp(k.z + (fading ? dt : -dt) / .3, 0, 1);
+  thin(k.z > 0);
+  turnCompass(dt);
+  controls.update();
+  clipTop += (LAYERS[layer] - clipTop) * Math.min(1, dt * 3);
+  const top = layer === 'all' && clipTop > 590 ? 1e5 : clipTop;
+  clipPlane.constant = top;
+  U.uClipTop.value = top;
+
+  // Back faces paint the cut-open insides while the undercity clip is on. Otherwise they stay culled,
+  // so a camera inside a building sees out, and the GPU skips half the building faces. The clip plane is on
+  // only while cut open, because it compiles a discard into every built-in material.
+
+  if ((top < 1e5) !== cutOpen) {
+    cutOpen = top < 1e5;
+    renderer.clippingPlanes = cutOpen ? [clipPlane] : [];
+    for (const m of [...Object.values(SHAPES).map(s => s.material), MERGED_MAT]) { m.side = cutOpen ? THREE.DoubleSide : THREE.FrontSide; m.needsUpdate = true; }
+  }
+
+  moveCars(dt * TRAFFIC.speed);
+
+  // Highway cars sort by rank, so the shown ones come first. Every car moves on, but one past 700 m takes its
+  // new spot every second frame, about a metre at a time, and one past the fog only one frame in eight.
+
+  const hwShow = TRAFFIC.highway * QUALITY.cars, far2 = (scene.fog.far + 300) ** 2, mid2 = 700 ** 2, cx = camera.position.x, cz = camera.position.z, turn = declutterTick & 7;
+  hwCars.count = 0;
+  for (let i = 0; i < hwTraffic.length; i++) {
+    const c = hwTraffic[i];
+    if (c.rank >= hwShow) break;
+    hwCars.count = i + 1;
+    c.u = (c.u + c.v * dt * TRAFFIC.speed + 1) % 1;
+    const P = c.h.path, n = P.length - 1, f = c.u * n, k = Math.floor(f), a = P[k];
+    const d2 = (a.x - cx) ** 2 + (a.z - cz) ** 2;
+    if (!(d2 <= mid2 || (d2 <= far2 ? ((i + turn) & 1) === 0 : (i & 7) === turn))) continue;
+    const b = P[Math.min(k + 1, n)], sd = c.h.side[k];
+    yawAt(hwCars, i, lerp(a.x, b.x, f - k) + sd.x * c.lane * 3.2, a.y + .4, lerp(a.z, b.z, f - k) + sd.z * c.lane * 3.2, b.x - a.x, b.z - a.z);
+  }
+  uploadUsed(hwCars);
+  for (const l of LANDMARKS) l.update?.(t, dt);
+  rideTick(dt);
+  updateFireworks(dt);
+  for (const m of climbers) m.position.y = 200 + (((t * m.userData.speed + m.userData.off) % 2400) + 2400) % 2400;
+  for (const f of waving) f.rotation.y = Math.sin(t * 2.3) * .25;
+
+  const zoom = camera.position.distanceTo(controls.target), away = Math.max(0, zoom - 800);
+
+  for (const el of LANDMARK_LABELS) el.obj.visible = layer === 'all';
+  if (++declutterTick % 6 === 0) declutter();
+  U.uFogNear.value = scene.fog.near = (FOG_BASE.near + away * .9) * QUALITY.fog;
+  U.uFogFar.value = scene.fog.far = (FOG_BASE.far + away * 1.8) * QUALITY.fog;
+  const beat = (t * .8) % 1 < .15;
+  for (const f of S.flicker) {
+
+    // Beacons blink together on one city-wide beat. Broken neon keeps its own random stutter.
+    // Only lights that switched get written, and each tile uploads one range that spans them.
+    // A light on a tile that is not drawing waits; its stored state still matches its colour. Neon stutter
+    // updates half the lights each frame, alternating.
+
+    const m = f[0], i = f[1], rgb = f[2], ph = f[3], tile = m.userData.tileOf?.[i], tm = tile ? tile[0] : m, j = tile ? tile[1] : i;
+    if (!tm.visible && f.tiles === TILES) continue;
+    if (!f[4] && ((i + declutterTick) & 1) && f.tiles === TILES) continue;
+    const on = f[4] ? beat : Math.sin(t * 13 + ph) + Math.sin(t * 7.3 + ph * 2) > -1.2;
+    if (f.on === on && f.tiles === TILES) continue;
+    f.on = on; f.tiles = TILES;
+    const at = tm.instanceColor, k = on ? 1 : .06;
+    at.array[j * 3] = rgb[0] * k; at.array[j * 3 + 1] = rgb[1] * k; at.array[j * 3 + 2] = rgb[2] * k;
+    const js = flickered.get(at);
+    if (js) js.push(j); else flickered.set(at, [j]);
+  }
+
+  // Lights within 64 slots of each other share one upload range. A hidden tile keeps its ranges until it draws;
+  // past 32 they fold into one span.
+
+  for (const [at, js] of flickered) {
+    js.sort((a, b) => a - b);
+    let lo = js[0], hi = lo;
+    for (const j of [...js.slice(1), Infinity]) {
+      if (j - hi <= 64) { hi = j; continue; }
+      at.addUpdateRange(lo * 3, (hi - lo) * 3 + 3);
+      lo = hi = j;
+    }
+    const R = at.updateRanges;
+    if (R.length > 32) {
+      const s = Math.min(...R.map(r => r.start)), e = Math.max(...R.map(r => r.start + r.count));
+      at.clearUpdateRanges(); at.addUpdateRange(s, e - s);
+    }
+    at.needsUpdate = true;
+  }
+  flickered.clear();
+  // Detail tiles show within the prop range. Every tile past the fog's end stops drawing.
+
+  for (const tl of TILES) {
+    const d = Math.hypot(camera.position.x - tl.x, camera.position.y, camera.position.z - tl.z);
+    tl.mesh.visible = d < scene.fog.far + tl.half * 1.5 && (!tl.detail || d < QUALITY.detail + tl.half * 1.4);
+  }
+
+  composer.render();
+
+  // Labels rewrite every element's style, so they redraw only when the camera moved, and every sixth frame
+  // for labels that appear or hide.
+
+  if (declutterTick % 6 === 0 || !labelCam.equals(camera.matrixWorld)) { labels.render(labelRoot, camera); labelCam.copy(camera.matrixWorld); }
+});
+initNav();
+document.getElementById('loading').classList.add('done');
+setTimeout(() => document.getElementById('loading').remove(), 700);
+// The tuning panel, with the dev readouts, stays hidden until "?" is pressed; "?" again hides it. On a touch
+// screen, four quick taps on the "?" button do the same.
+
+const toggleTune = () => {
+  const tune = document.getElementById('tune'), hud = document.getElementById('hud');
+  tune.hidden = !tune.hidden;
+  hud.classList.toggle('tuning', !tune.hidden);
+  if (!tune.hidden) { hud.open = true; tune.open = true; }
+};
+addEventListener('keydown', e => {
+  if (e.key === '?' && !/input|textarea|select/i.test(e.target.tagName)) toggleTune();
+});
+
+// The "?" button opens the help panel. Escape or a touch on the map closes it.
+
+const helpBtn = document.getElementById('help'), helpPanel = document.getElementById('helpPanel');
+const showHelp = on => { helpPanel.hidden = !on; helpBtn.setAttribute('aria-expanded', on); };
+let taps = 0, lastTap = 0;
+helpBtn.onclick = () => {
+  const now = performance.now();
+  taps = now - lastTap < 500 ? taps + 1 : 1;
+  lastTap = now;
+  if (taps === 4) { taps = 0; showHelp(false); toggleTune(); return; }
+  showHelp(helpPanel.hidden);
+};
+document.getElementById('helpClose').onclick = () => showHelp(false);
+addEventListener('keydown', e => { if (e.key === 'Escape' && !helpPanel.hidden) showHelp(false); });
+renderer.domElement.addEventListener('pointerdown', () => showHelp(false));
+
+if (QUERY.has('edit') && /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) import('./edit.js');
+
+// ?probe measures what each part of the scene costs on this device. ?probe=live shows frame times as you move,
+// and ?probe=gpu times the GPU at fixed views.
+
+if (QUERY.has('probe')) import('./probe.js').then(m => ({ gpu: m.runGpuBench, live: m.runLive }[QUERY.get('probe')] ?? m.runProbe)());

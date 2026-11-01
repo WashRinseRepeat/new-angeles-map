@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="root" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#00d4ff" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#003a4d" stop-opacity=".9"/>
+    </linearGradient>
+    <linearGradient id="tether" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#00d4ff" stop-opacity="0"/>
+      <stop offset=".35" stop-color="#7ff3ff"/>
+      <stop offset="1" stop-color="#00d4ff"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="1.4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Night tile -->
+  <rect width="64" height="64" rx="14" fill="#0a0a0f"/>
+  <rect x="1" y="1" width="62" height="62" rx="13" fill="none" stroke="#00d4ff" stroke-opacity=".28" stroke-width="1.5"/>
+
+  <!-- Tether rising out of frame -->
+  <rect x="29.6" y="3" width="4.8" height="31" rx="1.2" fill="url(#tether)" filter="url(#glow)"/>
+
+  <!-- The Root: a flared cone with lit bands -->
+  <path d="M26.5 36 C26 44 20 51 12 56 H52 C44 51 38 44 37.5 36 Z" fill="url(#root)" stroke="#00d4ff" stroke-width="1.8" stroke-linejoin="round" filter="url(#glow)"/>
+  <path d="M24.2 44.5 H39.8 M19.5 50.5 H44.5" stroke="#7ff3ff" stroke-width="1.6" stroke-linecap="round" opacity=".85"/>
+
+  <!-- Deck ring and ground line -->
+  <ellipse cx="32" cy="35" rx="12" ry="3.4" fill="none" stroke="#ffb800" stroke-width="2.6" filter="url(#glow)"/>
+  <path d="M9 57.5 H55" stroke="#ffb800" stroke-width="2" stroke-linecap="round" opacity=".9"/>
+</svg>

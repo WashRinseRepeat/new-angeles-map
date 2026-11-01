@@ -1,0 +1,74 @@
+{
+  "NBN Headquarters": {
+    "kicker": "The tower that tells the city what happened",
+    "category": "corp",
+    "text": [
+      "NBN Headquarters stands over Broadcast Square like a lit billboard. Its faces carry live feeds, ads and breaking news, and they never go dark. Three gold letters glow at the crown on every side, and a ring of camdrones circles the top. The starscrapers here block the sun, but the screens keep the square bright at every hour.",
+      "NBN makes nothing you can hold. It makes holovids, sensies, edutainment and the news itself. Thousands of programs trace back to this tower. Staff, reporters and talent fill the lobbies day and night. The company likes to say that someone is always watching. Cameras watch the square below, and the audience watches back."
+    ]
+  },
+  "Central Plaza": {
+    "kicker": "The raised square where the city shouts back",
+    "category": "civic",
+    "text": [
+      "Central Plaza is a raised deck in the middle of Broadcast Square, at the foot of NBN Headquarters. No vehicles come here. Crowds do. Columns hold the deck above the street, and one broad stair climbs to a floor that glows soft white. A giant screen fills the back edge, and holo pillars line the sides. The screens show NBN programs all day and all night.",
+      "When the city gets angry, people march to this spot to be seen. Protests here make the news, because the news stands next door. Banners go up on one corner and come down again by morning. Tourists take pictures from the steps. NAPD drones hover overhead and log every face in the crowd."
+    ]
+  },
+  "Broadcast Square Tube Depot": {
+    "kicker": "Where Akeidito meets the rest of the city",
+    "category": "civic",
+    "text": [
+      "Almost everyone enters Akeidito through this depot. Tubes, hopperbuses, cabs and the big lifts all meet under one long glass roof. The Tangerine and Clay lines start here and run south through the scenic side of the city. Jade and Crimson pods stop here too. Coloured rings on the floor show which way each line goes.",
+      "Departure boards and news crawls never stop, and the towers around the depot are screens from base to crown. Food stalls and transit shops fill every gap. Commuters pour up the escalators at shift change, and the crowd never thins. Pickpockets and data skimmers work the platforms, and many of them are children."
+    ]
+  },
+  "Big Church": {
+    "kicker": "A church that changes faith every hour",
+    "category": "civic",
+    "text": [
+      "Big Church rents itself to any faith that pays, by the hour. NBN owns it. The stone nave below has buttresses, tall pointed windows and twin spires. A holo projector in the crossing tower paints a fresh crown over it. At nine it is a Gothic chapel with a white spire. At ten it grows a green-gold dome and a minaret. An amber light runs round the base before each change.",
+      "The machinery does not stop for anyone. Inside, plasteel partitions slide and fold on hydraulic arms with each change. Bioroids sweep the halls first, but a few worshippers always stay too long, and the partitions crush them. NBN insures the building well and settles quietly. Taller towers stand all round it, so the church looks small. Its shifting crown still draws every eye on the square."
+    ]
+  },
+  "Broadcasters' Corporate Park": {
+    "kicker": "Office terraces with a waterfall of drones",
+    "category": "corp",
+    "text": [
+      "Broadcasters' Corporate Park stacks plazas above and below Broadcast Square. Lifts, giant escalators and short tubes link each level. Small, pleasant office blocks line every terrace, and they are all for lease. Most belong to NBN subsidiaries or gaming firms. A company rents a vertical slice of the park, and the bosses sit at the top.",
+      "Staff meet on the shared plazas for lunch and trade gossip that is really market intelligence. Rank shows in which floor you reach without a pass. Delivery drones pour through the air between the terraces so thickly that the park shimmers like a waterfall. From across the city it looks like falling gold."
+    ]
+  },
+  "NBNNS": {
+    "kicker": "The servers that carry the city's traffic",
+    "category": "corp",
+    "text": [
+      "NBN Net Services fills a large, quiet block in Akeidito Heights. Locals call it the Nebenins. The building has no windows, only ribs with thin cyan status lights. Inside, cold racks of servers run for acres, and the air is cold enough to show your breath. Cooling units on the roof vent pale plumes into the night.",
+      "Sysops watch the rows from glass rooms, and bioroids do the repairs. The facility hosts net services for companies across New Angeles. NBN guards it with the best ICE in the city. Companies that can afford a rack rent that protection for their own systems. Runners talk about the Nebenins the way climbers talk about a cliff."
+    ]
+  },
+  "The Dollhouse": {
+    "kicker": "A fairy-tale castle on a cursed flat",
+    "category": "civic",
+    "text": [
+      "The Dollhouse is a white residential block with a fairy-tale castle on its crown. Pale turrets with blue-grey cone roofs copy a famous old German castle. Gold light shows in the turret windows. The residents are well off, and the block looks calm and clean. Locals say the name with a smile.",
+      "Residential Unit 468 sits two-thirds of the way up. Police holo-tape has crossed its door for longer than most residents remember. A family died there, and the case never closed. The flat is huge and luxurious, and an experimental brain-mapping AI still runs in its walls. Residents avoid its hallway and do not talk about it."
+    ]
+  },
+  "New Angeles Stock Exchange": {
+    "kicker": "The wealth of three worlds, traded by the nanosecond",
+    "category": "corp",
+    "text": [
+      "The New Angeles Stock Exchange faces NBN Headquarters across Broadcast Square. Its carbosteel dome swells and narrows in ribbed bands like a giant beehive, and amber windows glow between the ribs. A ticker of green and red lights circles its waist all night. Tourists queue at the front stair for the galleries above the trading floor.",
+      "Down on the floor, human brokers still strike deals and shout to be heard. The real trading happens above them, in the All-Seeing Eye, a huge spherical mainframe behind a glass ceiling. Hundreds of weak AIs trade millions of times a day on it. Firms pay more for servers closer to the Eye, because a few metres of cable cost nanoseconds. Runners say the NASX servers look back at them like a burning eye."
+    ]
+  },
+  "La Concordia": {
+    "kicker": "Where the people at the top come down to shop",
+    "category": "civic",
+    "text": [
+      "La Concordia is Rutherford's luxury market street, a glass-vaulted galleria between two rows of cream stone shopfronts. A gilded dome crowns the crossing in the middle. Flagship windows glow gold along both outer faces, and holo models pose on plinths at each entrance. Shoppers' hoppers land on the roof pads, so the best customers never touch the street.",
+      "Smartfabrics from Mumbad change cut and colour with each season, for a fee every time. Designer cybernetics are fitted while the customer waits, and the most popular face of the month is for sale in three clinics. Bioroid couriers carry the bags home in a patient line. Prisec in good suits watch the doors and know every regular by name."
+    ]
+  }
+}
