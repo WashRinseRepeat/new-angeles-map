@@ -173,4 +173,7 @@ audio guide narration and the ride music are AI-generated.
 MIT, see `LICENSE`. The license covers the original work in this repository: the code, the models, the card
 texts and the audio. It grants no rights to the Android names and setting, which belong to their owners.
 
+The street generator core in `gen/mapgen/` is vendored from MapGenerator and keeps its own LGPL-3.0 license.
+`gen/mapgen/UPSTREAM.txt` names the upstream commit.
+
 Built with [Three.js](https://threejs.org/).
