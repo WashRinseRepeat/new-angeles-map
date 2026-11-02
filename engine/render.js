@@ -54,12 +54,13 @@ controls.minDistance = 20;
 controls.maxDistance = 4200;
 
 // Direct manipulation, as in Google Maps. Nothing eases.
-// - One finger or the left mouse button grabs the ground. The point under it stays under it.
+// - One finger or the left or middle mouse button grabs the ground. The point under it stays under it.
 // - Two fingers pan, pinch-zoom and twist about their midpoint.
 // - Two fingers side by side that slide up or down together tilt the view.
 // MapControls keeps the mouse's right-button rotate and wheel zoom.
 
 controls.enablePan = false;
+controls.mouseButtons.MIDDLE = -1;
 controls.touches = { ONE: -1, TWO: -1 };
 const GROUND = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), grabRay = new THREE.Raycaster(), ndc = new THREE.Vector2();
 const UP = new THREE.Vector3(0, 1, 0), orbit = new THREE.Spherical();
@@ -82,6 +83,7 @@ export const LOCK = { on: false };
 export function lockCamera(on) {
   LOCK.on = on;
   controls.mouseButtons.LEFT = on ? THREE.MOUSE.ROTATE : THREE.MOUSE.PAN;
+  controls.mouseButtons.MIDDLE = on ? THREE.MOUSE.DOLLY : -1;
   controls.touches = on ? { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_ROTATE } : { ONE: -1, TWO: -1 };
   grabbing = false; mode = null; touches.clear();
 }
@@ -133,7 +135,8 @@ const twoFingers = cur => {
 const el = renderer.domElement;
 el.addEventListener('pointerdown', e => {
   if (!controls.enabled || LOCK.on) return;
-  if (e.pointerType !== 'touch') { grabbing = e.button === 0 && !!groundAt(e.clientX, e.clientY, grab); return; }
+  if (e.button === 1) e.preventDefault();
+  if (e.pointerType !== 'touch') { grabbing = e.button < 2 && !!groundAt(e.clientX, e.clientY, grab); return; }
   touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
   grabbing = touches.size === 1 && !!groundAt(e.clientX, e.clientY, grab);
   if (touches.size === 2) { mode = null; first = prev = pair(); }
