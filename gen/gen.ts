@@ -116,7 +116,11 @@ const DIMS = new Vector(1272 * MAP.scale, 1600 * MAP.scale);
 
 // ---------- tensor field ----------
 
-const field = new TensorField({ globalNoise: false, noiseSizePark: 90, noiseAnglePark: 35, noiseSizeGlobal: 300, noiseAngleGlobal: 8 });
+// BEND=<degrees> turns on a slow rotational noise over the whole field, so long streets curve gently. It writes
+// city-bend.json, which the map loads with ?streets=bend.
+
+const BEND = Number(process.env.BEND ?? 0);
+const field = new TensorField({ globalNoise: BEND > 0, noiseSizePark: 90, noiseAnglePark: 35, noiseSizeGlobal: 350, noiseAngleGlobal: BEND });
 const centroid = (p: number[][]) => p.reduce((a, q) => [a[0] + q[0] / p.length, a[1] + q[1] / p.length], [0, 0]);
 const V = ([x, y]: number[]) => new Vector(x, y);
 
@@ -243,12 +247,13 @@ const nearRoad = (poly: number[][]) => poly.some(([x, z]) => roadCells.has(`${Ma
 const keptLots = lots.filter(poly => !nearRoad(poly));
 console.log(`coast roads: ${coastRoads.length}, lots dropped: ${lots.length - keptLots.length}`);
 
-writeFileSync(new URL('../../city.json', import.meta.url), JSON.stringify({
+const OUT = BEND ? 'city-bend.json' : 'city.json';
+writeFileSync(new URL(`../../${OUT}`, import.meta.url), JSON.stringify({
   seed: SEED, origin: [ORIGIN.x, ORIGIN.y], dims: [DIMS.x, DIMS.y],
   districts: DISTRICTS, root: ROOT, places: PLACES, placeHalf: PLACE_HALF, quarters: QUARTERS, highways: HIGHWAYS, maglev: MAGLEV, spurs: SPURS, rings: RINGS, lines: LINES,
   subareas: SUBAREAS, water: WATER, parks: PARKS, coast: COAST, streets, blocks, lots: keptLots,
 }));
-console.log('wrote city.json');
+console.log(`wrote ${OUT}`);
 
 // The Hugo site shows a "Show on the map" link on these location pages.
 
