@@ -113,7 +113,7 @@ export const KIT_FAMILIES = ['industry', 'nature', 'heavy', 'chakana', 'favela',
 
 for (const fam of KIT_FAMILIES) {
   const mod = await import(`../kits/${fam}.js`), kits = mod.kits(H);
-  Object.assign(KITS, kits);
+  Object.assign(KITS, kits, mod.EXTRA);
   FAMILY_KITS[fam] = Object.keys(kits);
   for (const { zone, build } of Object.values(mod.blocks?.(H) ?? {})) BLOCK_KITS[zone].push(build);
   for (const [name, lm] of Object.entries(mod.landmarks?.(H) ?? {})) LANDMARKS_KITS.push({ name, ...lm });

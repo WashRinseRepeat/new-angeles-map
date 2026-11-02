@@ -6,7 +6,6 @@
 
 import { trees } from './nature.js';
 import { sights as lakeside } from './lv-lakeside.js';
-import { fill } from './lv-fill.js';
 
 let LIB = null;
 
@@ -1423,6 +1422,5 @@ export function landmarks(H) {
       return { face: front() };
     } },
     ...lakeside(H, L),
-    ...fill(H, L),
   };
 }

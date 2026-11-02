@@ -47,13 +47,17 @@ function library(H) {
     H.decor.add(m);
     return H.instanced(m);
   };
-  LIB = { palm: make(palm, 4500), broad: make(broad, 7000), fern: make(fern, 3000), cypress: make(cypress, 2500), shrub: make(shrub, 6000) };
+  LIB = { palm: make(palm, 7000), broad: make(broad, 10000), fern: make(fern, 6000), cypress: make(cypress, 2500), shrub: make(shrub, 9000) };
   return LIB;
 }
 
 // Tree meshes for debugging and stats.
 
 export const trees = () => LIB;
+
+// Kits outside the family list, so adding one never shifts which family kit a lot picks.
+
+export const EXTRA = {};
 
 // Leaf tints per species, Base de Cayambe then Rutherford.
 
@@ -94,6 +98,16 @@ export function kits(H) {
   const bench = (x, z, ry, y = 0) => prop('box', x, y + .35, z, 1.8, .45, .55, [.08, .05, .03], ry);
   const ground = (x, z, W, D, rgb, h = .3) => prop('box', x, h / 2, z, W, h, D, rgb);
   const GRASS = [.02, .045, .025], STONE = [.07, .066, .062], SOIL = [.03, .028, .018];
+
+  // Grove: wild trees, ferns and shrubs on dark ground. Infill sites by the jungle take it, so the city
+  // thins into forest instead of ending at a lawn.
+
+  EXTRA.grove = (x, z, s, st, b, r) => {
+    const [W, D] = dims(s);
+    ground(x, z, W, D, [.012, .03, .016], .2);
+    for (let k = Math.max(1, Math.round(W * D / 32)); k > 0; k--) anyTree(x + (r() - .5) * (W - 2), .2, z + (r() - .5) * (D - 2), 6 + r() * 7, st, r, [.3, .5]);
+    for (let k = Math.round(W * D / 120); k > 0; k--) tree('shrub', x + (r() - .5) * W, .2, z + (r() - .5) * D, 1.5 + r() * 2, 2.5 + r() * 2, st, r);
+  };
 
   return {
     // Lawn with crossing paths, mixed trees, lamps and benches.

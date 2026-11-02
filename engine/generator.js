@@ -234,11 +234,12 @@ export function frontOf(f) {
 
 export function fillCells() {
   const S = 2, [ox, oz] = CITY.origin, W = Math.ceil(CITY.dims[0] / S), D = Math.ceil(CITY.dims[1] / S);
-  const g = new OffscreenCanvas(W, D).getContext('2d');
+  const g = new OffscreenCanvas(W, D).getContext('2d', { willReadFrequently: true });
   g.setTransform(1 / S, 0, 0, 1 / S, -ox / S, -oz / S);
   const path = poly => { g.beginPath(); poly.forEach(([x, z], i) => i ? g.lineTo(x, z) : g.moveTo(x, z)); };
   g.fillStyle = '#f00';
   for (const d of CITY.districts) { path(d.poly); g.fill(); }
+  const land = g.getImageData(0, 0, W, D).data;
   g.fillStyle = g.strokeStyle = '#000';
   for (const x of [...(CITY.water ?? []), ...(CITY.parks ?? [])]) { path(x.poly); g.fill(); }
   g.lineWidth = 3;
@@ -263,11 +264,30 @@ export function fillCells() {
     g.save(); g.translate((lm.at[0] - 680) * 3.6, (lm.at[1] - 390) * 3.6); g.rotate(-a); g.fillRect(-w / 2 - 2, -d / 2 - 2, w + 4, d + 4); g.restore();
   }
   g.beginPath(); g.arc(STALK.x, STALK.y, PLAZA_R + 10, 0, 7); g.fill();
-  const px = g.getImageData(0, 0, W, D).data;
-  const free = (x, z) => {
+  const px = g.getImageData(0, 0, W, D).data, open = new Uint8Array(W * D), city = new Uint8Array(W * D);
+  for (let i = 0; i < W * D; i++) { open[i] = px[i * 4] > 128; city[i] = land[i * 4] > 128; }
+  const at = (x, z) => {
     const i = Math.floor((x - ox) / S), j = Math.floor((z - oz) / S);
-    return i >= 0 && j >= 0 && i < W && j < D && px[(j * W + i) * 4] > 128;
+    return i >= 0 && j >= 0 && i < W && j < D ? j * W + i : -1;
   };
+  const free = (x, z) => { const k = at(x, z); return k >= 0 && open[k] === 1; };
+  INFILL = NO_INFILL ? [] : infillSites(open, chamfer(city, W, D), W, D, S, at, free);
+
+  // Band: open land up to 40 m outside the districts, where the ground is still flat, gets grove cells that
+  // thicken outward, so the city fades into the jungle. Pixels painted for roads or water stay bare.
+
+  BAND = [];
+  if (!NO_INFILL) {
+    const out = new Uint8Array(W * D);
+    for (let i = 0; i < W * D; i++) out[i] = city[i] ? 0 : 1;
+    const od = chamfer(out, W, D), bare = (x, z) => { const k = at(x, z); return k >= 0 && !city[k] && !px[k * 4 + 3]; };
+    for (let z = oz; z < oz + CITY.dims[1]; z += 10) for (let x = ox; x < ox + CITY.dims[0]; x += 10) {
+      const k = at(x, z), d = k < 0 ? Infinity : od[k] * S / 3;
+      if (d > 40 || ![[-4, -4], [4, -4], [-4, 4], [4, 4]].every(([a, b]) => bare(x + a, z + b))) continue;
+      if (rng(hash(x, z + 5))() > .3 + .65 * d / 40 || shore(x, z) < 60) continue;
+      BAND.push({ x, z });
+    }
+  }
 
   const cells = [], STEP = 10;
   for (let z = oz; z < oz + CITY.dims[1]; z += STEP) for (let x = ox; x < ox + CITY.dims[0]; x += STEP) {
@@ -278,6 +298,98 @@ export function fillCells() {
   }
   return cells;
 }
+
+// Distance to the nearest zero cell, in thirds of a raster cell (3-4 chamfer). Two passes, so it stays fast on
+// the whole city raster.
+
+function chamfer(m, W, D) {
+  const d = new Uint16Array(W * D);
+  for (let i = 0; i < W * D; i++) d[i] = m[i] ? 65000 : 0;
+  for (let j = 0; j < D; j++) for (let i = 0; i < W; i++) {
+    const k = j * W + i;
+    if (!d[k]) continue;
+    let v = d[k];
+    if (i) v = Math.min(v, d[k - 1] + 3);
+    if (j) {
+      v = Math.min(v, d[k - W] + 3);
+      if (i) v = Math.min(v, d[k - W - 1] + 4);
+      if (i < W - 1) v = Math.min(v, d[k - W + 1] + 4);
+    }
+    d[k] = v;
+  }
+  for (let j = D - 1; j >= 0; j--) for (let i = W - 1; i >= 0; i--) {
+    const k = j * W + i;
+    if (!d[k]) continue;
+    let v = d[k];
+    if (i < W - 1) v = Math.min(v, d[k + 1] + 3);
+    if (j < D - 1) {
+      v = Math.min(v, d[k + W] + 3);
+      if (i < W - 1) v = Math.min(v, d[k + W + 1] + 4);
+      if (i) v = Math.min(v, d[k + W - 1] + 4);
+    }
+    d[k] = v;
+  }
+  return d;
+}
+
+// Infill: open ground wider than 12 m becomes synthetic lots that build like real ones. Seeds go widest
+// first. Each grows a rectangle square to the nearest street until it touches a lot, a street or another
+// site, then paints itself and a 3 m margin closed. A site carries its distance to the district edge, so
+// sites by the jungle can grow forest instead. A style with infill: false leaves its ground to its fillKit.
+
+const MIN_SIDE = 12, MAX_HALF = 60, GAP = 3;
+
+// Distance to the coast or open water. The district edge there meets the sea, not the jungle.
+
+const SHORES = [...(CITY.coast ?? []), ...(CITY.water ?? []).map(w => [...w.poly, w.poly[0]])];
+function shore(x, z) {
+  let best = Infinity;
+  for (const L of SHORES) for (let i = 1; i < L.length; i++) {
+    const [ax, az] = L[i - 1], [bx, bz] = L[i], dx = bx - ax, dz = bz - az;
+    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz || 1)));
+    best = Math.min(best, Math.hypot(x - ax - t * dx, z - az - t * dz));
+  }
+  return best;
+}
+function infillSites(open, edge, W, D, S, at, free) {
+  const t0 = performance.now(), dist = chamfer(open, W, D), seeds = [];
+  for (let j = 1; j < D - 1; j++) for (let i = 1; i < W - 1; i++) {
+    const k = j * W + i, v = dist[k];
+    if (v * S / 3 < MIN_SIDE / 2) continue;
+    if (v < dist[k - 1] || v < dist[k + 1] || v < dist[k - W] || v < dist[k + W]) continue;
+    seeds.push(k);
+  }
+  seeds.sort((a, b) => dist[b] - dist[a]);
+  const [ox, oz] = CITY.origin, out = [];
+  for (const k of seeds) {
+    if (!open[k]) continue;
+    const x = ox + (k % W + .5) * S, z = oz + (Math.floor(k / W) + .5) * S;
+    if (STYLES[styleAt(x, z, 0).id].infill === false) continue;
+    const a = nearestStreet(x, z)[2] - Math.PI / 2, c = Math.cos(a), s = Math.sin(a);
+    const fits = (hw, hd) => {
+      for (let u = -hw; u <= hw; u += S) for (let v = -hd; v <= hd; v += S) if (!free(x + u * c + v * s, z - u * s + v * c)) return false;
+      return true;
+    };
+    let hw = MIN_SIDE / 2, hd = MIN_SIDE / 2, gw = true, gd = true;
+    if (!fits(hw, hd)) continue;
+    while (gw || gd) {
+      if (gw && hw < MAX_HALF && fits(hw + S, hd)) hw += S; else gw = false;
+      if (gd && hd < MAX_HALF && fits(hw, hd + S)) hd += S; else gd = false;
+    }
+    for (let u = -hw - GAP; u <= hw + GAP; u += S / 2) for (let v = -hd - GAP; v <= hd + GAP; v += S / 2) {
+      const q = at(x + u * c + v * s, z - u * s + v * c);
+      if (q >= 0) open[q] = 0;
+    }
+    const poly = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([p, q]) => [x + p * hw * c + q * hd * s, z - p * hw * s + q * hd * c]);
+    const f = { cx: x, cz: z, w: hw * 2, d: hd * 2, a, c, s, poly, area: hw * hd * 4, edge: shore(x, z) < 80 ? Infinity : edge[k] * S / 3 };
+    f.front = frontOf(f);
+    out.push(f);
+  }
+  console.info(`infill: ${out.length} sites in ${Math.round(performance.now() - t0)} ms`);
+  return out;
+}
+export let INFILL = null, BAND = null;
+const NO_INFILL = new URLSearchParams(location.search).get('infill') === '0';
 export let FILL = null;
 
 // One lot. f seeds the draws, g is the frame it builds in: the lot itself, or a part trimmed off a corridor.
@@ -603,7 +715,26 @@ export function generate(blend) {
     if (f.taken || inSite(f.cx, f.cz, 2)) continue;
     clearOf(f, (g, k, bare, slab) => buildLot(f, g, blend, k, bare, slab));
   }
-  for (const c of FILL ??= fillCells()) {
+  FILL ??= fillCells();
+
+  // Infill sites build as lots. Sites within 30 m of the district edge grow the style's edge kit, by default a grove.
+
+  for (const f of INFILL) {
+    if (inSite(f.cx, f.cz, 2)) continue;
+    if (f.edge < 30) {
+      const st = styleAt(f.cx, f.cz, blend), r = rng(hash(Math.round(f.cx * 10), Math.round(f.cz * 10) + 3));
+      S.FRAME = f;
+      KITS[STYLES[st.id].edgeKit ?? 'grove'](f.cx, f.cz, Math.min(f.w, f.d), st, 1, r);
+      S.FRAME = null;
+    } else clearOf(f, (g, k, bare, slab) => buildLot(f, g, blend, k, bare, slab));
+  }
+  for (const c of BAND) {
+    const st = styleAt(c.x, c.z, blend);
+    S.FRAME = { cx: 0, cz: 0, tx: c.x, tz: c.z, a: 0, c: 1, s: 0, w: 10, d: 10 };
+    KITS[STYLES[st.id].edgeKit ?? 'grove'](0, 0, 10, st, 1, rng(hash(c.x, c.z + 11)));
+    S.FRAME = null;
+  }
+  for (const c of FILL) {
     if (inSite(c.x, c.z, 4)) continue;
     const r = rng(hash(Math.round(c.x * 10), Math.round(c.z * 10) + 7));
     const Q = quarterAt(c.x, c.z), st = { ...styleAt(c.x, c.z, blend), ...(Q?.fill && Q.style) };

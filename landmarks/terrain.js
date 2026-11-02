@@ -448,14 +448,22 @@ function jungle(H, land) {
   const { THREE } = H;
   const r = H.rng(H.hash(5521, 803));
   const edges = H.CITY.districts.flatMap(d => d.poly.map((q, i) => [q, d.poly[(i + 1) % d.poly.length]]));
+
+  // Clumps pick a border edge by length, so long straight borders get as much forest as jagged ones, and their
+  // distance out skews toward the border, so the forest reaches the city instead of leaving a bare band.
+
+  const sum = [];
+  edges.reduce((t, [[ax, az], [bx, bz]]) => (sum.push(t + Math.hypot(bx - ax, bz - az)), sum.at(-1)), 0);
+  const byLength = q => { let lo = 0, hi = sum.length - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (sum[m] < q * sum.at(-1)) lo = m + 1; else hi = m; } return lo; };
+  const OLD = new URLSearchParams(location.search).get('infill') === '0';
   const crowns = new THREE.InstancedMesh(new THREE.OctahedronGeometry(1, 0), new THREE.MeshStandardMaterial({ roughness: 1, flatShading: true }), 45000);
   const huts = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ roughness: .9 }), 1500);
   const lamps = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial(), 1500);
   const o = new THREE.Object3D(), c = new THREE.Color();
   let nc = 0, nh = 0;
   for (let tries = 0; tries < 120000 && nc < crowns.instanceMatrix.count; tries++) {
-    const [[ax, az], [bx, bz]] = edges[Math.floor(r() * edges.length)], t = r();
-    const dir = r() * Math.PI * 2, out = 20 + r() * 900;
+    const q = r(), [[ax, az], [bx, bz]] = edges[OLD ? Math.floor(q * edges.length) : byLength(q)], t = r();
+    const dir = r() * Math.PI * 2, u = r(), out = 20 + (OLD ? u : u * u) * 900;
     const x = ax + (bx - ax) * t + Math.cos(dir) * out, z = az + (bz - az) * t + Math.sin(dir) * out;
     const d = land.cityDist(x, z);
     if (d < 15 || r() > Math.exp(-d / 380) || land.real(x, z) < 2) continue;
