@@ -5,6 +5,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { S } from './state.js';
 import { CENTRE, CENTRE_PLACE, CITY, lerp, mapToWorld, rng, sdPoly, smooth, styleAt } from './core.js';
 import { SETTING } from './setting.js';
+import { edgeAt } from './edge.js';
 import { QUALITY, camera, scene } from './render.js';
 import { _c, glow, prop, yawAt } from './instances.js';
 
@@ -450,7 +451,10 @@ export const hoverGeometry = () => vehicle(SETTING.transport.hover?.parts ?? SET
 
 // Street paths are sampled every 4 m, so u counts samples and v is samples per second.
 
-export const STREETS = Object.entries(CITY.streets).flatMap(([kind, lines]) => lines.filter(l => l.length > 8).map(l => {
+// Streets end where the city's edge frays, so cars turn back there. A street that leaves and re-enters splits in two.
+
+const inCity = l => l.reduce((runs, p) => (edgeAt(p[0], p[1]) < 0 ? runs.push([]) : runs.at(-1).push(p), runs), [[]]);
+export const STREETS = Object.entries(CITY.streets).flatMap(([kind, lines]) => lines.flatMap(inCity).filter(l => l.length > 8).map(l => {
   const path = l.map(([x, z]) => new THREE.Vector3(x, 0, z)), xs = l.map(p => p[0]), zs = l.map(p => p[1]);
   return { kind, path, side: sides(path, false), box: [Math.min(...xs) - 8, Math.min(...zs) - 8, Math.max(...xs) + 8, Math.max(...zs) + 8] };
 }));

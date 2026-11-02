@@ -70,6 +70,7 @@ A style holds `h0`, `h1`, `density`, `neon`, `lit`, `grime`, `w` and the colours
 - **Roofs.** `bld(…, { shape: 'gable', skin: H.SKINS.tile, base: [r, g, b] })` builds a pitched roof with its ridge along local x. `base` gives the roof its own colour.
 - **Defaults.** `styles.wallSkins` sets the skins `bld()` uses when a kit names none, and `styles.slots.skin` the skins the tower grammar and the engine's infill pick.
 - **Decoration.** `look.decor` switches off engine decoration: `roof` (rooftop plant, tanks, masts, dishes), `kibble` (facade boxes), `neon`, `signs`, `holo`, `helipads`, `beacons` `markings` (road centre dashes), `harvesters` and `fieldExtras` (fish ponds and greenhouses on fields). Each defaults to on, and a switch also silences kit calls to that helper.
+- **Frayed edge.** `look.edge` (metres) frays the city's outer edge, so it ends on a ragged line up to that far in. Ground, blocks, lots, lamps and streets stop at the line, and lots thin out near it. Borders between districts and the coast stay solid, and so does the ground round landmarks and places. `edgeAt(x, z)` in `engine/edge.js` tells a pack module where the line runs, for example to grow forest into it. Off by default.
 - **Lamps.** `look.lamps` sets `main` and `minor` lamp heights, and `post` gives each lamp a post of that colour. `flicker` (a share such as `.75`) makes each lamp waver down to that share of its light, like a flame.
 
 ### Lighting

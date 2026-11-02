@@ -12,6 +12,7 @@ import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CENTRE, CENTRE_R, CITY, DX, DZ } from './core.js';
 import { SETTING } from './setting.js';
+import { EDGE_GLSL, EDGE_U } from './edge.js';
 
 // ---------- renderer ----------
 
@@ -490,6 +491,18 @@ export function holed(mat) {
   return mat;
 }
 
+// The city ground and blocks stop at the frayed outer edge (engine/edge.js).
+
+Object.assign(U, EDGE_U);
+function frayed(mat) {
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = sh => {
+    prev(sh);
+    Object.assign(sh.uniforms, EDGE_U);
+    sh.fragmentShader = sh.fragmentShader.replace(MAIN, m => `${EDGE_GLSL}\n${m} if (frayed(vHole)) discard;`);
+  };
+}
+
 export const SURFACE = [];
 export const surface = m => { if (m.material) holed(m.material); SURFACE.push(m); scene.add(m); return m; };
 export const toShape = poly => new THREE.Shape(poly.map(([x, z]) => new THREE.Vector2(x, -z)));
@@ -506,7 +519,9 @@ surface(new THREE.Mesh(flatGeo(CITY.districts.map(d => d.poly), .03), new THREE.
   fragmentShader: `
     uniform float uTime, uCentreR; uniform vec2 uCentre; varying vec3 vW;
     ${FOG_GLSL}
+    ${EDGE_GLSL}
     void main(){
+      if (frayed(vW.xz)) discard;
       vec3 col = ${vec3(GROUND_RGB.streets)};
       float ds = distance(vW.xz, uCentre);
       if (ds < uCentreR) {
@@ -517,7 +532,7 @@ surface(new THREE.Mesh(flatGeo(CITY.districts.map(d => d.poly), .03), new THREE.
       gl_FragColor = vec4(fogged(col, vW), 1.);
     }`,
 })));
-surface(new THREE.Mesh(flatGeo(CITY.blocks, .08), new THREE.MeshStandardMaterial({ color: GROUND_RGB.blocks[0], emissive: GROUND_RGB.blocks[1], roughness: .95, side: THREE.DoubleSide })));
+frayed(surface(new THREE.Mesh(flatGeo(CITY.blocks, .08), new THREE.MeshStandardMaterial({ color: GROUND_RGB.blocks[0], emissive: GROUND_RGB.blocks[1], roughness: .95, side: THREE.DoubleSide }))).material);
 
 // Inland water (the reservoir, the Waterways) and the big parks cut out of the street grid.
 // Chaikin corner cutting rounds the traced outlines, so shores and park edges read as land, not polygons.

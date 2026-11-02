@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { S, H } from './state.js';
 import { AXIS_LO, BLOCK, CENTRE, CENTRE_R, CITY, STYLES, density, hash, lerp, mapToWorld, mixStyle, pickStyle, quarterAt, rng, sdPoly, smooth, styleAt, vnoise } from './core.js';
 import { SETTING, inPack } from './setting.js';
+import { chamfer, edgeAt } from './edge.js';
 import { camera, controls, label } from './render.js';
 import { DECOR, INSTANCED, PROPS, SHAPES, SKINS, beacon, bld, glow, glows, holo, neon, pool, pools, prop, puffs, put, roof, sign, signs, tileAll } from './instances.js';
 import { KITS, M, buildTall, flushMerged, pick, prism, resetMerged, scalePoly, yard } from './grammar.js';
@@ -291,39 +292,6 @@ export function fillCells() {
     cells.push({ x, z, a: nearestStreet(x, z)[2] });
   }
   return cells;
-}
-
-// Distance to the nearest zero cell, in thirds of a raster cell (3-4 chamfer). Two passes, so it stays fast on
-// the whole city raster.
-
-function chamfer(m, W, D) {
-  const d = new Uint16Array(W * D);
-  for (let i = 0; i < W * D; i++) d[i] = m[i] ? 65000 : 0;
-  for (let j = 0; j < D; j++) for (let i = 0; i < W; i++) {
-    const k = j * W + i;
-    if (!d[k]) continue;
-    let v = d[k];
-    if (i) v = Math.min(v, d[k - 1] + 3);
-    if (j) {
-      v = Math.min(v, d[k - W] + 3);
-      if (i) v = Math.min(v, d[k - W - 1] + 4);
-      if (i < W - 1) v = Math.min(v, d[k - W + 1] + 4);
-    }
-    d[k] = v;
-  }
-  for (let j = D - 1; j >= 0; j--) for (let i = W - 1; i >= 0; i--) {
-    const k = j * W + i;
-    if (!d[k]) continue;
-    let v = d[k];
-    if (i < W - 1) v = Math.min(v, d[k + 1] + 3);
-    if (j < D - 1) {
-      v = Math.min(v, d[k + W] + 3);
-      if (i < W - 1) v = Math.min(v, d[k + W + 1] + 4);
-      if (i) v = Math.min(v, d[k + W - 1] + 4);
-    }
-    d[k] = v;
-  }
-  return d;
 }
 
 // Infill: open ground wider than 12 m becomes synthetic lots that build like real ones. Seeds go widest
@@ -698,6 +666,7 @@ export function generate(blend) {
   // A block kit that spills into a corridor gives its block back to the lots.
 
   SITES = blockSites(blend).filter(({ f, zone }) => {
+    if (edgeAt(f.cx, f.cz) < .15) return false;
     const r = rng(hash(Math.round(f.cx), Math.round(f.cz) + 99)), kits = BLOCK_KITS[zone], k = mark();
     S.FRAME = f;
     kits[Math.floor(r() * kits.length)](f.cx, f.cz, Math.min(f.w, BLOCK_MAX) - 4, Math.min(f.d, BLOCK_MAX) - 4, styleAt(f.cx, f.cz, blend), r);
@@ -709,6 +678,10 @@ export function generate(blend) {
   for (const f of FRAMES) {
     if (Math.min(f.w, f.d) - 2 < 4 || Math.hypot(f.cx - CENTRE.x, f.cz - CENTRE.y) < CENTRE_R) continue;
     if (f.taken || inSite(f.cx, f.cz, 2)) continue;
+
+    // Lots thin out toward the frayed edge, so the city ends in scattered buildings.
+
+    if (edgeAt(f.cx, f.cz) < .08 + .3 * rng(hash(Math.round(f.cx), Math.round(f.cz) + 41))()) continue;
     clearOf(f, (g, k, bare, slab) => buildLot(f, g, blend, k, bare, slab));
   }
   FILL ??= fillCells();
@@ -731,7 +704,7 @@ export function generate(blend) {
     S.FRAME = null;
   }
   for (const c of FILL) {
-    if (inSite(c.x, c.z, 4)) continue;
+    if (inSite(c.x, c.z, 4) || edgeAt(c.x, c.z) < .05) continue;
     const r = rng(hash(Math.round(c.x * 10), Math.round(c.z * 10) + 7));
     const Q = quarterAt(c.x, c.z), st = { ...styleAt(c.x, c.z, blend), ...(Q?.fill && Q.style) };
     const fk = KITS[STYLES[st.id].fillKit];

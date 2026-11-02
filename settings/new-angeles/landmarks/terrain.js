@@ -4,6 +4,7 @@
 
 import { CLOUD_SCENE } from '../../../engine/render.js';
 import { cloudLayer } from '../../../engine/clouds.js';
+import { edgeAt } from '../../../engine/edge.js';
 import { MAP } from '../map.js';
 
 const CX = -158, CZ = 1476, EXT = 13000;
@@ -286,6 +287,10 @@ function jungle(H, land) {
   edges.reduce((t, [[ax, az], [bx, bz]]) => (sum.push(t + Math.hypot(bx - ax, bz - az)), sum.at(-1)), 0);
   const byLength = q => { let lo = 0, hi = sum.length - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (sum[m] < q * sum.at(-1)) lo = m + 1; else hi = m; } return lo; };
   const OLD = new URLSearchParams(location.search).get('infill') === '0';
+
+  // Trees keep off the city, but grow up to its edge and into the ground where the edge frays.
+
+  const tooClose = (x, z, d, gap) => OLD ? d < gap : d > 0 ? d < 3 : edgeAt(x, z) > -.05;
   const crowns = new THREE.InstancedMesh(new THREE.OctahedronGeometry(1, 0), new THREE.MeshStandardMaterial({ roughness: 1, flatShading: true }), 45000);
   const huts = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ roughness: .9 }), 1500);
   const lamps = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial(), 1500);
@@ -296,14 +301,14 @@ function jungle(H, land) {
     const dir = r() * Math.PI * 2, u = r(), out = 20 + (OLD ? u : u * u) * 900;
     const x = ax + (bx - ax) * t + Math.cos(dir) * out, z = az + (bz - az) * t + Math.sin(dir) * out;
     const d = land.cityDist(x, z);
-    if (d < 15 || r() > Math.exp(-d / 380) || land.real(x, z) < 2) continue;
+    if (tooClose(x, z, d, 15) || r() > Math.exp(-d / 380) || land.real(x, z) < 2) continue;
     const y = land.height(x, z, d);
 
     // A clump of four to eight crowns.
 
     for (let k = 4 + Math.floor(r() * 5); k > 0 && nc < crowns.instanceMatrix.count; k--) {
       const tx = x + (r() - .5) * 26, tz = z + (r() - .5) * 26, s = 4 + r() * 5;
-      if (land.cityDist(tx, tz) < 12 || land.real(tx, tz) < 2) continue;
+      if (tooClose(tx, tz, land.cityDist(tx, tz), 12) || land.real(tx, tz) < 2) continue;
       o.position.set(tx, land.height(tx, tz) + s * .6, tz); o.rotation.set(0, r() * 6, 0);
       o.scale.set(s * (.8 + r() * .5), s * (.55 + r() * .4), s * (.8 + r() * .5));
       o.updateMatrix(); crowns.setMatrixAt(nc, o.matrix);

@@ -66,7 +66,7 @@ export default {
   look: {
     fog: 0x142036, fogStart: [400, 3800], fogBase: { near: 850, far: 3900 }, mist: .32,
     hemi: [0x7f9cc8, 0x1a1410, 1.5], moon: [0x8899cc, .7, [300, 800, 200]], bloom: [.45, .35, 1.0],
-    flicker: { beat: .8, on: .15, dim: .06, stutter: -1.2 }, searchlight: [1, .92, .72], cardColor: [.6, 1.8, 2.6],
+    edge: 140, flicker: { beat: .8, on: .15, dim: .06, stutter: -1.2 }, searchlight: [1, .92, .72], cardColor: [.6, 1.8, 2.6],
     ground: { outer: 0x0c140f, streets: [.048, .05, .058], plaza: [.03, .035, .045], blocks: [0x24262d, 0x121317],
       parks: [0x18261a, 0x0a140b], slab: 0x0d1118, sea: 0x06101e },
     tune: { exposure: 1, sky: 1.6, moon: 1.1, windows: 1.25, edges: .6, neon: 1.25, glows: 1.5, pools: .8,

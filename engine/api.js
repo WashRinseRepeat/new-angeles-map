@@ -10,6 +10,7 @@ import { FACES, GLOWS, INSTANCED, PROPS, SKINS, beacon, beam, bld, glow, glows, 
 import { KITS, crownOf, decor, grammarTowerBody, neonTexture, panel, plate, stringLights } from './grammar.js';
 import { fillGreens } from './greens.js';
 import { packClouds } from './clouds.js';
+import { keep } from './edge.js';
 import { STREETS, buildPylons, centre, corridorIn, traffic } from './transport.js';
 import { buildStations } from './ride.js';
 import { ALL_BLOCK_FRAMES, BLOCK_FRAMES, BLOCK_KITS, BLOCK_MAX, FAMILY_KITS, SC, FRAMES, frontOf, LANDMARKS_KITS, OWN_TIERS, SHOWCASE, SMALL_LOTS, generate, inRect, showcase } from './generator.js';
@@ -155,6 +156,13 @@ if (SETTING.centre.module) {
     LANDMARKS.push(CENTRE_API = api);
   }
 }
+// Seats saved in GM edit mode (see below). Landmarks and places keep solid ground where the city's edge frays,
+// before the pack's forest grows into it.
+
+const SEATS = await fetch(atRoot(SETTING.data.seats), { cache: 'no-store' }).then(r => r.json()).catch(() => ({}));
+for (const lm of LANDMARKS_KITS) keep(...(SEATS[`lm:${lm.name}`]?.at ?? mapToWorld(lm.at ?? [0, 0])), lm.free ? Math.hypot(lm.free[0], lm.free[1]) / 2 + 20 : 70);
+for (const p of CITY.places ?? []) keep(...(SEATS[p.slug]?.at ?? p.at), 70);
+
 if (SETTING.terrain) {
   const mod = await import(inPack(SETTING.terrain));
   if (mod.build) {
@@ -299,7 +307,6 @@ buildStations();
 //   snap  true seats the place on the nearest free large block within 260 m; false builds exactly at `at`
 // A seat that is not a plain snapped block becomes its own frame in ALL_BLOCK_FRAMES, so block kits keep off it.
 
-const SEATS = await fetch(atRoot(SETTING.data.seats), { cache: 'no-store' }).then(r => r.json()).catch(() => ({}));
 for (const p of PLACES) {
   if (SHOWCASE) break;
   const q = { ...CITY.places.find(c => c.slug === p.slug), ...SEATS[p.slug] };
