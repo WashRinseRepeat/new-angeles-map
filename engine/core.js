@@ -143,7 +143,7 @@ export const STYLES = {
     tiers: [['park', 'block', 'stack'], ['stack', 'tower', 'block'], ['tower', 'twin', 'stack'], ['tower', 'twin']] }),
   'laguna-velasco': STYLE({ w: .8, h0: 6, h1: 60, density: .8, neon: .15, lit: .3, grime: .1, base: [.17, .18, .2], win: [.78, .9, 1],
     signs: [[.3, 1.2, 1.4], [1.3, 1.1, .7], [1.2, .5, .9]], street: [1, .6, .32],
-    tiers: [['park', 'park', 'block'], ['block', 'tower', 'park'], ['tower', 'twin', 'block'], ['tower', 'twin']], yardKit: 'lv_garden', noFill: true,
+    tiers: [['park', 'park', 'block'], ['block', 'tower', 'park'], ['tower', 'twin', 'block'], ['tower', 'twin']], yardKit: 'lv_garden', fillKit: 'lv_fill',
     blockCap: 160, blockGap: 0, blockMin: 30, smallShare: 1 }),
   rabotgorod: STYLE({ w: .2, h0: 14, h1: 38, density: .92, neon: .12, lit: .12, grime: .85, base: [.09, .085, .08], win: [.82, .9, .78],
     signs: [[1.4, .12, .1], [.25, .55, 1.4], [1.3, .9, .2]], street: [.62, .78, .7], zones: ['industry'],

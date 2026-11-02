@@ -607,7 +607,7 @@ export function landmarks(H) {
     // Machalilla Park: the city's great jungle preserve. A canopy walkway on stilts loops through the trees,
     // a slidewalk runs out to it from a visitor pavilion on the north edge, and camdrones hover over the nests.
 
-    lc_machalilla: { at: [631.1, 1300], free: [540, 300], label: 'Machalilla Park', labelY: 60, build(x, z, w, d, st, r) {
+    lc_machalilla: { at: [631.1, 1300], free: [540, 300], fillUnder: true, label: 'Machalilla Park', labelY: 60, build(x, z, w, d, st, r) {
       const P = H.CITY.parks.find(p => /Machalilla/.test(p.name)).poly, [cx, cz] = K.toWorld(x, z);
       const inPark = (lx, lz) => { let c = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) { const [xi, zi] = P[i], [xj, zj] = P[j]; if ((zi > lz + cz) !== (zj > lz + cz) && lx + cx < (xj - xi) * (lz + cz - zi) / (zj - zi) + xi) c = !c; } return c; };
       const Y = 17, ring = [];

@@ -255,6 +255,13 @@ export function fillCells() {
     const [w, d] = b.size ?? [BLOCK, BLOCK];
     g.save(); g.translate(b.cx, b.cz); g.rotate(-b.a); g.fillRect(-w / 2 - 4, -d / 2 - 4, w + 8, d + 8); g.restore();
   }
+
+  // Free landmark sites keep fill off, unless a site such as an oval park wants fill round its edge (fillUnder).
+
+  for (const lm of LANDMARKS_KITS) if (lm.free && !lm.fillUnder) {
+    const [w, d, a = 0] = lm.free;
+    g.save(); g.translate((lm.at[0] - 680) * 3.6, (lm.at[1] - 390) * 3.6); g.rotate(-a); g.fillRect(-w / 2 - 2, -d / 2 - 2, w + 4, d + 4); g.restore();
+  }
   g.beginPath(); g.arc(STALK.x, STALK.y, PLAZA_R + 10, 0, 7); g.fill();
   const px = g.getImageData(0, 0, W, D).data;
   const free = (x, z) => {

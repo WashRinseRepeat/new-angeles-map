@@ -6,6 +6,7 @@
 
 import { trees } from './nature.js';
 import { sights as lakeside } from './lv-lakeside.js';
+import { fill } from './lv-fill.js';
 
 let LIB = null;
 
@@ -377,7 +378,7 @@ function lib(H) {
     // Lamps line the promenade, alternating sides every 16 m.
 
     for (let u = -L / 2 + 5, k = 0; u < L / 2 - 3; u += 16, k++) lamp(...A.at(u, k % 2 ? 2.4 : -2.4), 4);
-    for (let k = Math.min(28, Math.max(2, Math.round(L * S / 90))); k > 0; k--) {
+    for (let k = Math.min(56, Math.max(2, Math.round(L * S / 45))); k > 0; k--) {
       const u = (r() - .5) * (L - 3), v = (r() - .5) * (S - 3);
       if (Math.abs(v) < 2.6 || (cross && Math.abs(u) < 2.6) || Math.hypot(u, v) < R + 3) continue;
       if (keep && Math.abs(u - keep[0]) < keep[2] && Math.abs(v - keep[1]) < keep[3]) continue;
@@ -419,12 +420,13 @@ function lib(H) {
     return best;
   };
 
-  // Trees on the polygon ground that the fitted rectangle leaves over.
+  // Trees on the polygon ground that the fitted rectangle leaves over, more where more ground is left.
 
   const fringe = (x, z, W, D, R, r) => {
     const P = H.frame()?.poly;
     if (!P) return;
-    for (let k = 0, n = 0; k < 40 && n < 14; k++) {
+    const want = Math.min(48, Math.max(14, Math.round((W * D - R[2] * R[3]) / 55)));
+    for (let k = 0, n = 0; k < want * 3 && n < want; k++) {
       const px = x + (r() - .5) * W, pz = z + (r() - .5) * D;
       if (Math.abs(px - R[0]) < R[2] / 2 + 2 && Math.abs(pz - R[1]) < R[3] / 2 + 2) continue;
       if (inside(P, ...H.worldOf(px, pz)) < 3) continue;
@@ -874,6 +876,22 @@ function lib(H) {
       gardenAt(x, z, W, D, r, front());
     },
 
+    // Fill: a 10 m cell of leftover ground. Smooth noise groups the cells into groves, hedged lawns and
+    // open lawn with the odd lamp, so slivers between blocks read as planted ground.
+
+    lv_fill(x, z, s, st, b, r) {
+      const [wx, wz] = H.worldOf(x, z), n = vnoise(wx / 90 + 7, wz / 90 + 23);
+      lawn(x, z, s + .5, s + .5, 0, n < .45 ? GARDEN : HEDGE);
+      if (n >= .45) {
+        for (let k = 2 + Math.floor(r() * 2); k > 0; k--) tree(x + (r() - .5) * s * .8, .3, z + (r() - .5) * s * .8, 6 + r() * 7, r, pick(r, ['broad', 'broad', 'palm', 'fern']));
+        if (r() < .5) tree(x + (r() - .5) * s, .3, z + (r() - .5) * s, 2 + r() * 2, r, 'shrub');
+      } else if (n >= .3) {
+        prop('box', x, .6, z + s * .35, s * .9, 1.2, 1.2, HEDGE);
+        tree(x + (r() - .5) * s * .5, .3, z - s * .1, 4 + r() * 3, r, pick(r, ['cypress', 'palm']));
+      } else if (r() < .35) tree(x + (r() - .5) * s * .6, .3, z + (r() - .5) * s * .6, 5 + r() * 4, r, 'broad');
+      if (r() < .06) lamp(x + s / 2 - 1, z + s / 2 - 1, 4);
+    },
+
     // Marina: a cove with finger piers and moored sailboats, a lamp-lit boardwalk and a yacht club.
 
     lv_marina(x, z, s, st, b, r) {
@@ -960,7 +978,7 @@ function lib(H) {
     ],
   };
   const route = (name, x, z, s, r) => {
-    if (!H.frame() || name === 'lv_garden') return K[name];
+    if (!H.frame() || name === 'lv_garden' || name === 'lv_fill') return K[name];
     if (parkField(x, z) > PARK_T) return K.lv_garden;
     const ok = ALLOW[area(x, z)]?.[SIZE(s)];
     return ok ? K[pick(r, ok)] : K[name];
@@ -1150,7 +1168,13 @@ export function blocks(H) {
     if (!H.frame()) { B[name](x, z, w, d, st, r); return; }
     const R = fitRect(x, z, w, d, 2), [fx, fz, fw, fd] = R;
     fringe(x, z, w, d, R, r);
-    if (Math.min(fw, fd) < 24) { if (Math.min(fw, fd) > 8) gardenAt(fx, fz, fw, fd, r, front()); return; }
+    if (Math.min(fw, fd) < 24) {
+      const m = Math.min(fw, fd), k = r();
+      if (m >= 14 && k < .35) villaAt(fx, fz, fw, fd, st, r, front());
+      else if (m >= 14 && k < .6) terraceAt(fx, fz, fw, fd, st, r, front(), 3);
+      else if (m > 8) gardenAt(fx, fz, fw, fd, r, front());
+      return;
+    }
     const form = icon(fx, fz, fw, fd, r);
     if (form) { B.lv_icon(fx, fz, fw, fd, st, r, form); return; }
     const list = ROUTE[L.area(x, z)];
@@ -1399,5 +1423,6 @@ export function landmarks(H) {
       return { face: front() };
     } },
     ...lakeside(H, L),
+    ...fill(H, L),
   };
 }

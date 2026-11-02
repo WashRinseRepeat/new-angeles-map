@@ -47,7 +47,7 @@ function library(H) {
     H.decor.add(m);
     return H.instanced(m);
   };
-  LIB = { palm: make(palm, 3000), broad: make(broad, 4000), fern: make(fern, 3000), cypress: make(cypress, 1500), shrub: make(shrub, 6000) };
+  LIB = { palm: make(palm, 4500), broad: make(broad, 7000), fern: make(fern, 3000), cypress: make(cypress, 2500), shrub: make(shrub, 6000) };
   return LIB;
 }
 
