@@ -69,7 +69,7 @@ export function build(H, group) {
   }
   const terminals = [];
   for (const l of lines) for (const p of [l.pts[0], l.pts[l.pts.length - 1]]) {
-    const dx = p[0] - H.STALK.x, dz = p[2] - H.STALK.y, d = Math.hypot(dx, dz);
+    const dx = p[0] - H.CENTRE.x, dz = p[2] - H.CENTRE.y, d = Math.hypot(dx, dz);
     if (d > 260) continue;
     const a = Math.atan2(dz, dx);
     if (terminals.some(t => t.kind === l.kind && Math.abs(Math.atan2(Math.sin(t.a - a), Math.cos(t.a - a))) < .3)) continue;
@@ -89,7 +89,7 @@ export function build(H, group) {
 
   // ---------- plaza deck ----------
 
-  const S = 2048, R = H.PLAZA_R, px = v => (v + R) / (2 * R) * S;
+  const S = 2048, R = H.CENTRE_R, px = v => (v + R) / (2 * R) * S;
   const drawPlaza = (g, lit) => {
     g.fillStyle = lit ? '#000' : '#0d1016'; g.fillRect(0, 0, S, S);
     g.lineWidth = lit ? 3 : 4;
@@ -366,10 +366,10 @@ export function build(H, group) {
   const chaserMat = new THREE.ShaderMaterial({
     uniforms: { ...U, uColor: { value: new THREE.Color(.4, 1.5, 2.4) } },
     vertexShader: `varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
-    fragmentShader: `uniform vec3 uColor; uniform vec2 uStalk; uniform float uTime; varying vec3 vW; ${H.FOG_GLSL}
+    fragmentShader: `uniform vec3 uColor; uniform vec2 uCentre; uniform float uTime; varying vec3 vW; ${H.FOG_GLSL}
       void main(){
         if (vW.y > uClipTop) discard;
-        float p = fract(length(vW.xz - uStalk) / 36. + uTime * .9);
+        float p = fract(length(vW.xz - uCentre) / 36. + uTime * .9);
         gl_FragColor = vec4(fogged(uColor * (.3 + 2.4 * pow(p, 12.)), vW), 1.);
       }`,
   });

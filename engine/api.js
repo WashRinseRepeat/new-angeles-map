@@ -3,14 +3,16 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { S, H } from './state.js';
-import { BDC, BLOCK, CITY, PLACES, PLAZA_R, RUT, STALK, STALK_PLACE, STANDALONE, STYLES, hash, lerp, loadMsg, mixStyle, rng, smooth, styleAt } from './core.js';
+import { AXIS_HI, AXIS_LO, BLOCK, CENTRE, CENTRE_PLACE, CENTRE_R, CITY, PLACES, STANDALONE, STYLES, hash, lerp, loadMsg, mapToWorld, mixStyle, rng, smooth, styleAt } from './core.js';
+import { SETTING, atRoot, inPack } from './setting.js';
 import { FOG_GLSL, SURFACE, U, WATER_GLSL, addHole, holed, label, outerGround, slab, surface, water } from './render.js';
 import { FACES, GLOWS, INSTANCED, PROPS, SKINS, beacon, beam, bld, glow, glows, grey, helipad, holo, kibble, neon, pool, prop, puff, put, soften, roof, sign, textSign } from './instances.js';
 import { KITS, crownOf, decor, grammarTowerBody, neonTexture, panel, plate, stringLights } from './grammar.js';
 import { fillGreens } from './greens.js';
-import { STREETS, buildPylons, climbers, corridorIn, stalk, traffic } from './transport.js';
+import { packClouds } from './clouds.js';
+import { STREETS, buildPylons, centre, corridorIn, traffic } from './transport.js';
 import { buildStations } from './ride.js';
-import { ALL_BLOCK_FRAMES, BLOCK_FRAMES, BLOCK_KITS, BLOCK_MAX, FAMILY_KITS, FRAMES, frontOf, LANDMARKS_KITS, OWN_TIERS, SHOWCASE, SMALL_BDC, generate, inRect, showcase } from './generator.js';
+import { ALL_BLOCK_FRAMES, BLOCK_FRAMES, BLOCK_KITS, BLOCK_MAX, FAMILY_KITS, SC, FRAMES, frontOf, LANDMARKS_KITS, OWN_TIERS, SHOWCASE, SMALL_LOTS, generate, inRect, showcase } from './generator.js';
 
 // ---------- module API: what place and kit files may use ----------
 
@@ -20,10 +22,13 @@ export const canvasTexture = (w, h, draw) => {
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
   return t;
 };
-// H is created empty in state.js so kits and the generator can import it. The API fills it here.
+// H is created empty in state.js so kits and the generator can import it. The API fills it here. The pack's
+// helpers add its own names, such as the style axis ends under their district names.
 
 Object.defineProperties(H, Object.getOwnPropertyDescriptors({
-  THREE, CITY, STALK, PLAZA_R, U, FOG_GLSL, WATER_GLSL, BLOCK, BDC, RUT, SKINS, FACES, PROPS, GLOWS, get decor() { return S.DECOR; },
+  THREE, CITY, CENTRE, CENTRE_R, SETTING, U, FOG_GLSL, WATER_GLSL, BLOCK, AXIS: [AXIS_LO, AXIS_HI], SKINS, FACES, PROPS, GLOWS,
+  ...SETTING.styles.helpers, get decor() { return S.DECOR; },
+  mapToWorld,
   mixStyle, rng, hash, lerp, smooth, grey,
   put, prop, glow, pool, beam, puff, soften, textSign, beacon, bld, roof, kibble, sign, neon, holo, helipad, crownOf, grammarTowerBody,
   panel, neonTexture, stringLights, plate, canvasTexture,
@@ -58,14 +63,17 @@ Object.defineProperties(H, Object.getOwnPropertyDescriptors({
   // Kit-owned instanced meshes register here so generate() resets and uploads them with the engine's own.
 
   instanced: m => { m.count = 0; m.frustumCulled = false; INSTANCED.push(m); return m; },
-  flickerGlow: (x, y, z, sx, sy, sz, rgb, r) => S.flicker.push([glows, glow(x, y, z, sx, sy, sz, rgb), rgb, r() * 10, false]),
+
+  // A flickering light, like broken neon. dim, a share such as .7, makes it waver like a flame instead.
+
+  flickerGlow: (x, y, z, sx, sy, sz, rgb, r, dim) => S.flicker.push([glows, glow(x, y, z, sx, sy, sz, rgb), rgb, r() * 10, false, ...dim ? [dim] : []]),
 
   // A soft searchlight: a cone from its lamp at the origin up +y to its wide end at y = 1, so a mesh or
   // instance scales it to (radius, length, radius). It is brightest at the lamp, fades along its length,
-  // fades at its edges and carries drifting haze, like the Jack Weyland crown beams.
+  // fades at its edges and carries drifting haze. The pack sets the default colour.
 
   beamGeo: new THREE.CylinderGeometry(1, .08, 1, 32, 12, true).translate(0, .5, 0),
-  searchBeam: (rgb = [1, .92, .72], gain = 1) => BEAMS[`${rgb}|${gain}`] ??= new THREE.ShaderMaterial({
+  searchBeam: (rgb = SETTING.look.searchlight, gain = 1) => BEAMS[`${rgb}|${gain}`] ??= new THREE.ShaderMaterial({
     uniforms: { uTime: U.uTime, uFogNear: U.uFogNear, uFogFar: U.uFogFar, uCol: { value: new THREE.Color(...rgb).multiplyScalar(gain) } },
     vertexShader: `
       varying vec3 vW, vA, vD; varying float vT;
@@ -101,56 +109,54 @@ Object.defineProperties(H, Object.getOwnPropertyDescriptors({
 }));
 const BEAMS = {};
 
-// Kit families live in kits/<family>.js. Each exports kits(H) and tiers, which adds kit names to district tiers.
+// Kit families live in the pack's kits/<family>.js. Each exports kits(H) and tiers, which adds kit names to district
+// tiers. District families own their district's tiers. Find families add landmarks, each with a card file at
+// content/<family>.json. Private families hold campaign places, so the public copy leaves them out.
 
-export const NEW_DISTRICTS = ['esmeraldas', 'nihongai', 'manta', 'laguna-velasco', 'rabotgorod', 'la-costa', 'quinde', 'guayaquil'];
-// Find families add landmarks from the PDF finds. Each has a card file at content/<family>.json.
-// finds-story holds places from the campaign's sessions, so the public copy leaves it out.
-
-export const FIND_FAMILIES = ['finds-broadcast', 'finds-downtown', 'finds-base', 'finds-spread', 'finds-east', 'finds-south', 'golden-spire', 'finds-story']
-  .filter(f => !STANDALONE || f !== 'finds-story');
-export const KIT_FAMILIES = ['industry', 'nature', 'heavy', 'chakana', 'favela', 'mercado', 'akeidito', ...NEW_DISTRICTS, ...FIND_FAMILIES];
+const K = SETTING.kits;
+export const NEW_DISTRICTS = K.districts;
+export const FIND_FAMILIES = K.finds.filter(f => !STANDALONE || !K.private?.includes(f));
+export const KIT_FAMILIES = [...K.families, ...NEW_DISTRICTS, ...FIND_FAMILIES];
 
 for (const fam of KIT_FAMILIES) {
-  const mod = await import(`../kits/${fam}.js`), kits = mod.kits(H);
+  const mod = await import(inPack(`kits/${fam}.js`)), kits = mod.kits(H);
   Object.assign(KITS, kits, mod.EXTRA);
   FAMILY_KITS[fam] = Object.keys(kits);
   for (const { zone, build } of Object.values(mod.blocks?.(H) ?? {})) BLOCK_KITS[zone].push(build);
   for (const [name, lm] of Object.entries(mod.landmarks?.(H) ?? {})) LANDMARKS_KITS.push({ name, ...lm });
 
-  // A new district's own tiers replace its placeholder tiers. Older districts only gain names.
+  // A new district's own tiers replace its placeholder tiers, as do the tiers of a district in kits.ownTiers, for a
+  // family that serves several districts. Older districts only gain names.
 
   for (const [d, add] of Object.entries(mod.tiers ?? {})) {
-    const id = { bdc: 'base-de-cayambe', rut: 'rutherford' }[d] ?? d, S = STYLES[id];
+    const id = SETTING.styles.tierAlias?.[d] ?? d, S = STYLES[id];
     if (!S) continue;
-    if (NEW_DISTRICTS.includes(id) && !OWN_TIERS.has(id)) { S.tiers = []; OWN_TIERS.add(id); }
+    if ((NEW_DISTRICTS.includes(id) || K.ownTiers?.includes(id)) && !OWN_TIERS.has(id)) { S.tiers = []; OWN_TIERS.add(id); }
     for (const [t, names] of Object.entries(add)) (S.tiers[t] ??= []).push(...names);
   }
 }
 for (const id of OWN_TIERS) STYLES[id].tiers = STYLES[id].tiers.filter(t => t?.length);
 
-SMALL_BDC.push(...['shacks', 'shacks', 'shophouse'].filter(k => KITS[k]));
+SMALL_LOTS.push(...(K.smallLots?.kits ?? []).filter(k => KITS[k]));
 
-// Landmark modules replace engine defaults when they export build(H, group).
-// landmarks/beanstalk.js gets a group at the Root and replaces the simple stalk.
-// landmarks/terrain.js gets a group at the origin and replaces the flat ground, the slab and the water.
-// build may return { update(t, dt) } for animation.
+// The pack's centre module builds its central landmark into a group at the centre. Its terrain module gets a group
+// at the origin and replaces the flat ground, the slab and the water. build may return { update(t, dt) } for
+// animation, and the centre's top sets its pin height.
 
 export const LANDMARKS = [];
-export let BEANSTALK = {};
-{
-  const mod = await import('../landmarks/beanstalk.js');
+export let CENTRE_API = {};
+if (SETTING.centre.module) {
+  const mod = await import(inPack(SETTING.centre.module));
   if (mod.build) {
-    stalk.clear();
-    const api = mod.build(H, stalk) ?? {};
-    stalk.traverse(o => { o.userData.place = STALK_PLACE; });
-    if (api.top) STALK_PLACE.top = new THREE.Vector3(STALK.x, api.top, STALK.y);
-    climbers.length = 0;
-    LANDMARKS.push(BEANSTALK = api);
+    centre.clear();
+    const api = mod.build(H, centre) ?? {};
+    centre.traverse(o => { o.userData.place = CENTRE_PLACE; });
+    if (api.top && CENTRE_PLACE) CENTRE_PLACE.top = new THREE.Vector3(CENTRE.x, api.top, CENTRE.y);
+    LANDMARKS.push(CENTRE_API = api);
   }
 }
-{
-  const mod = await import('../landmarks/terrain.js');
+if (SETTING.terrain) {
+  const mod = await import(inPack(SETTING.terrain));
   if (mod.build) {
     for (const m of [outerGround, slab, water]) { m.visible = false; SURFACE.splice(SURFACE.indexOf(m), 1); }
     const g = surface(new THREE.Group());
@@ -161,6 +167,10 @@ export let BEANSTALK = {};
     LANDMARKS.push(mod.build(H, g) ?? {});
   }
 }
+
+// A pack's look.clouds lists cloud decks over its centre (clouds.js).
+
+packClouds(H, SETTING.look.clouds);
 
 // ---------- static merge ----------
 // Place and landmark builds leave many small meshes, one draw call each, and kits often give each mesh its own
@@ -289,7 +299,7 @@ buildStations();
 //   snap  true seats the place on the nearest free large block within 260 m; false builds exactly at `at`
 // A seat that is not a plain snapped block becomes its own frame in ALL_BLOCK_FRAMES, so block kits keep off it.
 
-const SEATS = await fetch(new URL('../places.json', import.meta.url), { cache: 'no-store' }).then(r => r.json()).catch(() => ({}));
+const SEATS = await fetch(atRoot(SETTING.data.seats), { cache: 'no-store' }).then(r => r.json()).catch(() => ({}));
 for (const p of PLACES) {
   if (SHOWCASE) break;
   const q = { ...CITY.places.find(c => c.slug === p.slug), ...SEATS[p.slug] };
@@ -301,10 +311,10 @@ for (const p of PLACES) {
 
   const turnOf = b => { const f = frontOf(b); return f.z > 0 ? 0 : f.z < 0 ? Math.PI : f.x > 0 ? Math.PI / 2 : -Math.PI / 2; };
   const clearSeat = b => { const a = rot ?? b.a + turnOf(b); return !corridorIn({ cx: b.cx, cz: b.cz, c: Math.cos(a), s: Math.sin(a) }, 4, sw, sd).length; };
-  let block = null, best = 260;
+  let block = null, best = SC.seatReach;
   if (snap) for (const b of ALL_BLOCK_FRAMES) {
     const d = Math.hypot(b.cx - p.x, b.cz - p.z);
-    if (!b.used && Math.min(b.w, b.d) >= 46 && d < best && clearSeat(b)) { best = d; block = b; }
+    if (!b.used && Math.min(b.w, b.d) >= SC.siteMin && d < best && clearSeat(b)) { best = d; block = b; }
   }
   if (block) block.used = true;
   let turn = 0;
@@ -351,7 +361,6 @@ export const LANDMARK_LABELS = [];
 // One row per built landmark for search and the atlas. A landmark with a slug is a campaign location and gets a place for the card.
 
 export const LANDMARK_SITES = [];
-export const mapToWorld = ([u, v]) => [(u - 680) * 3.6, (v - 390) * 3.6];
 for (const lm of LANDMARKS_KITS) {
   if (SHOWCASE) break;
 
@@ -363,10 +372,10 @@ for (const lm of LANDMARKS_KITS) {
   // the nearest free block and warns.
 
   const seek = clear => {
-    let site = null, best = moved ? 260 : lm.reach ?? 400;
+    let site = null, best = moved ? SC.seatReach : lm.reach ?? SC.landmarkReach;
     for (const b of ALL_BLOCK_FRAMES) {
       const d = Math.hypot(b.cx - x, b.cz - z);
-      if (!b.used && Math.min(b.w, b.d) >= (lm.minSide ?? 46) && d < best
+      if (!b.used && Math.min(b.w, b.d) >= (lm.minSide ?? SC.siteMin) && d < best
         && (!clear || !corridorIn(b, 4, Math.min(b.w, BLOCK_MAX), Math.min(b.d, BLOCK_MAX)).length)) { best = d; site = b; }
     }
     return site;
@@ -380,7 +389,7 @@ for (const lm of LANDMARKS_KITS) {
   site.used = true;
   site.size = [Math.min(site.w, BLOCK_MAX), Math.min(site.d, BLOCK_MAX)];
   if (!lm.free) for (const f of FRAMES) if (inRect(site, f.cx, f.cz, 2)) f.taken = true;
-  const g = new THREE.Group(), sy = lm.scaleY ?? 1, ly = (lm.labelY ?? 80) * sy;
+  const g = new THREE.Group(), sy = lm.scaleY ?? 1, ly = (lm.labelY ?? SETTING.scale.labels.landmarkY) * sy;
   g.position.set(site.cx, 0, site.cz);
   g.rotation.y = site.a;
   g.scale.y = sy;
@@ -411,7 +420,7 @@ for (const lm of LANDMARKS_KITS) {
   if (lm.update) LANDMARKS.push(lm);
   const el = lm.label && label(lm.label, 'district landmark', new THREE.Vector3(fx, ly, fz));
   if (el) LANDMARK_LABELS.push(el);
-  const place = lm.slug && { slug: lm.slug, title: lm.label, district: '', type: 'Landmark', summary: '', color: [.6, 1.8, 2.6], top: new THREE.Vector3(fx, ly, fz), frame: view };
+  const place = lm.slug && { slug: lm.slug, title: lm.label, district: '', type: 'Landmark', summary: '', color: SETTING.look.cardColor, top: new THREE.Vector3(fx, ly, fz), frame: view };
 
   // Kit geometry lands in shared instanced meshes, so an unseen box over the site takes the clicks.
 
@@ -421,7 +430,7 @@ for (const lm of LANDMARKS_KITS) {
     pick.userData.place = place;
     g.add(pick);
   }
-  LANDMARK_SITES.push({ name: lm.label ?? lm.name, key: lm.name, x: fx, z: fz, y: ly, frame: view, el, place, block: lm.free ? null : site, at: [x, z], minSide: lm.minSide ?? 46 });
+  LANDMARK_SITES.push({ name: lm.label ?? lm.name, key: lm.name, x: fx, z: fz, y: ly, frame: view, el, place, block: lm.free ? null : site, at: [x, z], minSide: lm.minSide ?? SC.siteMin });
 }
 if (!SHOWCASE) { mergeBuilds(); LANDMARKS.push(fillGreens(H)); }
 S.BASE = new Map(INSTANCED.map(m => [m, m.count]));

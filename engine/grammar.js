@@ -2,7 +2,8 @@
 
 import * as THREE from 'three';
 import { S, H } from './state.js';
-import { BDC, BLOCK, RUT, lerp } from './core.js';
+import { AXIS_HI, AXIS_LO, BLOCK, lerp } from './core.js';
+import { SETTING } from './setting.js';
 import { U, scene } from './render.js';
 import { B_FS, B_VS, FACES, GLOWS, SKINS, beacon, bld, glow, glows, grey, helipad, holo, neon, prop, put, roof, sign } from './instances.js';
 
@@ -87,7 +88,7 @@ export function lotTower(x, z, W, D, H, st, r, skin, gl, crown, accent) {
 
 
 
-// Weights per option as [Base de Cayambe, Rutherford]. A lot's style weight blends the two.
+// Weights per option as [low end, high end] of the style axis. A lot's style weight blends the two.
 
 export const SLOTS = {
   plan: { lot: [2.5, 2], rect: [3, 3], L: [1.5, 1.2], U: [.6, .6], cross: [.8, .5], oct: [.3, 1.2], round: [.3, 1.2], slab: [1.4, .8] },
@@ -97,6 +98,10 @@ export const SLOTS = {
   skin: { grid: [3, 1.5], bands: [1, 2], fins: [.5, 1.2], curtain: [.2, 2], sparse: [2, .3] },
   crown: { flat: [3, 1], spire: [.5, 1.5], sphere: [.1, .8], dishes: [1.2, .8], pagoda: [.4, .3], helipad: [.3, 1.2], antennas: [1.5, 1], ring: [.1, .9], pyramid: [.4, .8], logo: [.1, 1] },
 };
+
+// A pack's styles.slots replaces whole slots, such as skin, to give its towers other options.
+
+Object.assign(SLOTS, SETTING.styles.slots);
 export function pick(slot, w, r) {
   const opts = Object.entries(SLOTS[slot]);
   let x = r() * opts.reduce((s, [, [a, b]]) => s + lerp(a, b, w), 0);
@@ -150,7 +155,7 @@ export function grammarTowerBody(x, z, W, D, H, st, r, force = {}, mega = false)
   const plan = force.plan ?? pick('plan', w, r), skirt = force.skirt ?? pick('skirt', w, r), profile = force.profile ?? pick('profile', w, r);
   const flank = force.flank ?? pick('flank', w, r), skin = force.skin ?? SKINS[pick('skin', w, r)], crown = force.crown ?? pick('crown', w, r);
   const gl = (mega ? 1 : .55) * w * (.4 + .6 * r());
-  const pal = r() < w ? RUT.signs : BDC.signs, accent = pal[Math.floor(r() * pal.length)];
+  const pal = r() < w ? AXIS_HI.signs : AXIS_LO.signs, accent = pal[Math.floor(r() * pal.length)];
   if (plan === 'lot' && lotTower(x, z, W, D, H, st, r, skin, gl, crown, accent)) return;
   let y = 0;
 
@@ -277,7 +282,7 @@ export const ARCHETYPES = {
   // Arasaka-style split: two halves with a slot, a bridge block on top, a logo in the slot.
 
   split(x, z, W, D, H, st, r) {
-    const gap = W * .14, hw = (W - gap) / 2, accent = RUT.signs[Math.floor(r() * RUT.signs.length)];
+    const gap = W * .14, hw = (W - gap) / 2, accent = AXIS_HI.signs[Math.floor(r() * AXIS_HI.signs.length)];
     for (const sx of [-1, 1]) bld(x + sx * (gap + hw) / 2, z, hw, D, H * (.92 + .08 * r()), st, r, { roof: false, skin: SKINS.fins, glow: .9 });
     bld(x, z, W, D * .7, H * .08, st, r, { y0: H, roof: false, skin: SKINS.bands, glow: 1 });
     sign(x, z, gap * .7, D, H * .7, st, r, accent, { face: 2, blade: false, sw: gap * .7, sh: H * .25, y: H * .62, along: 0 });
@@ -306,10 +311,10 @@ export const ARCHETYPES = {
       const bx = x + (r() - .5) * (W - w), bz = z + (r() - .5) * (D - d), h = H * (.55 + .45 * r());
       bld(bx, bz, w, d, h, st, r, { skin: SKINS.sparse, lit: st.lit * 1.2 });
     }
-    crownOf('antennas', { x, z, w: W, d: D, rot: 0 }, H * .8, st, r, BDC.signs[0]);
+    crownOf('antennas', { x, z, w: W, d: D, rot: 0 }, H * .8, st, r, AXIS_LO.signs[0]);
   },
 
-  // NBN screen crown: four screens form a box over a dish ring.
+  // Screen crown: four screens form a box over a dish ring.
 
   screens(x, z, W, D, H, st, r) {
     grammarTowerBody(x, z, W, D, H, st, r, { plan: 'rect', profile: 'setback', skin: SKINS.curtain, crown: 'dishes' });
@@ -383,7 +388,7 @@ export const KITS = {
   },
 
 
-  // Container yard with a gantry crane, for the Beanstalk port.
+  // Container yard with a gantry crane, for a port.
 
 };
 

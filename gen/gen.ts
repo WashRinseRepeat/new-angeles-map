@@ -10,6 +10,7 @@ import StreamlineGenerator from './mapgen/impl/streamlines';
 import Graph from './mapgen/impl/graph';
 import PolygonFinder from './mapgen/impl/polygon_finder';
 import PolygonUtil from './mapgen/impl/polygon_util';
+import { MAP } from '../settings/new-angeles/map.js';
 
 // The upstream code draws from Math.random. A seeded generator makes every run identical.
 
@@ -22,9 +23,9 @@ Math.random = () => {
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 };
 
-// Traced from the Shadow of the Beanstalk district map (p151), in map pixels.
+// Traced from the Shadow of the Beanstalk district map (p151), in map pixels. The setting pack owns the
+// map-pixel-to-world transform, so the engine places landmarks and stops with the same numbers.
 
-const MAP = { cx: 680, cy: 390, scale: 3.6 };
 const w = ([u, v]: number[]) => [(u - MAP.cx) * MAP.scale, (v - MAP.cy) * MAP.scale];
 // All 11 Earth districts, traced in design/map-trace.json. The engine looks styles up by id.
 

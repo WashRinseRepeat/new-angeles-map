@@ -1,0 +1,15 @@
+/* New Angeles' interface theme. The colours are ui.css's defaults, so this file only draws the loading logo. */
+
+/* A turning NBN coin inside two tilted orbits. Each moving part is one flat layer animated by transform alone, so the
+   compositor turns it without the main thread, which is busy building the city. The coin turns by squeezing its width. */
+#loading .logo { width: 120px; height: 120px; position: relative; margin-bottom: 6px; }
+#loading .coin { position: absolute; inset: 22px; will-change: transform; animation: nbn-spin 2.6s ease-in-out infinite; }
+#loading .face { position: absolute; inset: 0; border-radius: 50%; display: grid; place-items: center;
+  background: radial-gradient(circle at 35% 30%, #1d6f8a, #0a2433 70%); border: 2px solid #7ff3ff; box-shadow: 0 0 18px rgba(127, 243, 255, .45), inset 0 0 14px rgba(127, 243, 255, .35);
+  font: 800 italic 26px system-ui; letter-spacing: .02em; color: #e8fbff; text-shadow: 0 0 8px #7ff3ff; }
+#loading .orbit { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid rgba(255, 180, 60, .7); box-shadow: 0 0 10px rgba(255, 160, 40, .4); will-change: transform; }
+#loading .orbit.a { animation: nbn-orbit-a 4s linear infinite; }
+#loading .orbit.b { border-color: rgba(255, 70, 160, .6); box-shadow: 0 0 10px rgba(255, 60, 150, .35); animation: nbn-orbit-b 5.5s linear infinite; }
+@keyframes nbn-spin { 0%, 100% { transform: scaleX(1); } 50% { transform: scaleX(.04); } }
+@keyframes nbn-orbit-a { from { transform: rotateX(70deg) rotateZ(0); } to { transform: rotateX(70deg) rotateZ(360deg); } }
+@keyframes nbn-orbit-b { from { transform: rotateY(65deg) rotateZ(0); } to { transform: rotateY(65deg) rotateZ(-360deg); } }

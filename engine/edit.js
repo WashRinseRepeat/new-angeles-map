@@ -5,16 +5,18 @@
 
 import * as THREE from 'three';
 import { H } from './state.js';
+import { SETTING, atRoot } from './setting.js';
 import { CITY, PLACES } from './core.js';
 import { camera, composer, controls, renderer } from './render.js';
 import { insidePoly } from './grammar.js';
-import { ALL_BLOCK_FRAMES } from './generator.js';
+import { ALL_BLOCK_FRAMES, SC } from './generator.js';
 import { LANDMARK_SITES } from './api.js';
 import { ray as pickRay } from './ui.js';
 
-const KEY = 'na-map-edit';
+const KEY = `${SETTING.storage}-map-edit`;
 const DEG = 180 / Math.PI;
-const toMap = ([x, z]) => [+(x / 3.6 + 680).toFixed(1), +(z / 3.6 + 390).toFixed(1)];
+const { cx: MX, cy: MY, scale: MS } = SETTING.map;
+const toMap = ([x, z]) => [+(x / MS + MX).toFixed(1), +(z / MS + MY).toFixed(1)];
 const r1 = v => Math.round(v * 10) / 10;
 const clone = o => JSON.parse(JSON.stringify(o));
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -27,7 +29,7 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;',
 const LMS = LANDMARK_SITES.filter(s => s.block).map(s => ({ slug: `lm:${s.key}`, title: s.name, lm: true, minSide: s.minSide,
   seat: { at: s.at, size: [s.block.w, s.block.d].map(Math.round), rot: null, snap: true, block: s.block } }));
 const EDITABLE = [...PLACES.filter(p => p.seat), ...LMS];
-const SAVED = await fetch(new URL('../places.json', import.meta.url), { cache: 'no-store' }).then(r => r.json()).catch(() => ({}));
+const SAVED = await fetch(atRoot(SETTING.data.seats), { cache: 'no-store' }).then(r => r.json()).catch(() => ({}));
 const ORIG = Object.fromEntries(EDITABLE.map(p => [p.slug, { at: p.seat.at.map(r1), size: p.seat.size, rot: p.seat.rot, snap: p.seat.snap }]));
 let DATA = clone(ORIG);
 const history = [];
@@ -39,9 +41,9 @@ let REQS = API ?? [];
 // ponytail: ignores other edited places claiming blocks first; the reload after Apply seats them in order.
 
 function snapBlock(p, [x, z]) {
-  let best = 260, out = null;
+  let best = SC.seatReach, out = null;
   for (const b of ALL_BLOCK_FRAMES) {
-    if (b.seat || (b.used && b !== p.seat.block) || Math.min(b.w, b.d) < (p.minSide ?? 46)) continue;
+    if (b.seat || (b.used && b !== p.seat.block) || Math.min(b.w, b.d) < (p.minSide ?? SC.siteMin)) continue;
     const d = Math.hypot(b.cx - x, b.cz - z);
     if (d < best) { best = d; out = b; }
   }
@@ -442,10 +444,10 @@ if (back) {
   toast('Rebuilt from places.json');
 } else {
 
-  // First entry looks straight down on the crew's haunts in Base de Cayambe.
+  // First entry looks straight down from the pack's edit view.
 
-  controls.target.set(-200, 0, -60);
-  camera.position.set(-200, 1000, 40);
+  controls.target.set(...SETTING.camera.edit.target);
+  camera.position.set(...SETTING.camera.edit.position);
   topDown(true);
 }
 listRequests();

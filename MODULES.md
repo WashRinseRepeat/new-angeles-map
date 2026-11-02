@@ -1,5 +1,7 @@
 # Map spike modules
 
+The engine (`engine/`) is generic. Everything that belongs to New Angeles lives in the setting pack `settings/new-angeles/`. `SETTINGS.md` says how to make another pack.
+
 ## Run and preview
 
 - Server: `http://localhost:8766` serves the repo root. Start it with `node spikes/map/gen/serve.mjs` (no-cache, binds 127.0.0.1, takes edit-mode saves; optional port argument). `python3 -m http.server 8766` from the repo root also works, without saves.
@@ -9,12 +11,18 @@
 - GM edit mode: `?edit=1` on localhost or 127.0.0.1. See "Edit mode" below.
 - One layer: `?layer=all|undercity`. Layers are a horizontal slice. Built-in materials clip through `renderer.clippingPlanes`, and custom shaders should discard above `uClipTop`.
 - `window.spike` exposes `camera`, `controls`, `PLACES` and more for screenshots.
+- Page check: `node spikes/map/gen/check-pages.mjs` lists any element id or tab the engine reads that a setting's page lacks. Run it after changing the page markup, because every page is a copy.
+- Regression check: `node spikes/map/gen/regress.mjs [ref]` captures fixed views of the working tree and of a git ref (default `main`) and compares draw calls, pixels, labels, build stats, ride tours and console errors. Run it before merging an engine change. It needs `npm install` in `gen/` (for three.js) and Playwright with Chromium. `--views=default,ride` limits the views, `--page=<file>` checks another setting's page, `--gpu` skips SwiftShader.
 
 ## Files
 
 | Path | Owns |
 |---|---|
-| `index.html` | page, styles and the import map. It loads `engine/ui.js` |
+| `index.html` | page and the import map. It links `ui.css` and New Angeles' `theme.css`. `<meta name="setting">` names the setting pack. It loads `engine/ui.js` |
+| `ui.css` | the interface stylesheet, its colours and font as CSS variables. A pack's `settings/<id>/theme.css` overrides them |
+| `engine/clouds.js` | cloud decks for the cloud pass: `cloudLayer`, and the pack's `look.clouds` |
+| `engine/hills.js` | a terrain module of rolling hills and woods, for packs without their own |
+| `engine/setting.js` | loads the active setting pack (`SETTING`) and resolves its paths. See `SETTINGS.md` |
 | `engine/state.js` | `H` and the shared mutable state `S` (`FRAME`, `DECOR`, `flicker`, `BASE`, `trafficT`) |
 | `engine/core.js` | city data, layout maths, district styles (`STYLES`, `styleAt`), named places |
 | `engine/render.js` | renderer, scene, camera, bloom, fog, labels, ground surfaces |
@@ -25,7 +33,6 @@
 | `engine/generator.js` | lot frames, zones, block sites, filler, `generate()`, showcase |
 | `engine/api.js` | fills `H`, loads kit families and landmarks, seats places, first build |
 | `engine/ui.js` | layers, labels, card, tuning panel, frame loop (entry point) |
-| `engine/undercity.js` | the Undercity layer for every district |
 | `engine/nav.js` | search, atlas, session tours, minimap, filter chips |
 | `engine/edit.js` | GM edit mode: place footprints, change requests (loaded only with `?edit=1` on localhost) |
 | `places.json` | seat of each campaign place: `at`, `size`, `rot`, `snap` |
@@ -33,8 +40,13 @@
 | `gen/serve.mjs` | local dev server with `POST /api/places` and `POST /api/requests` |
 | `districts.json` | one-line canon summaries per district, for the atlas |
 | `layouts/index.mapindex.json` (site) | `map-index.json`: locations and recaps with their location links in order, for tours and search |
-| `places/<slug>.js` | one named location block |
-| `kits/<family>.js` | one kit family |
+| `settings/new-angeles/` | the New Angeles setting pack: `setting.js`, styles, station kits, tour moves, kits, places, card texts, landmarks |
+| `emberford.html`, `settings/emberford/` | Emberford, a walled medieval town. `gen/town.py` writes its `city.json` from `town.json`. It stays off the live site and out of the public copy |
+| `gen/town.py` | walled-town generator: wall, gates, streets, plots, wards, landmark sites, greens and a river |
+| `sandbox.html`, `settings/sandbox/` | the sandbox test town, a minimal pack. `make-city.py` writes its `city.json`. It stays off the live site and out of the public copy |
+| `settings/new-angeles/undercity.js` | the Undercity layer for every district, a pack layer |
+| `settings/new-angeles/places/<slug>.js` | one named location block |
+| `settings/new-angeles/kits/<family>.js` | one kit family |
 | `gen/gen.ts` → `city.json` | streets, lots, district outlines, quarters (such as Mercado Baja), places (copied from `places.json`) |
 
 ## Place module
@@ -58,7 +70,7 @@ export const tiers = { bdc: { 0: ['name'] }, rut: { 2: ['name'] } };
 
 - Kits build in the lot's local frame. `put` rotates output onto the real lot.
 - `s` is the usable square side. `H.frame()` gives the lot rectangle `{ w, d }` when the kit runs on a city lot. `H.frame().front` is the local unit vector `{ x, z }` toward the nearest street; put shop fronts there. It is null in the showcase.
-- `st` is the blended district style (`st.w`: 0 Base de Cayambe, 1 Rutherford). `b` is a height boost. `r()` is the lot's seeded random.
+- `st` is the blended district style (`st.w` on the pack's style axis; in New Angeles 0 is Base de Cayambe and 1 Rutherford). `b` is a height boost. `r()` is the lot's seeded random.
 - Tiers: `bdc` has 0..2, `rut` has 0..3, low to high density.
 
 ## Block kits
@@ -68,7 +80,7 @@ export function blocks(H) { return { name: { zone: 'industry', build(x, z, w, d,
 ```
 
 - A block kit fills a whole city block. `w` and `d` are the block rectangle, 42 to 136 m a side (26 m and up in the `chakana` zone). It builds in the block's local frame around `x, z`, like a lot kit.
-- Zones choose the blocks:
+- Zones choose the blocks. The pack lists them in `kits.blockZones`. New Angeles has these:
   - `industry`: industrial patches in Base de Cayambe and the border, 120 m apart, up to 28 blocks.
   - `chakana`: blocks from 30 m a side in Chakana within 900 m of the Root, nearest first in each of eight sectors, up to 60.
   - `housing`: mega-housing in Base de Cayambe and Chakana, 240 m apart, up to 30.
@@ -77,7 +89,7 @@ export function blocks(H) { return { name: { zone: 'industry', build(x, z, w, d,
 
 ## District families
 
-Each new district owns `kits/<district>.js` (esmeraldas, nihongai, manta, laguna-velasco, rabotgorod, la-costa, quinde, guayaquil). Design: `design/districts/<district>.md`.
+Each new district owns `settings/new-angeles/kits/<district>.js` (esmeraldas, nihongai, manta, laguna-velasco, rabotgorod, la-costa, quinde, guayaquil). Design: `design/districts/<district>.md`.
 
 ```js
 export function kits(H) { return { name(x, z, s, st, b, r) {} }; }           // lot kits
@@ -97,13 +109,15 @@ export function landmarks(H) { return { name: { at: [px, py], label: 'Blue Sun S
 
 ## Families
 
+Files in `settings/new-angeles/kits/`.
+
 | File | Owns |
 |---|---|
-| `kits/industry.js`, `kits/nature.js` | lot-scale industry and green kits, placed by land-use zones |
-| `kits/heavy.js` | block-scale industry (`industry` zone) |
-| `kits/chakana.js` | Root-district blocks (`chakana` zone) |
-| `kits/favela.js` | lot-scale Base de Cayambe housing, added through `tiers.bdc` |
-| `kits/mercado.js` | lot kits for the Mercado Baja quarter. When it has kits, every quarter lot uses them |
+| `industry.js`, `nature.js` | lot-scale industry and green kits, placed by land-use zones |
+| `heavy.js` | block-scale industry (`industry` zone) |
+| `chakana.js` | Root-district blocks (`chakana` zone) |
+| `favela.js` | lot-scale Base de Cayambe housing, added through `tiers.bdc` |
+| `mercado.js` | lot kits for the Mercado Baja quarter. When it has kits, every quarter lot uses them |
 
 Every family file exports `kits(H)`, even when it returns `{}`.
 
@@ -113,7 +127,9 @@ Every family file exports `kits(H)`, even when it returns `{}`.
 export function build(H, group) { /* ... */ return { top, update(t, dt) {} }; }
 ```
 
-- `landmarks/beanstalk.js` gets a group at the Root and replaces the engine's simple stalk. `top` sets the pin height.
+The pack names these modules in `setting.js` (`centre.module`, `terrain`). New Angeles keeps them in `settings/new-angeles/landmarks/`.
+
+- `landmarks/beanstalk.js` gets a group at the centre (the Root). `top` sets the pin height.
 - `landmarks/terrain.js` gets a group at the origin and replaces the flat ground, the slab and the water. The undercity view hides it.
 - Landmarks build their own meshes. The instanced helpers reset on every rebuild, so landmarks should not use them.
 
@@ -125,7 +141,7 @@ export function build(H, group) { /* ... */ return { top, update(t, dt) {} }; }
 | `prop(kind, x, y, z, sx, sy, sz, rgb, ry, rx)` | lit solid. Kinds `box`, `cyl`, `cone`, `dish`, `lattice` |
 | `glow(x, y, z, sx, sy, sz, rgb)` | unlit emissive box. Values above 1 bloom |
 | `put(H.GLOWS.sphere \| H.GLOWS.ring, ...)` | emissive sphere or halo ring |
-| `sign`, `neon`, `holo`, `helipad`, `roof`, `kibble`, `beacon`, `flickerGlow` | signage, rooftop clutter, lights |
+| `sign`, `neon`, `holo`, `helipad`, `roof`, `kibble`, `beacon`, `flickerGlow` | signage, rooftop clutter, lights. `flickerGlow(…, r, dim)` with a share such as `.7` wavers like a flame |
 | `crownOf(kind, top, H, st, r, accent)`, `grammarTowerBody(x, z, W, D, H, st, r, force)` | tower grammar pieces |
 | `panel(tex, x, y, z, w, h, ry, gain)`, `neonTexture(lines, color, opts)`, `canvasTexture(w, h, draw)` | textured planes, drawn signs |
 | `plate(cx, cz, rgb)`, `stringLights(a, b, sag, n, rgb)` | block ground, light strings |
@@ -135,7 +151,9 @@ export function build(H, group) { /* ... */ return { top, update(t, dt) {} }; }
 | `textSign(text, x, y, z, w, h, ry, rgb)` | neon text plane from a shared atlas (512 slots, about 4:1). Tint above 1 blooms. Prefer this to `panel()` in kits |
 | `decor` | `THREE.Group` for custom meshes. Standard and basic materials get scene fog |
 | `instanced(mesh)` | register a kit's own `InstancedMesh` so `generate()` resets and uploads it |
-| `THREE`, `mixStyle`, `rng`, `hash`, `lerp`, `smooth`, `grey`, `BDC`, `RUT`, `FACES`, `PROPS` | basics |
+| `THREE`, `mixStyle`, `rng`, `hash`, `lerp`, `smooth`, `grey`, `FACES`, `PROPS` | basics |
+| `CENTRE`, `CENTRE_R`, `AXIS`, `SETTING`, `mapToWorld([u, v])` | the centre point and plaza radius, the style axis ends, the pack, map px to world metres |
+| `BDC`, `RUT` | New Angeles' style axis ends, added by the pack's `styles.helpers` |
 
 ## Rules
 

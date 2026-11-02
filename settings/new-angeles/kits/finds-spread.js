@@ -4,7 +4,7 @@
 export const kits = () => ({});
 
 export function landmarks(H) {
-  const { THREE, SKINS, GLOWS, STALK, bld, glow, prop, put, beam, beacon, pool, puff, textSign, stringLights, flickerGlow, toLocal, lerp } = H;
+  const { THREE, SKINS, GLOWS, CENTRE, bld, glow, prop, put, beam, beacon, pool, puff, textSign, stringLights, flickerGlow, toLocal, lerp } = H;
   const dim = (c, k) => c.map(v => v * k);
   const look = (st, base, win, lit, grime = .5) => ({ ...st, base, win, lit, grime });
   const pick = (r, a) => a[Math.floor(r() * a.length)];
@@ -244,7 +244,7 @@ export function landmarks(H) {
 
         // The Polecats tag: a polecat curled round a concave spire, sprayed big on the tallest outer wall that faces the Root.
 
-        const [fx, fz] = faceTo(STALK.x, STALK.y), ry = Math.atan2(fx, fz);
+        const [fx, fz] = faceTo(CENTRE.x, CENTRE.y), ry = Math.atan2(fx, fz);
         const open = g => g.bw > 10 && (fx ? g.i === (fx > 0 ? 2 : 0) : g.j === (fz > 0 ? 1 : 0));
         const big = grid.filter(open).reduce((m, b) => (b.h > m.h ? b : m));
         const out = (fx ? big.bw : big.bd) / 2 + .45, R = Math.min(fx ? big.bd : big.bw, big.h * .6);

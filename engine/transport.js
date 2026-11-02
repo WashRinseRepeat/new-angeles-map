@@ -1,27 +1,29 @@
-// Maglev, highways, street and sky traffic, and the default Beanstalk.
+// Maglev, highways, street and sky traffic, and the group that holds the central landmark.
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { S } from './state.js';
-import { CITY, STALK, STALK_PLACE, lerp, rng, sdPoly, smooth, styleAt } from './core.js';
+import { CENTRE, CENTRE_PLACE, CITY, lerp, mapToWorld, rng, sdPoly, smooth, styleAt } from './core.js';
+import { SETTING } from './setting.js';
 import { QUALITY, camera, scene } from './render.js';
 import { _c, glow, prop, yawAt } from './instances.js';
 
 // ---------- elevated highways: they clear a canyon and carry streams of light ----------
 
-export const HIGHWAYS = CITY.highways.map(h => {
+export const HIGHWAYS = (CITY.highways ?? []).map(h => {
   const path = new THREE.CatmullRomCurve3(h.pts.map(([x, z]) => new THREE.Vector3(x, h.y, z))).getSpacedPoints(500);
   return { ...h, path, side: sides(path, false) };
 });
 
-// Open ends ramp down to street level over 180 m. Ends that meet another highway, or that reach a Beanstalk
-// road terminal near the Root, stay up.
+// Open ends ramp down to street level over 180 m. Ends that meet another highway, or that reach the centre's
+// road terminals, stay up.
 
 for (const h of HIGHWAYS) {
   const P = h.path, cum = [0];
   for (let i = 1; i < P.length; i++) cum.push(cum[i - 1] + P[i].distanceTo(P[i - 1]));
   const total = cum[cum.length - 1];
-  const meets = p => Math.hypot(p.x - STALK.x, p.z - STALK.y) < 260 || HIGHWAYS.some(o => o !== h && o.path.some(q => Math.hypot(q.x - p.x, q.z - p.z) < 40));
+  const reach = SETTING.centre.highwayReach;
+  const meets = p => Math.hypot(p.x - CENTRE.x, p.z - CENTRE.y) < reach || HIGHWAYS.some(o => o !== h && o.path.some(q => Math.hypot(q.x - p.x, q.z - p.z) < 40));
   const r0 = meets(P[0]) ? 0 : 180, r1 = meets(P[P.length - 1]) ? 0 : 180;
   P.forEach((p, i) => {
     let k = 1;
@@ -30,7 +32,7 @@ for (const h of HIGHWAYS) {
     p.y = h.y * k + .3;
   });
 }
-// ---------- maglev: guideway height follows the district ----------
+// ---------- maglev: guideway height follows the style weight ----------
 // Where the maglev crosses a highway its deck rises to 10 m above the highway's deck, on an 8% grade each side.
 
 const HW_PTS = HIGHWAYS.flatMap(h => h.path.filter((_, k) => k % 2 === 0));
@@ -47,21 +49,25 @@ function clearHighways(path, closed) {
   path.forEach((p, i) => { p.y = Math.max(p.y, ys[i]); });
 }
 
-export const flat = new THREE.CatmullRomCurve3(CITY.maglev.map(([x, z]) => new THREE.Vector3(x, 0, z)), true, 'centripetal');
-export const pts = flat.getSpacedPoints(1000).slice(0, -1);
-export let ys = pts.map(p => lerp(16, 64, styleAt(p.x, p.z, 200).w));
+// A city without a maglev loop has an empty loop path and no loop track. Spurs, rings and lines still lay.
+
+export const HAS_LOOP = (CITY.maglev?.length ?? 0) >= 3;
+export const flat = HAS_LOOP ? new THREE.CatmullRomCurve3(CITY.maglev.map(([x, z]) => new THREE.Vector3(x, 0, z)), true, 'centripetal') : null;
+export const pts = HAS_LOOP ? flat.getSpacedPoints(1000).slice(0, -1) : [];
+const MAGLEV = SETTING.transport.maglev;
+export let ys = pts.map(p => lerp(...MAGLEV.height, styleAt(p.x, p.z, 200).w));
 for (let pass = 0; pass < 3; pass++) ys = ys.map((_, i) => {
   let s = 0;
   for (let k = -30; k <= 30; k++) s += ys[(i + k + ys.length) % ys.length];
   return s / 61;
 });
 pts.forEach((p, i) => { p.y = ys[i]; });
-clearHighways(pts, true);
-export const track = new THREE.CatmullRomCurve3(pts, true);
-track.arcLengthDivisions = 4000;
+if (HAS_LOOP) clearHighways(pts, true);
+export const track = HAS_LOOP ? new THREE.CatmullRomCurve3(pts, true) : null;
+if (track) track.arcLengthDivisions = 4000;
 
-// Maglev spurs run from 40 m at the Root plaza edge down to the loop. Lines carry the maglev on to the coast and
-// the south at 26 m. An end on the loop or on an earlier line or ring takes that track's height, so the joints meet.
+// Maglev spurs run from the centre plaza's edge down to the loop. Lines carry the maglev on outward at a
+// fixed height. An end on the loop or on an earlier line or ring takes that track's height, so the joints meet.
 
 pts.closed = true;
 const laid = [pts], G = .08;
@@ -109,10 +115,10 @@ export const openTrack = (l, y0, y1) => {
   return { path, curve, len: curve.getLength() };
 };
 
-// A ring is a closed line at 26 m. Rings lay before lines, so a line that ends on a ring takes its height.
+// A ring is a closed line at a fixed height. Rings lay before lines, so a line that ends on a ring takes its height.
 
 const ringTrack = l => {
-  const path = new THREE.CatmullRomCurve3(l.map(([x, z]) => new THREE.Vector3(x, 26, z)), true, 'centripetal').getSpacedPoints(400).slice(0, -1);
+  const path = new THREE.CatmullRomCurve3(l.map(([x, z]) => new THREE.Vector3(x, MAGLEV.ring, z)), true, 'centripetal').getSpacedPoints(400).slice(0, -1);
   clearHighways(path, true);
   path.closed = true;
   laid.push(path);
@@ -120,7 +126,8 @@ const ringTrack = l => {
   curve.arcLengthDivisions = 2000;
   return { path, curve, len: curve.getLength(), closed: true };
 };
-export const SPURS = [...(CITY.spurs ?? []).map(l => openTrack(l, 40, 22)), ...(CITY.rings ?? []).map(ringTrack), ...(CITY.lines ?? []).map(l => openTrack(l, 26, 26))];
+export const SPURS = [...(CITY.spurs ?? []).map(l => openTrack(l, ...MAGLEV.spur)), ...(CITY.rings ?? []).map(ringTrack),
+  ...(CITY.lines ?? []).map(l => openTrack(l, MAGLEV.line, MAGLEV.line))];
 
 // A merging end and the track it joins run level along the 130 m merge ramp, and as long before it as the
 // decks pass within 22 m. Each ramp point takes the higher of the two decks: the joined track eases up to it
@@ -153,8 +160,8 @@ for (let pass = 0; pass < 4; pass++) {
   if (laid.flatMap(P => P.map(q => q.y)).join() === before) break;
 }
 for (const S of SPURS) { S.curve.updateArcLengths(); S.len = S.curve.getLength(); }
-track.updateArcLengths();
-export const trackLen = track.getLength();
+track?.updateArcLengths();
+export const trackLen = track?.getLength() ?? 0;
 
 export function sides(path, closed) {
   const n = path.length, up = new THREE.Vector3(0, 1, 0);
@@ -175,35 +182,26 @@ export function sweep(path, profile, closed = true) {
   return g;
 }
 // ---------- maglev stations: one per district, where a ride route runs deepest inside it ----------
-// Routes are the loop, the Root spurs, the rings and the lines. A station clears a wider, taller band than the line, so platforms and canopies stay free of buildings.
+// Routes are the loop, the centre spurs, the rings and the lines. A station clears a wider, taller band than the line, so platforms and canopies stay free of buildings.
 
-export const ROUTES = [{ curve: track, path: pts, len: trackLen, closed: true },
+export const ROUTES = [...HAS_LOOP ? [{ curve: track, path: pts, len: trackLen, closed: true, loop: true }] : [],
   ...SPURS.map((l, i) => ({ ...l, closed: !!l.closed, root: i < (CITY.spurs ?? []).length }))];
 export const STATION_LEN = 64;
 export const routeU = (R, u) => R.closed ? ((u % 1) + 1) % 1 : Math.min(1, Math.max(0, u));
 
-// Hand-placed stops, in map px, snap to the nearest track. A district listed here gets these instead of its
-// one station at the deepest point.
+// Hand-placed stops from the pack, in map px, snap to the nearest track. A district listed there gets these instead
+// of its one station at the deepest point.
 
-const STOPS = [
-  { id: 'guayaquil', name: 'Nuevo Guayaquil', at: [960, 1495] },
-  { id: 'guayaquil', name: 'Florine Ojeda Bank', at: [1190, 1542] },
-  { id: 'guayaquil', name: 'Beyond the Daule', at: [1218, 1400] },
-  { id: 'guayaquil', name: 'Las Peñas', at: [1060, 1240] },
-  { id: 'guayaquil', name: 'Antiguo Guayaquil', at: [930, 1415] },
-  { id: 'esmeraldas', name: 'The Streets', at: [262, 500] },
-  { id: 'esmeraldas', name: 'Historic Esmeraldas', at: [232, 442] },
-  { id: 'esmeraldas', name: 'The Malecón', at: [207, 372] },
-];
+const STOPS = MAGLEV.stops ?? [];
 export const STATIONS = STOPS.map(({ id, name, at: [px, pz] }) => {
-  const x = (px - 680) * 3.6, z = (pz - 390) * 3.6;
+  const [x, z] = mapToWorld([px, pz]);
   let best = null;
   for (const R of ROUTES) for (let u = 0; u <= 1; u += 3 / R.len) {
     const p = R.curve.getPointAt(u), k = Math.hypot(p.x - x, p.z - z);
     if (!best || k < best.k) best = { k, R, u };
   }
-  return { id, name, route: best.R, u: best.u, s: best.u * best.R.len };
-});
+  return best && { id, name, route: best.R, u: best.u, s: best.u * best.R.len };
+}).filter(Boolean);
 STATIONS.push(...CITY.districts.filter(d => !STOPS.some(s => s.id === d.id)).flatMap(d => {
   let best = null;
   for (const R of ROUTES.filter(R => !R.root)) {
@@ -217,9 +215,9 @@ STATIONS.push(...CITY.districts.filter(d => !STOPS.some(s => s.id === d.id)).fla
   return best?.k > 0 ? [{ id: d.id, name: d.name.replace(/\s+District$/i, ''), route: best.R, u: best.u, s: best.u * best.R.len }] : [];
 }));
 
-// Each Root spur starts at a Beanstalk terminus on the plaza edge, 90 m in from its end.
+// Each centre spur starts at the centre's terminus on the plaza edge, 90 m in from its end.
 
-for (const R of ROUTES) if (R.root) STATIONS.push({ id: 'chakana', name: 'The Beanstalk', route: R, u: 90 / R.len, s: 90 });
+for (const R of ROUTES) if (R.root) STATIONS.push({ ...MAGLEV.centreStation, route: R, u: 90 / R.len, s: 90 });
 
 // A line end that joins another track gets an interchange 90 m in. Where the end merges, it sits at least
 // 150 m in and 30 m clear of the track it merges onto, so the platform stays off the ramp. It takes the name of
@@ -296,10 +294,12 @@ export const steel = new THREE.MeshStandardMaterial({ color: 0x6a7280, roughness
 
 const SWEEPS = new Map();
 const addSweep = (geo, mat) => { if (!SWEEPS.has(mat)) SWEEPS.set(mat, []); SWEEPS.get(mat).push(geo); };
-addSweep(sweep(pts, [[-3.2, 0], [3.2, 0], [2.4, -2.8], [-2.4, -2.8]]), concrete);
-for (const s of [-1, 1]) addSweep(sweep(pts, [[s * 1.3, 0], [s * 2.1, 0], [s * 2.1, .7], [s * 1.3, .7]]), steel);
-scene.add(new THREE.Mesh(sweep(pts, [[-2.42, -2.82], [2.42, -2.82], [2.42, -2.9], [-2.42, -2.9]]),
-  new THREE.MeshBasicMaterial({ color: new THREE.Color(.1, .3, .4), side: THREE.DoubleSide })));
+if (HAS_LOOP) {
+  addSweep(sweep(pts, [[-3.2, 0], [3.2, 0], [2.4, -2.8], [-2.4, -2.8]]), concrete);
+  for (const s of [-1, 1]) addSweep(sweep(pts, [[s * 1.3, 0], [s * 2.1, 0], [s * 2.1, .7], [s * 1.3, .7]]), steel);
+  scene.add(new THREE.Mesh(sweep(pts, [[-2.42, -2.82], [2.42, -2.82], [2.42, -2.9], [-2.42, -2.9]]),
+    new THREE.MeshBasicMaterial({ color: new THREE.Color(.1, .3, .4), side: THREE.DoubleSide })));
+}
 for (const { path, closed = false } of SPURS) {
   addSweep(sweep(path, [[-3.2, 0], [3.2, 0], [2.4, -2.8], [-2.4, -2.8]], closed), concrete);
   for (const s of [-1, 1]) addSweep(sweep(path, [[s * 1.3, 0], [s * 2.1, 0], [s * 2.1, .7], [s * 1.3, .7]], closed), steel);
@@ -309,7 +309,7 @@ for (const { path, closed = false } of SPURS) {
 const onHighway = (x, z) => HW_PTS.some(q => q.y > 5 && Math.hypot(q.x - x, q.z - z) < 11);
 export function buildPylons() {
   const r = rng(77);
-  for (let u = 0; u < 1; u += 46 / trackLen) {
+  if (HAS_LOOP) for (let u = 0; u < 1; u += 46 / trackLen) {
     while (onHighway(track.getPointAt(u % 1).x, track.getPointAt(u % 1).z)) u += 4 / trackLen;
     const p = track.getPointAt(u % 1), t = track.getTangentAt(u % 1), ry = Math.atan2(t.x, t.z);
     const top = p.y - 2.8;
@@ -379,8 +379,7 @@ const corridor = (curve, kind, r, lo, hi, p = curve.getSpacedPoints(Math.ceil(cu
   line.s = p.map((q, i) => ({ x: q.x, y: q.y, z: q.z, line, i }));
   CORRIDORS.push(line);
 };
-corridor(track, 'maglev', 6, 5, 5);
-CORRIDORS[0].closed = true;
+if (HAS_LOOP) { corridor(track, 'maglev', 6, 5, 5); CORRIDORS[0].closed = true; }
 for (const { curve, closed } of SPURS) { corridor(curve, 'maglev', 6, 5, 5); CORRIDORS.at(-1).closed = closed; }
 for (const h of HIGHWAYS) corridor(new THREE.CatmullRomCurve3(h.path), 'highway', 10, 3, 4);
 
@@ -413,17 +412,17 @@ export function corridorIn(f, pad = 0, w = f.w, d = f.d) {
     return Math.abs(u) < w / 2 + R && Math.abs(v) < d / 2 + R ? [{ q, u, v }] : [];
   });
 }
-export const hwTraffic = [];
+export const hwTraffic = [], HW = SETTING.transport.highway;
 for (const h of HIGHWAYS) {
   addSweep(sweep(h.path, [[-8, 0], [8, 0], [7, -1.8], [-7, -1.8]], false), concrete);
   for (const s of [-1, 1]) addSweep(sweep(h.path, [[s * 7.6, 0], [s * 8, 0], [s * 8, 1.1], [s * 7.6, 1.1]], false), concrete);
   for (let k = 4; k < h.path.length; k += 9) { const p = h.path[k]; if (p.y > 5) prop('cyl', p.x, (p.y - 1.8) / 2, p.z, 3.4, p.y - 1.8, 3.4, [.06, .065, .075]); }
 
-  // One car per 6 m of highway, at 30–45 m/s before the speed slider.
+  // The pack sets the cars per metre of highway and their speed before the speed slider.
 
   let len = 0;
   for (let k = 1; k < h.path.length; k++) len += h.path[k].distanceTo(h.path[k - 1]);
-  for (let k = 0; k < len / 6; k++) hwTraffic.push({ h, lane: (k % 4) - 1.5, u: Math.random(), v: ((k % 4) < 2 ? -1 : 1) * (30 + Math.random() * 15) / len, rank: Math.random() });
+  for (let k = 0; k < len / HW.every; k++) hwTraffic.push({ h, lane: (k % 4) - 1.5, u: Math.random(), v: ((k % 4) < 2 ? -1 : 1) * (HW.speed + Math.random() * HW.spread) / len, rank: Math.random() });
 }
 for (const [mat, list] of SWEEPS) { scene.add(new THREE.Mesh(mergeGeometries(list), mat)); for (const g of list) g.dispose(); }
 
@@ -431,34 +430,23 @@ for (const [mat, list] of SWEEPS) { scene.add(new THREE.Mesh(mergeGeometries(lis
 
 hwTraffic.sort((a, b) => a.rank - b.rank);
 export const hwCars = new THREE.InstancedMesh(new THREE.BoxGeometry(.9, .5, 2.6), new THREE.MeshBasicMaterial(), hwTraffic.length);
-hwTraffic.forEach((c, i) => hwCars.setColorAt(i, _c.setRGB(...(c.lane > 0 ? [1.6, .45, .08] : [1.3, 1.1, .8]))));
+hwTraffic.forEach((c, i) => hwCars.setColorAt(i, _c.setRGB(...HW.colours[c.lane > 0 ? 0 : 1])));
 hwCars.frustumCulled = false;
 scene.add(hwCars);
 
-// ---------- street traffic: dim bodies with small head and tail lights ----------
+// ---------- street and sky traffic ----------
 
 export const part = (w, h, l, x, y, z, rgb) => {
   const g = new THREE.BoxGeometry(w, h, l).translate(x, y, z);
   g.setAttribute('color', new THREE.Float32BufferAttribute(Array.from({ length: g.attributes.position.count }, () => rgb).flat(), 3));
   return g;
 };
-export const carGeometry = () => mergeGeometries([
-  part(1.8, .7, 4.2, 0, .55, 0, [.07, .07, .08]),
-  part(1.5, .5, 2.2, 0, 1.15, -.3, [.05, .05, .06]),
-  ...[-.6, .6].map(x => part(.38, .2, .08, x, .65, 2.12, [1.5, 1.4, 1.2])),
-  ...[-.65, .65].map(x => part(.4, .16, .08, x, .7, -2.12, [1.3, .05, .03])),
-]);
 
-// Hovercars: a flat wide body, a cyan underglow and red and green wingtip lights.
+// The pack gives each vehicle as boxes [w, h, l, x, y, z, rgb]. A pack without hover traffic reuses the car.
 
-export const hoverGeometry = () => mergeGeometries([
-  part(3, .6, 5, 0, 0, 0, [.06, .07, .09]),
-  part(1.6, .5, 2.2, 0, .5, -.4, [.04, .05, .07]),
-  part(2.4, .08, 4, 0, -.34, 0, [.3, 1.4, 1.8]),
-  part(.3, .2, .3, -1.6, 0, 0, [1.6, .1, .08]),
-  part(.3, .2, .3, 1.6, 0, 0, [.1, 1.6, .3]),
-  part(1.2, .15, .08, 0, .05, 2.5, [1.4, 1.4, 1.5]),
-]);
+const vehicle = parts => mergeGeometries(parts.map(q => part(...q)));
+export const carGeometry = () => vehicle(SETTING.transport.cars.parts);
+export const hoverGeometry = () => vehicle(SETTING.transport.hover?.parts ?? SETTING.transport.cars.parts);
 
 // Street paths are sampled every 4 m, so u counts samples and v is samples per second.
 
@@ -466,7 +454,7 @@ export const STREETS = Object.entries(CITY.streets).flatMap(([kind, lines]) => l
   const path = l.map(([x, z]) => new THREE.Vector3(x, 0, z)), xs = l.map(p => p[0]), zs = l.map(p => p[1]);
   return { kind, path, side: sides(path, false), box: [Math.min(...xs) - 8, Math.min(...zs) - 8, Math.max(...xs) + 8, Math.max(...zs) + 8] };
 }));
-export const traffic = [];
+export const traffic = [], HOVER = SETTING.transport.hover;
 {
   const r = rng(4242);
   for (const st of STREETS) {
@@ -475,10 +463,11 @@ export const traffic = [];
       const dir = r() < .5 ? 1 : -1;
       traffic.push({ st, u: k, dir, v: (2.5 + r() * 1.8) * (st.kind === 'main' ? 1.3 : 1), lane: st.kind === 'minor' ? 1.6 : 2.4, y: 0, hover: false, rank: r() });
 
-      // Sky lanes: one altitude per street kind and direction, so hovercars fly in readable layers.
+      // Sky lanes: one altitude per street kind and direction, so hovercars fly in readable layers. A pack without
+      // hover traffic still draws the roll, so the street cars keep their seeds.
 
-      if (st.kind !== 'minor' && r() < .25) traffic.push({ st, u: k, dir, v: 8 + r() * 6, lane: 3 + r() * 3,
-        y: (st.kind === 'main' ? 120 : 80) + (dir > 0 ? 0 : 20) + r() * 3, hover: true, rank: r() });
+      if (st.kind !== 'minor' && r() < (HOVER?.share ?? 0)) traffic.push({ st, u: k, dir, v: 8 + r() * 6, lane: 3 + r() * 3,
+        y: HOVER.y[st.kind] + (dir > 0 ? 0 : HOVER.climb) + r() * 3, hover: true, rank: r() });
     }
   }
 }
@@ -529,40 +518,15 @@ export function moveCars(dt) {
     return kept;
   };
   cars.count = hovers.count = 0;
-  nearGround = move(ground, nearGround, cars, TRAFFIC.ground * QUALITY.cars, 1300);
-  nearSky = move(sky, nearSky, hovers, TRAFFIC.hover * QUALITY.cars, 1900);
+  nearGround = move(ground, nearGround, cars, TRAFFIC.ground * QUALITY.cars, SETTING.scale.traffic.ground);
+  nearSky = move(sky, nearSky, hovers, TRAFFIC.hover * QUALITY.cars, SETTING.scale.traffic.sky);
   uploadUsed(cars); uploadUsed(hovers);
 }
 
-// ---------- the Beanstalk and the Root ----------
+// ---------- the centre ----------
+// The pack's centre module builds the central landmark into this group. Clicks on it open the centre's card.
 
-export const stalk = new THREE.Group();
-stalk.position.set(STALK.x, 0, STALK.y);
-export const metal = new THREE.MeshStandardMaterial({ color: 0x1c2230, metalness: .6, roughness: .45 });
-export const ringMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(.25, 1.1, 1.6) });
-stalk.add(new THREE.Mesh(new THREE.CylinderGeometry(70, 86, 18, 48).translate(0, 9, 0), metal));
-stalk.add(new THREE.Mesh(new THREE.CylinderGeometry(14, 52, 190, 32).translate(0, 18 + 95, 0), metal));
-for (let k = 0; k < 4; k++) {
-  const leg = new THREE.Mesh(new THREE.BoxGeometry(14, 150, 22).translate(0, 75, 0), metal);
-  leg.position.set(Math.cos(k * Math.PI / 2 + Math.PI / 4) * 78, 0, Math.sin(k * Math.PI / 2 + Math.PI / 4) * 78);
-  leg.rotation.y = -(k * Math.PI / 2 + Math.PI / 4);
-  leg.rotateZ(.42);
-  stalk.add(leg);
-}
-stalk.add(new THREE.Mesh(new THREE.TorusGeometry(78, 1, 8, 96).rotateX(Math.PI / 2).translate(0, 18, 0), ringMat));
-for (const [y, rr] of [[70, 30], [120, 26], [170, 22]])
-  stalk.add(new THREE.Mesh(new THREE.TorusGeometry(rr, .7, 8, 64).rotateX(Math.PI / 2).translate(0, y, 0), ringMat));
-stalk.add(new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, 8000, 8).translate(0, 4000, 0),
-  new THREE.MeshBasicMaterial({ color: new THREE.Color(.35, .6, .9), fog: false })));
-stalk.add(new THREE.Mesh(new THREE.CylinderGeometry(7, 48, 600, 32, 1, true).translate(0, 190 + 300, 0),
-  new THREE.MeshBasicMaterial({ color: 0x66ccff, transparent: true, opacity: .035, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false })));
-export const climbers = Array.from({ length: 6 }, (_, k) => {
-  const m = new THREE.Mesh(new THREE.BoxGeometry(6, 10, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.4, 1.0), fog: false }));
-  m.userData = { off: k * 400, speed: (k % 2 ? -1 : 1) * (35 + k * 6) };
-  stalk.add(m);
-  return m;
-});
-stalk.traverse(o => { o.userData.place = STALK_PLACE; });
-scene.add(stalk);
-STALK_PLACE.top = new THREE.Vector3(STALK.x, 190, STALK.y);
-
+export const centre = new THREE.Group();
+centre.position.set(CENTRE.x, 0, CENTRE.y);
+scene.add(centre);
+if (CENTRE_PLACE) CENTRE_PLACE.top = new THREE.Vector3(CENTRE.x, SETTING.centre.top, CENTRE.y);

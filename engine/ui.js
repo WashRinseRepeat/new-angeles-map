@@ -4,36 +4,48 @@ import * as THREE from 'three';
 import { updateFireworks } from './fireworks.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { S, H } from './state.js';
-import { CITY, DX, DZ, PLACES, PLAZA_R, STALK, STALK_PLACE, STANDALONE, STYLES, density, hash, inMercado, lerp, rng, smooth, styleAt, vnoise } from './core.js';
+import { CENTRE, CENTRE_PLACE, CENTRE_R, CITY, PLACES, SITE, STANDALONE, STYLES, centroidOf, density, lerp, styleAt } from './core.js';
+import { SETTING, inPack } from './setting.js';
 import { FOG, FOG_BASE, LOCK, QUALITY, SURFACE, U, applyQuality, bloom, camera, composer, controls, fadeTwin, flatGeo, hemi, label, labelRoot, labels, lockCamera, moon, renderer, scene } from './render.js';
-import { DETAIL_R, SHAPES, TILE, TILES, glows, pools, put, signs, yawAt } from './instances.js';
+import { SHAPES, TILE, TILES, glows, pools, put, signs, yawAt } from './instances.js';
 import { ARCHETYPES, MERGED_MAT, TALLY, decor, insidePoly, merged } from './grammar.js';
 import { rideFocus, rideTick, riding } from './ride.js';
-import { STREETS, TRAFFIC, cars, climbers, hwCars, hwTraffic, moveCars, nearHighway, stalk, sweep, track, uploadUsed } from './transport.js';
+import { TRAFFIC, centre, hwCars, hwTraffic, moveCars, nearHighway, track, uploadUsed } from './transport.js';
 import { BLOCK_MAX, CITYTUNE, FRAMES, QUERY, SITES, frontOf, generate } from './generator.js';
 import { LANDMARKS, LANDMARK_LABELS } from './api.js';
-import { UNDER, UNDER_LABELS, buildUnder, centroidOf } from './undercity.js';
 import { initNav } from './nav.js';
 
 // ---------- layers: a horizontal slice through the city ----------
 
-export const LAYERS = { all: 600, undercity: -.5 };
+// The all layer clips above the tallest tower. A pack layer, such as New Angeles' undercity, lives in its own module.
+// It exports group, labels and build(), loads on first use and builds once.
+
+const PACK_LAYERS = SETTING.layers ?? {}, LAYER_MODS = {};
+export const LAYERS = { all: SETTING.scale.layerTop,
+  ...Object.fromEntries(Object.entries(PACK_LAYERS).map(([k, l]) => [k, l.clip])) };
 export const clipPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 1e5);
-export let layer = 'all', clipTop = 600, cutOpen = false;
+export let layer = 'all', clipTop = LAYERS.all, cutOpen = false;
 export function setLayer(name) {
 
-  // The first switch to the undercity waits one frame, so the button shows its busy state while the build runs.
+  // The first switch to a pack layer waits one frame, so the button shows its busy state while the build runs.
 
-  if (name === 'undercity' && !UNDER.children.length) {
+  const L = PACK_LAYERS[name];
+  if (L && !LAYER_MODS[name]?.group.children.length) {
     document.body.classList.add('busy');
-    return setTimeout(() => { buildUnder(); document.body.classList.remove('busy'); setLayer(name); }, 50);
+    return setTimeout(async () => {
+      const mod = LAYER_MODS[name] ??= await import(inPack(L.module));
+      mod.build();
+      document.body.classList.remove('busy');
+      setLayer(name);
+    }, 50);
   }
   layer = name;
-  const under = name === 'undercity';
-  for (const m of SURFACE) m.visible = !under;
-  UNDER.visible = under;
-  U.uMistBase.value = under ? -30 : 0;
-  for (const el of UNDER_LABELS) el.obj.visible = under;
+  for (const m of SURFACE) m.visible = !L;
+  for (const [k, mod] of Object.entries(LAYER_MODS)) {
+    mod.group.visible = k === name;
+    for (const el of mod.labels) el.obj.visible = k === name;
+  }
+  U.uMistBase.value = L?.mistBase ?? 0;
   for (const b of document.querySelectorAll('[data-layer]')) b.classList.toggle('on', b.dataset.layer === name);
 }
 for (const b of document.querySelectorAll('[data-layer]')) b.onclick = () => setLayer(b.dataset.layer);
@@ -43,22 +55,23 @@ if (LAYERS[QUERY.get('layer')] !== undefined) { setLayer(QUERY.get('layer')); cl
 
 
 export const QUARTER_LABELS = [];
+const LABEL = SETTING.scale.labels;
 for (const q of CITY.quarters ?? []) {
   const c = centroidOf(q.poly);
-  QUARTER_LABELS.push(label(q.name, 'district quarter', new THREE.Vector3(c[0], 70, c[1])));
+  QUARTER_LABELS.push(label(q.name, 'district quarter', new THREE.Vector3(c[0], LABEL.quarterY, c[1])));
 }
 export const DISTRICT_LABELS = new Map();
 for (const d of CITY.districts) {
   const c = d.poly.reduce((a, [x, z]) => [a[0] + x / d.poly.length, a[1] + z / d.poly.length], [0, 0]);
-  DISTRICT_LABELS.set(d.id, label(d.name.replace(/\s+District$/i, ''), 'district', new THREE.Vector3(c[0], 160, c[1])));
+  DISTRICT_LABELS.set(d.id, label(d.name.replace(/\s+District$/i, ''), 'district', new THREE.Vector3(c[0], LABEL.districtY, c[1])));
 }
 
 // A pin holds a campaign place and its label. It draws nothing; the label marks the place.
 
 export const pins = [];
-for (const p of [...PLACES, STALK_PLACE].filter(p => p.top)) {
+for (const p of [...PLACES, CENTRE_PLACE].filter(p => p?.top)) {
   const pin = new THREE.Object3D();
-  pin.userData = { place: p, base: p.top.y + (p === STALK_PLACE ? 30 : 14) };
+  pin.userData = { place: p, base: p.top.y + (p === CENTRE_PLACE ? SETTING.centre.pinLift : LABEL.pinLift) };
   pin.position.copy(p.top);
   pins.push(pin);
   const el = label(p.title, 'place', new THREE.Vector3(p.top.x, pin.userData.base + 6, p.top.z), p.color);
@@ -136,14 +149,14 @@ export function select(p) {
   // can hold several paragraphs, and bring their own camera move.
 
   const img = document.getElementById('cImg'), link = document.getElementById('cLink');
-  img.hidden = !p.slug || STANDALONE;
+  img.hidden = !p.slug || !SITE;
   if (!img.hidden) { img.onerror = () => { img.hidden = true; }; img.src = `${LOCAL ? '/content/images/' : '../images/'}${p.slug}.png`; }
   document.getElementById('cDist').textContent = (p.district ?? '').replace(/\s+District$/i, '');
   document.getElementById('cTitle').textContent = p.title;
   document.getElementById('cType').textContent = p.type ?? '';
   const sum = document.getElementById('cSum');
   sum.replaceChildren(...[p.summary ?? ''].flat().map(t => Object.assign(document.createElement('p'), { textContent: t })));
-  const href = p.link ?? (p.slug && !STANDALONE && `${LOCAL ? 'http://localhost:1313/locations/' : '../locations/'}${p.slug}/`);
+  const href = p.link ?? (p.slug && SITE && `${LOCAL ? 'http://localhost:1313/locations/' : '../locations/'}${p.slug}/`);
   link.hidden = !href;
   if (href) link.href = href;
   card.classList.remove('min'); cMin.textContent = '–';
@@ -164,18 +177,19 @@ export function select(p) {
 }
 let lockAt = null, fadeOn = false, tourFocus = false;
 
-// The fade box wraps a place's lot up to its top, or the Root's base. A place without a lot gets a 20 m box.
+// The fade box wraps a place's lot up to its top, or the pack's box round the centre. A place without a lot gets
+// a 20 m box.
 
 function focusOn(p) {
-  const F = U.uFocus.value, B = U.uFocusB.value, K = U.uFocusK.value;
-  if (p === 'root') { F.set(STALK.x, 200, STALK.y, 30); B.set(90, 200, 90); K.x = 1; K.y = 0; return; }
+  const F = U.uFocus.value, B = U.uFocusB.value, K = U.uFocusK.value, C = SETTING.centre.fade;
+  if (p === 'centre') { F.set(CENTRE.x, C.y, CENTRE.y, C.edge); B.set(...C.half); K.x = 1; K.y = 0; return; }
   const f = p.frame, h = Math.max(p.top.y, 10);
   F.set(f?.cx ?? p.top.x, h / 2, f?.cz ?? p.top.z, 12);
   B.set(f ? Math.min(f.w, BLOCK_MAX) / 2 - 2 : 10, h / 2, f ? Math.min(f.d, BLOCK_MAX) / 2 - 2 : 10);
   K.x = f?.c ?? 1; K.y = f?.s ?? 0;
 }
 
-// An audio tour names the subject of each shot: a place, 'root' or null.
+// An audio tour names the subject of each shot: a place, 'centre' or null.
 
 export function tourFade(s) {
   tourFocus = !!s;
@@ -212,7 +226,7 @@ export function flyTo(target, dist = 150, dir = null, dur = 1.2) {
 export const FOCUS = PLACES.find(p => p.slug === QUERY.get('focus'));
 if (FOCUS) { controls.target.set(FOCUS.x, 10, FOCUS.z); camera.position.set(FOCUS.x + 110, 190, FOCUS.z + 150); select(FOCUS); }
 
-window.spike = { H, generate, renderer, composer, TILES: () => TILES, getSites: () => SITES, scene, CITY, density, styleAt, STYLES, getMerged: () => merged, TALLY, ARCHETYPES, SHAPES, select, PLACES, STALK_PLACE, camera, controls, track, FRAMES, nearHighway, STALK, PLAZA_R };
+window.spike = { H, generate, renderer, composer, TILES: () => TILES, getSites: () => SITES, scene, CITY, density, styleAt, STYLES, getMerged: () => merged, TALLY, ARCHETYPES, SHAPES, select, PLACES, CENTRE_PLACE, camera, controls, track, FRAMES, nearHighway, CENTRE, CENTRE_R, SETTING };
 
 export const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
 export let down = null;
@@ -230,7 +244,7 @@ renderer.domElement.addEventListener('wheel', () => { fly = null; }, { passive: 
 
 let declutterTick = 0;
 const labelCam = new THREE.Matrix4();
-const PLACE_RANGE = 2200, MARK_RANGE = 1600, _lp = new THREE.Vector3();
+const PLACE_RANGE = LABEL.place, MARK_RANGE = LABEL.landmark, _lp = new THREE.Vector3();
 // A label's width is read once, because each read after a class change forces a layout. Fonts that finish
 // loading later change the widths, so they are read again then.
 
@@ -246,7 +260,7 @@ function declutter() {
     cands.push({ el, rank: el.place && el.place === shownPlace ? -1 : rank, d, x: (_lp.x + 1) / 2 * W, y: (1 - _lp.y) / 2 * Hgt });
   };
   for (const el of DISTRICT_LABELS.values()) add(el, 0, Infinity);
-  for (const el of QUARTER_LABELS) add(el, 1, 3000);
+  for (const el of QUARTER_LABELS) add(el, 1, LABEL.quarter);
   for (const pin of pins) add(pin.userData.label, 2, PLACE_RANGE);
   for (const el of LANDMARK_LABELS) add(el, 3, MARK_RANGE);
   cands.sort((a, b) => a.rank - b.rank || a.d - b.d);
@@ -273,7 +287,7 @@ renderer.domElement.addEventListener('pointerup', e => {
   if (el) return select(el.place);
   ptr.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1);
   ray.setFromCamera(ptr, camera);
-  const hit = ray.intersectObjects([stalk, decor], true).find(h => h.object.userData.place);
+  const hit = ray.intersectObjects([centre, decor], true).find(h => h.object.userData.place);
   if (hit) select(hit.object.userData.place);
 });
 
@@ -288,42 +302,42 @@ blendInput.oninput = () => {
 
 // Groups show as tabs. City values rebuild the city when a slider is released.
 
+const T = SETTING.look.tune;
 export const TUNE = {
   Light: [
-    ['exposure', 'Exposure', .3, 2.5, .05, 1, v => { renderer.toneMappingExposure = v; }],
-    ['sky', 'Sky light', 0, 4, .1, 1.6, v => { hemi.intensity = v; }],
-    ['moon', 'Moonlight', 0, 3, .1, 1.1, v => { moon.intensity = v; }],
-    ['windows', 'Window light', 0, 3, .05, 1.25, v => { U.uWin.value = v; }],
-    ['edges', 'Tower edge glow', 0, 3, .05, 0.6, v => { U.uEdge.value = v; }],
-    ['neon', 'Neon signs', 0, 3, .05, 1.25, v => { signs.material.color.setScalar(v); }],
-    ['glows', 'Street and roof lights', 0, 3, .05, 1.5, v => { glows.material.color.setScalar(v); }],
-    ['pools', 'Light pools on the ground', 0, 3, .05, 0.8, v => { pools.material.color.setScalar(v); }],
-    ['bloomStrength', 'Bloom strength', 0, 2, .05, 0.65, v => { bloom.strength = v; }],
-    ['bloomThreshold', 'Bloom threshold', .2, 2, .05, 0.7, v => { bloom.threshold = v; }],
-    ['bloomRadius', 'Bloom radius', 0, 1, .05, 0.2, v => { bloom.radius = v; }],
+    ['exposure', 'Exposure', .3, 2.5, .05, T.exposure, v => { renderer.toneMappingExposure = v; }],
+    ['sky', 'Sky light', 0, 4, .1, T.sky, v => { hemi.intensity = v; }],
+    ['moon', 'Moonlight', 0, 3, .1, T.moon, v => { moon.intensity = v; }],
+    ['windows', 'Window light', 0, 3, .05, T.windows, v => { U.uWin.value = v; }],
+    ['edges', 'Tower edge glow', 0, 3, .05, T.edges, v => { U.uEdge.value = v; }],
+    ['neon', 'Neon signs', 0, 3, .05, T.neon, v => { signs.material.color.setScalar(v); }],
+    ['glows', 'Street and roof lights', 0, 3, .05, T.glows, v => { glows.material.color.setScalar(v); }],
+    ['pools', 'Light pools on the ground', 0, 3, .05, T.pools, v => { pools.material.color.setScalar(v); }],
+    ['bloomStrength', 'Bloom strength', 0, 2, .05, T.bloomStrength, v => { bloom.strength = v; }],
+    ['bloomThreshold', 'Bloom threshold', .2, 2, .05, T.bloomThreshold, v => { bloom.threshold = v; }],
+    ['bloomRadius', 'Bloom radius', 0, 1, .05, T.bloomRadius, v => { bloom.radius = v; }],
   ],
   Air: [
-    ['fogNear', 'Fog start (m)', 0, 3000, 50, 500, v => { FOG_BASE.near = v; }],
-    ['fogFar', 'Fog end (m)', 500, 9000, 100, 1600, v => { FOG_BASE.far = v; }],
-    ['mist', 'Street mist', 0, 1.5, .02, 0.7, v => { U.uMist.value = v; }],
-    ['mistBase', 'Mist height (m)', -20, 60, 1, 16, v => { U.uMistBase.value = v; }],
+    ['fogNear', 'Fog start (m)', 0, 3000, 50, T.fogNear, v => { FOG_BASE.near = v; }],
+    ['fogFar', 'Fog end (m)', 500, 9000, 100, T.fogFar, v => { FOG_BASE.far = v; }],
+    ['mist', 'Street mist', 0, 1.5, .02, T.mist, v => { U.uMist.value = v; }],
+    ['mistBase', 'Mist height (m)', -20, 60, 1, T.mistBase, v => { U.uMistBase.value = v; }],
   ],
+
+  // A traffic slider shows only when the setting has that traffic. The pack's tune may set cars and speed.
+
   Traffic: [
-    ['cars', 'Street cars', 0, 1, .02, 1, v => { TRAFFIC.ground = v; }],
-    ['hover', 'Hovercars', 0, 1, .02, 1, v => { TRAFFIC.hover = v; }],
-    ['highway', 'Highway traffic', 0, 1, .02, 1, v => { TRAFFIC.highway = v; }],
-    ['speed', 'Traffic speed', 0, 3, .05, 0.3, v => { TRAFFIC.speed = v; }],
-  ],
-  City: [
-    ['height', 'Building height', .4, 2, .05, 1.35, v => { CITYTUNE.height = v; }, true],
-    ['fill', 'Built lots', .3, 1.15, .01, 1.15, v => { CITYTUNE.fill = v; }, true],
-    ['mega', 'Mega-housing blocks', 0, 3, .1, 3, v => { CITYTUNE.mega = v; }, true],
-    ['industry', 'Industry blocks', 0, 3, .1, 1, v => { CITYTUNE.industry = v; }, true],
-    ['chakana', 'Chakana Root blocks', 0, 3, .1, 1.4, v => { CITYTUNE.chakana = v; }, true],
-    ['lights', 'Street light density', .3, 3, .05, 0.9, v => { CITYTUNE.lights = v; }, true],
-  ],
+    ['cars', 'Street cars', 0, 1, .02, T.cars ?? 1, v => { TRAFFIC.ground = v; }],
+    SETTING.transport.hover && ['hover', 'Hovercars', 0, 1, .02, 1, v => { TRAFFIC.hover = v; }],
+    CITY.highways?.length && ['highway', 'Highway traffic', 0, 1, .02, 1, v => { TRAFFIC.highway = v; }],
+    ['speed', 'Traffic speed', 0, 3, .05, T.speed ?? 0.3, v => { TRAFFIC.speed = v; }],
+  ].filter(Boolean),
+
+  // The pack lists the city dials. Each sets CITYTUNE[key] and rebuilds the city on release.
+
+  City: SETTING.kits.cityTune.map(([key, ...row]) => [key, ...row, v => { CITYTUNE[key] = v; }, true]),
 };
-export const TUNE_KEY = 'na-map-tune';
+export const TUNE_KEY = `${SETTING.storage}-map-tune`;
 export let saved = {};
 try { saved = JSON.parse(localStorage.getItem(TUNE_KEY)) || {}; } catch {}
 export const tuned = {};
@@ -404,11 +418,12 @@ function autoQuality(fps) {
   if (fast >= 12 && k < ORDER.indexOf(START)) { applyQuality(ORDER[k + 1]); fast = 0; }
 }
 const qSel = document.getElementById('quality');
-try { qSel.value = localStorage.getItem('na-map-quality') || 'auto'; } catch {}
+const QUALITY_KEY = `${SETTING.storage}-map-quality`;
+try { qSel.value = localStorage.getItem(QUALITY_KEY) || 'auto'; } catch {}
 const setMode = v => {
   QUALITY.mode = v;
   if (v !== 'auto') applyQuality(v);
-  try { localStorage.setItem('na-map-quality', v); } catch {}
+  try { localStorage.setItem(QUALITY_KEY, v); } catch {}
 };
 const hq = document.getElementById('hq'), showHq = () => hq.setAttribute('aria-pressed', qSel.value === 'ultra');
 qSel.onchange = () => { setMode(qSel.value); showHq(); };
@@ -458,7 +473,7 @@ thin(false);
 // Frames are capped at 60 per second. On faster screens the loop skips a refresh until a 60 Hz slot has passed;
 // carrying the remainder keeps 120 and 144 Hz screens near 60 instead of dropping to 48.
 
-const SLOT = 1000 / 60, flickered = new Map();
+const SLOT = 1000 / 60, flickered = new Map(), FLICKER = SETTING.look.flicker, FOG_ZOOM = SETTING.scale.fogZoom;
 let lastFrame = 0, lift = 0;
 renderer.setAnimationLoop(now => {
   const since = now - lastFrame;
@@ -506,11 +521,11 @@ renderer.setAnimationLoop(now => {
   turnCompass(dt);
   controls.update();
   clipTop += (LAYERS[layer] - clipTop) * Math.min(1, dt * 3);
-  const top = layer === 'all' && clipTop > 590 ? 1e5 : clipTop;
+  const top = layer === 'all' && clipTop > LAYERS.all - 10 ? 1e5 : clipTop;
   clipPlane.constant = top;
   U.uClipTop.value = top;
 
-  // Back faces paint the cut-open insides while the undercity clip is on. Otherwise they stay culled,
+  // Back faces paint the cut-open insides while a low layer's clip is on. Otherwise they stay culled,
   // so a camera inside a building sees out, and the GPU skips half the building faces. The clip plane is on
   // only while cut open, because it compiles a discard into every built-in material.
 
@@ -522,10 +537,10 @@ renderer.setAnimationLoop(now => {
 
   moveCars(dt * TRAFFIC.speed);
 
-  // Highway cars sort by rank, so the shown ones come first. Every car moves on, but one past 700 m takes its
-  // new spot every second frame, about a metre at a time, and one past the fog only one frame in eight.
+  // Highway cars sort by rank, so the shown ones come first. Every car moves on, but one past the pack's near range
+  // takes its new spot every second frame, about a metre at a time, and one past the fog only one frame in eight.
 
-  const hwShow = TRAFFIC.highway * QUALITY.cars, far2 = (scene.fog.far + 300) ** 2, mid2 = 700 ** 2, cx = camera.position.x, cz = camera.position.z, turn = declutterTick & 7;
+  const hwShow = TRAFFIC.highway * QUALITY.cars, far2 = (scene.fog.far + 300) ** 2, mid2 = SETTING.scale.traffic.highwayNear ** 2, cx = camera.position.x, cz = camera.position.z, turn = declutterTick & 7;
   hwCars.count = 0;
   for (let i = 0; i < hwTraffic.length; i++) {
     const c = hwTraffic[i];
@@ -542,19 +557,19 @@ renderer.setAnimationLoop(now => {
   for (const l of LANDMARKS) l.update?.(t, dt);
   rideTick(dt);
   updateFireworks(dt);
-  for (const m of climbers) m.position.y = 200 + (((t * m.userData.speed + m.userData.off) % 2400) + 2400) % 2400;
   for (const f of waving) f.rotation.y = Math.sin(t * 2.3) * .25;
 
-  const zoom = camera.position.distanceTo(controls.target), away = Math.max(0, zoom - 800);
+  const zoom = camera.position.distanceTo(controls.target), away = Math.max(0, zoom - FOG_ZOOM.from);
 
   for (const el of LANDMARK_LABELS) el.obj.visible = layer === 'all';
   if (++declutterTick % 6 === 0) declutter();
-  U.uFogNear.value = scene.fog.near = (FOG_BASE.near + away * .9) * QUALITY.fog;
-  U.uFogFar.value = scene.fog.far = (FOG_BASE.far + away * 1.8) * QUALITY.fog;
-  const beat = (t * .8) % 1 < .15;
+  U.uFogNear.value = scene.fog.near = (FOG_BASE.near + away * FOG_ZOOM.near) * QUALITY.fog;
+  U.uFogFar.value = scene.fog.far = (FOG_BASE.far + away * FOG_ZOOM.far) * QUALITY.fog;
+  const beat = (t * FLICKER.beat) % 1 < FLICKER.on;
   for (const f of S.flicker) {
 
-    // Beacons blink together on one city-wide beat. Broken neon keeps its own random stutter.
+    // Beacons blink together on one city-wide beat. Broken neon keeps its own random stutter. A lantern stutters
+    // the same way but only dims to its own level, f[5].
     // Only lights that switched get written, and each tile uploads one range that spans them.
     // A light on a tile that is not drawing waits; its stored state still matches its colour. Neon stutter
     // updates half the lights each frame, alternating.
@@ -562,10 +577,10 @@ renderer.setAnimationLoop(now => {
     const m = f[0], i = f[1], rgb = f[2], ph = f[3], tile = m.userData.tileOf?.[i], tm = tile ? tile[0] : m, j = tile ? tile[1] : i;
     if (!tm.visible && f.tiles === TILES) continue;
     if (!f[4] && ((i + declutterTick) & 1) && f.tiles === TILES) continue;
-    const on = f[4] ? beat : Math.sin(t * 13 + ph) + Math.sin(t * 7.3 + ph * 2) > -1.2;
+    const on = f[4] ? beat : Math.sin(t * 13 + ph) + Math.sin(t * 7.3 + ph * 2) > FLICKER.stutter;
     if (f.on === on && f.tiles === TILES) continue;
     f.on = on; f.tiles = TILES;
-    const at = tm.instanceColor, k = on ? 1 : .06;
+    const at = tm.instanceColor, k = on ? 1 : f[5] ?? FLICKER.dim;
     at.array[j * 3] = rgb[0] * k; at.array[j * 3 + 1] = rgb[1] * k; at.array[j * 3 + 2] = rgb[2] * k;
     const js = flickered.get(at);
     if (js) js.push(j); else flickered.set(at, [j]);

@@ -1,0 +1,300 @@
+/* The map's interface: panels, search, atlas, tours, cards, labels, minimap and the loading screen. Colours and the
+   font are variables. Their defaults are New Angeles' look, and a setting pack's theme.css overrides them and draws its
+   own loading logo. */
+
+:root {
+  --accent: #7ff3ff;
+  --bg: #05060c;
+  --text: #d8e6ef;
+  --panel: rgba(6, 9, 18, .92);
+  --panel-soft: rgba(6, 9, 18, .8);
+  --line: #1d3546;
+  --line-2: #23435a;
+  --line-on: #3d7a99;
+  --muted: #7d93a3;
+  --muted-2: #8ea3b3;
+  --faint: #6a8a9a;
+  --loading-bg: #070b14;
+  --bright: #e8fbff;
+  --text-soft: #b8d4e0;
+  --text-2: #c9d6e0;
+  --text-strong: #e6f4ff;
+  --key: #9fd;
+  --key-line: #2a4a5a;
+  --button: #0e1a26;
+  --button-text: #9fb6c6;
+  --button-on: #1b3a4f;
+  --tab-on: #1d3a50;
+  --note: #789;
+  --button-2: #10202e;
+  --button-2-text: #cfe;
+  --card: #0b111c;
+  --card-img: #111;
+  --kicker: #6fd8e8;
+  --district: #e8f6ff;
+  --district-glow: rgba(0, 200, 230, .5);
+  --landmark: #bfefff;
+  --warm: #ffd9a0;
+  --place: #e2ebf0;
+  --text-3: #b8c8d4;
+  --podcast: #ff4fb4;
+  --podcast-bg: rgba(255, 79, 180, .06);
+  --chip: rgba(14, 26, 38, .85);
+  --subtitle-bg: rgba(5, 8, 14, .78);
+  --subtitle: #f2f7fb;
+  --cone: rgba(255, 217, 160, .25);
+  --coast: #2a6f8f;
+  --input: #08101a;
+  --input-text: #dfeaf2;
+  --hover: #13283a;
+  --accent-rgb: 127, 243, 255;
+  --font: system-ui;
+}
+
+html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; font-family: var(--font), sans-serif; color: var(--text); }
+body.busy, body.busy * { cursor: progress !important; }
+#hud { position: fixed; top: 12px; left: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; font-size: 13px; max-width: 290px; }
+#loading { position: fixed; inset: 0; display: grid; place-items: center; background: var(--loading-bg); color: var(--accent); z-index: 10; transition: opacity .6s; }
+#loading .box { display: grid; justify-items: center; gap: 14px; text-align: center; padding: 0 16px; }
+
+#loading h1 { margin: 0; font: 700 22px var(--font); letter-spacing: .14em; color: var(--bright); }
+#loading h1 sup { font-size: 11px; color: var(--accent); }
+#loading h1 span { color: var(--accent); font-weight: 400; letter-spacing: .3em; font-size: 13px; display: block; margin-top: 4px; }
+
+/* Flavour lines fade in and out one at a time. A small script shuffles them and sets each delay. */
+#loading .lines { position: relative; height: 20px; width: min(520px, 92vw); }
+#loading .lines span { will-change: opacity, transform; position: absolute; inset: 0; opacity: 0; font-size: 13px; color: var(--text-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#loading small { color: var(--faint); font-size: 11px; letter-spacing: .08em; }
+#loading.done { opacity: 0; pointer-events: none; }
+#loading .fail { margin: 0; max-width: 420px; font-size: 14px; line-height: 1.5; color: var(--text-soft); }
+#loading .fail a { color: var(--accent); }
+#hud h1 { font-size: 14px; margin: 0 0 6px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+#hud label { display: block; margin-top: 8px; }
+#hud input { width: 100%; }
+#hud .def { color: var(--muted); font-weight: 400; }
+#hud .hint { color: var(--muted); font-size: 12px; margin-top: 6px; }
+#hud:not(.tuning) { display: none; }
+
+/* Welcome: a card on the first visit offers the audio guide. */
+
+#welcome { position: fixed; z-index: 7; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(380px, calc(100vw - 32px)); padding: 18px 20px 16px; font-size: 13px; line-height: 1.5; }
+#welcome h2 { font-size: 15px; margin: 0 0 8px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+#welcome p { margin: 8px 0; color: var(--text-2); }
+#welcome .row { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0 4px; }
+#welcome .row button { font-size: 13px; padding: 8px 14px; }
+#welcome small { color: var(--faint); font-size: 11px; }
+
+/* Help: a round "?" button top right opens a short guide. Touch and pointer devices read their own controls line. */
+
+#help { position: fixed; z-index: 6; top: 12px; right: 12px; width: 36px; height: 36px; padding: 0; border-radius: 50%;
+  background: var(--panel); color: var(--accent); border: 1px solid var(--line); font: 600 17px var(--font); cursor: pointer; }
+#help[aria-expanded=true] { border-color: var(--accent); }
+#helpPanel { position: fixed; z-index: 6; top: 56px; right: 12px; width: 320px; max-height: calc(100vh - 80px); overflow-y: auto; padding: 12px 16px; font-size: 13px; line-height: 1.45; }
+#helpPanel h2 { font-size: 14px; margin: 0 0 6px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+#helpPanel p { margin: 8px 0; color: var(--text-2); }
+#helpPanel b { color: var(--text-strong); font-weight: 600; }
+
+/* Smooth edges sits in the bottom-right corner, under cards and players. */
+
+#hq { position: fixed; z-index: 3; right: 12px; bottom: 12px; background: var(--panel-soft); color: var(--muted-2); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; font-size: 11px; cursor: pointer; }
+#hq[aria-pressed=true] { color: var(--accent); border-color: var(--line-on); }
+#helpPanel kbd { font: 11px ui-monospace, monospace; border: 1px solid var(--key-line); border-radius: 4px; padding: 0 4px; color: var(--key); }
+#helpPanel h2 { padding-right: 30px; }
+#helpClose { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,.6); color: #fff; border: 0; border-radius: 50%; width: 26px; height: 26px; min-height: 0; padding: 0; font-size: 18px; line-height: 26px; cursor: pointer; }
+#helpPanel .back { display: inline-block; margin-top: 6px; color: var(--key); text-decoration: none; font-size: 12px; }
+@media (pointer: coarse) { #helpPanel .desk { display: none; } }
+@media (pointer: fine) { #helpPanel .touch { display: none; } }
+#hud { max-height: calc(100vh - 24px); overflow-y: auto; }
+#hud > summary { cursor: pointer; list-style: none; }
+#hud > summary h1 { display: inline; }
+#hud > summary::after { content: ' ▾'; color: var(--accent); }
+#hud:not([open]) > summary::after { content: ' ▸'; }
+.layers { display: flex; gap: 4px; margin-top: 10px; }
+.layers button { flex: 1; background: var(--button); color: var(--button-text); border: 1px solid var(--line-2); border-radius: 6px; padding: 5px 0; font-size: 12px; cursor: pointer; }
+.layers button.on { background: var(--button-on); color: var(--accent); border-color: var(--line-on); }
+#tune { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
+#tune > summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+#tune label { display: grid; grid-template-columns: 1fr auto; gap: 0 8px; margin-top: 6px; font-size: 12px; }
+#tune label input { grid-column: 1 / -1; }
+#tune .tabs { display: flex; gap: 4px; margin-top: 8px; }
+#tune .tabs button { flex: 1; padding: 4px 0; font-size: 11px; }
+#tune .tabs button.on { background: var(--tab-on); color: var(--accent); }
+#tune .group { max-height: 52vh; overflow: hidden auto; }
+#tune .note { font-size: 11px; color: var(--note); margin-top: 6px; }
+#tune output { color: var(--accent); font-variant-numeric: tabular-nums; }
+#tune .row { display: flex; gap: 8px; margin-top: 10px; }
+#tune button { flex: 1; background: var(--button-2); color: var(--button-2-text); border: 1px solid var(--line-2); border-radius: 6px; padding: 5px; cursor: pointer; }
+#card { position: fixed; right: 16px; bottom: 16px; width: 320px; background: var(--card); border: 1px solid var(--line-2); border-radius: 12px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,.6); display: none; }
+#card img { width: 100%; height: 160px; object-fit: cover; display: block; background: var(--card-img); }
+#card .body { padding: 12px 14px 14px; max-height: 52vh; overflow-y: auto; }
+#card img[hidden], #card a[hidden] { display: none; }
+#cMin { position: absolute; top: 8px; right: 40px; z-index: 1; background: rgba(0,0,0,.6); color: #fff; border: 0; border-radius: 50%; width: 26px; height: 26px; min-height: 0; padding: 0; cursor: pointer; font-size: 15px; line-height: 1; }
+#card.min img, #card.min .kicker, #card.min .type, #card.min #cSum, #card.min #cLink { display: none; }
+#card.min .body { padding: 10px 76px 10px 14px; min-height: 46px; box-sizing: border-box; display: flex; align-items: center; }
+#card.min #close, #card.min #cMin { top: 50%; transform: translateY(-50%); }
+#card.min h2 { margin: 0; font-size: 15px; }
+#card .kicker { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--kicker); }
+#card h2 { margin: 4px 0 2px; font-size: 18px; }
+#card .type { font-size: 12px; color: var(--muted-2); }
+#card p { font-size: 13px; line-height: 1.45; margin: 10px 0; }
+#card a { color: var(--accent); font-size: 13px; }
+#close { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,.6); color: #fff; border: 0; border-radius: 50%; width: 26px; height: 26px; min-height: 0; padding: 0; font-size: 18px; line-height: 26px; cursor: pointer; }
+.district { color: var(--district); font: 600 13px var(--font); letter-spacing: .32em; text-transform: uppercase; text-shadow: 0 0 6px var(--district-glow), 0 0 2px #000; pointer-events: none; opacity: .7; }
+.district.landmark { font-size: 10px; letter-spacing: .14em; color: var(--landmark); text-shadow: 0 0 2px #000, 0 0 5px #000; opacity: .75; }
+.district.quarter { font-size: 10px; letter-spacing: .22em; color: var(--warm); text-shadow: 0 0 2px #000, 0 0 5px #000; opacity: .7; }
+.place { color: var(--place); font: 500 11px var(--font); white-space: nowrap; transform: translateY(-12px); text-shadow: 0 0 2px #000, 0 0 6px #000; opacity: .85; }
+.place::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; vertical-align: 1px; background: var(--c, var(--accent)); box-shadow: 0 0 6px var(--c, var(--accent)); }
+body.nolabels .district, body.nolabels .place { display: none !important; }
+#compass { position: fixed; z-index: 4; right: 14px; top: 62px; width: 44px; height: 44px; padding: 0; border: 0; background: none; cursor: pointer; }
+#compass svg { width: 100%; height: 100%; display: block; }
+#hud { left: auto; right: 56px; z-index: 5; }
+#card { z-index: 6; }
+
+/* Navigation: search and the atlas / sessions rail, chips, tour card, minimap. */
+
+.panel { position: fixed; z-index: 5; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 10px 40px rgba(0, 0, 0, .5); }
+.panel button, #chips button { background: var(--button); color: var(--button-text); border: 1px solid var(--line-2); border-radius: 6px; padding: 5px 10px; font: inherit; font-size: 12px; cursor: pointer; }
+.panel button.on, #chips button.on { background: var(--button-on); color: var(--accent); border-color: var(--line-on); }
+.panel button:disabled { opacity: .4; cursor: default; }
+.kicker { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--kicker); }
+#nav { z-index: 7; left: 12px; top: 12px; width: 395px; max-height: calc(100vh - 360px); display: flex; flex-direction: column; padding: 10px; }
+#nav .bar { display: flex; gap: 6px; align-items: stretch; height: 32px; }
+#nav .bar .tabs { margin: 0; flex: none; }
+#nav .bar .tabs button { flex: none; }
+.qwrap { flex: 1; min-width: 0; position: relative; }
+#q { width: 100%; height: 100%; box-sizing: border-box; background: var(--input); color: var(--input-text); border: 1px solid var(--line-2); border-radius: 8px; padding: 7px 30px 7px 10px; font: 13px var(--font); outline: none; }
+#q:focus { border-color: var(--line-on); box-shadow: 0 0 0 2px rgba(var(--accent-rgb), .15); }
+#nav kbd { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font: 11px var(--font); color: var(--muted); border: 1px solid var(--line-2); border-radius: 4px; padding: 0 5px; pointer-events: none; }
+#results:empty { display: none; }
+#results { margin-top: 6px; max-height: 46vh; overflow: auto; }
+#results .grp, #nav .hd { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); margin: 8px 0 2px; }
+#results .r, #nav .leaf { display: flex; width: 100%; gap: 8px; justify-content: space-between; align-items: center; text-align: left; background: none !important; border: 0 !important; border-radius: 6px; padding: 5px 8px; color: var(--text); font-size: 13px; }
+#results .r:hover, #results .r.sel, #nav .leaf:hover { background: var(--hover) !important; color: var(--accent); }
+#results small { color: var(--muted); white-space: nowrap; }
+#results mark { background: none; color: var(--accent); font-weight: 700; }
+#results .none { color: var(--muted); padding: 4px 8px; }
+#nav .body { display: none; overflow: auto; margin-top: 8px; }
+#nav[data-tab=atlas] #atlas, #nav[data-tab=sessions] #sessions, #nav[data-tab=ride] #ridePick { display: block; }
+#nav .tabs { display: flex; gap: 4px; margin-top: 8px; }
+#nav .tabs button { flex: 1; }
+details.d { border-top: 1px solid var(--line); }
+details.d > summary { list-style: none; cursor: pointer; padding: 7px 4px; display: flex; align-items: center; }
+details.d > summary::-webkit-details-marker { display: none; }
+details.d > summary::before { content: '▸'; color: var(--accent); margin-right: 6px; }
+details.d[open] > summary { color: var(--accent); }
+details.d[open] > summary::before { content: '▾'; }
+details.d > summary span { flex: 1; }
+details.d > summary b { font-size: 11px; color: var(--muted); font-weight: 400; }
+#nav .sum { font-size: 12px; line-height: 1.45; color: var(--text-3); margin: 2px 4px 6px; }
+#nav .sum a { color: var(--accent); white-space: nowrap; }
+#nav .leaf { justify-content: flex-start; font-size: 12px; color: var(--text-3); padding-left: 18px; }
+#nav .leaf i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+#nav .hd { padding-left: 18px; margin: 6px 0 0; }
+.ses { border-top: 1px solid var(--line); padding: 8px 4px; }
+.ses .pod { margin: 0 0 6px; padding: 6px 8px; border-left: 2px solid var(--podcast); background: var(--podcast-bg); }
+.ses .pod .listen { margin-top: 4px; }
+.ses p { font-size: 12px; line-height: 1.4; color: var(--text-3); margin: 4px 0 6px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+#nav[data-tab=filters] #chips { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+#chips .sep { width: 1px; height: 18px; background: var(--line-2); margin: 0 4px; }
+#chips button { background: var(--chip); }
+#tour { z-index: 6; left: 50%; bottom: 16px; width: 440px; transform: translateX(-50%); padding: 12px 14px; }
+#tour h2 { margin: 4px 0 0; font-size: 18px; }
+#tour h3 { margin: 2px 0 0; font-size: 13px; font-weight: 600; color: var(--muted-2); }
+#tour p { font-size: 13px; line-height: 1.45; margin: 8px 0; }
+#tour a { color: var(--accent); font-size: 13px; margin-right: 12px; }
+#tour .row { display: flex; gap: 6px; margin-top: 10px; }
+#tour .row button { flex: 1; }
+
+/* Audio guide: a compact player in the bottom-right corner, subtitles centred at the bottom. */
+
+#atour { z-index: 6; right: 16px; bottom: 16px; width: 300px; padding: 10px 12px; }
+#atour .hd { display: flex; align-items: flex-start; gap: 8px; }
+#atour .hd > div { flex: 1; min-width: 0; }
+#atour h2 { margin: 1px 0 0; font-size: 15px; }
+#atStop { font-size: 12px; color: var(--muted-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#atClose { flex: none; width: 28px; height: 28px; min-height: 0; padding: 0; border-radius: 50%; line-height: 26px; font-size: 16px; }
+#atour .track { position: relative; margin: 8px 0 2px; }
+#atSeek { width: 100%; margin: 0; accent-color: var(--accent); }
+#atTicks { position: absolute; left: 0; right: 0; top: 50%; height: 0; pointer-events: none; }
+#atTicks i { position: absolute; width: 2px; height: 8px; margin: -4px 0 0 -1px; background: var(--accent); opacity: .45; }
+#atour .row { display: flex; align-items: center; gap: 4px; margin-top: 6px; }
+#atour .row > button { padding: 4px 7px; font-size: 12px; }
+#atPlay { min-width: 38px; color: var(--text-strong) !important; }
+#atTime { flex: 1; text-align: center; font: 11px ui-monospace, monospace; color: var(--button-text); }
+#atSpeed { min-width: 46px; font-variant-numeric: tabular-nums; }
+#atCC[aria-pressed=true] { color: var(--accent); border-color: var(--accent); }
+/* Maglev ride: the station picker in the rail, and a panel for the ride itself. */
+
+#ridePick .stns { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 4px 8px; }
+#ridePick .stns button { font-size: 12px; }
+body.focus #nav, body.focus #help, body.focus #helpPanel { display: none; }
+#ride { z-index: 6; right: 16px; bottom: 16px; width: 300px; padding: 10px 12px; }
+#ride .hd { display: flex; align-items: flex-start; gap: 8px; }
+#ride .hd > div { flex: 1; min-width: 0; }
+#ride h2 { margin: 1px 0 0; font-size: 15px; }
+#rWhere, #ride small { font-size: 12px; color: var(--muted-2); }
+#rExit { flex: none; width: 28px; height: 28px; min-height: 0; padding: 0; border-radius: 50%; line-height: 26px; font-size: 16px; }
+#ride .row { display: flex; align-items: center; gap: 4px; margin-top: 8px; }
+#ride .row > button { padding: 4px 8px; font-size: 12px; }
+#ride small { flex: 1; text-align: right; }
+#atFollow { width: 100%; margin-top: 8px; color: var(--accent) !important; }
+#atFollow.flash { animation: at-flash .6s ease-in-out 3; }
+@keyframes at-flash { 50% { background: rgba(var(--accent-rgb), .35); box-shadow: 0 0 14px rgba(var(--accent-rgb), .8); } }
+#atSub { position: fixed; z-index: 6; left: 50%; bottom: 24px; transform: translateX(-50%); width: max-content; max-width: clamp(260px, calc(100vw - 680px), 640px); padding: 6px 12px;
+  background: var(--subtitle-bg); border-radius: 6px; color: var(--subtitle); font-size: 16px; line-height: 1.35; text-align: center; pointer-events: none; }
+#tExit { position: absolute; top: 8px; right: 8px; border-radius: 50% !important; width: 28px; height: 28px; padding: 0 !important; }
+#minimap { left: 12px; bottom: 12px; width: 230px; padding: 6px; }
+#minimap svg { display: block; width: 100%; height: 280px; margin-top: 4px; cursor: crosshair; touch-action: none; }
+#minimap.shut { width: auto !important; }
+#minimap.shut svg { display: none; }
+#minimap.shut #mmToggle::after { content: ' ▸'; }
+#mmToggle::after { content: ' ▾'; }
+#mmToggle { background: none !important; border: 0 !important; color: var(--accent) !important; padding: 2px 4px !important; }
+#mmSvg polygon { fill: rgba(var(--accent-rgb), .05); stroke: var(--line-on); stroke-width: 14; }
+#mmSvg polygon:hover { fill: rgba(var(--accent-rgb), .12); }
+#mmSvg polygon.on { fill: rgba(var(--accent-rgb), .2); stroke: var(--accent); }
+#mmSvg polygon.cone { fill: var(--cone); stroke: var(--warm); stroke-width: 10; pointer-events: none; }
+#mmSvg .route { fill: none; stroke: var(--accent); stroke-width: 16; }
+#mmSvg text { fill: var(--landmark); text-anchor: middle; dominant-baseline: middle; pointer-events: none; font-weight: 600; letter-spacing: .04em; paint-order: stroke; stroke: var(--bg); stroke-width: 18px; }
+#mmSvg .coast { fill: none; stroke: var(--coast); stroke-width: 10; stroke-dasharray: 40 30; }
+.place.off, .district.off { display: none !important; }
+.place, .district { transition: opacity .35s; }
+.place.faded, .district.faded { opacity: 0 !important; }
+.district.landmark.link { text-decoration: underline dotted var(--accent); }
+
+@media (max-width: 600px) {
+  #card { left: 8px; right: 8px; bottom: 8px; width: auto; }
+  #card img { display: none; }
+  #card .body { max-height: 28vh; padding: 10px 12px; }
+  #card p { font-size: 12.5px; margin: 6px 0; }
+  #nav { left: 8px; right: 8px; top: 8px; width: auto; max-height: 62vh; padding: 6px; }
+  #nav .bar { height: 40px; }
+  #nav kbd { display: none; }
+  #chips .sep { flex: none; }
+  #compass { top: 110px; right: 10px; }
+  #hud { top: 104px; right: 8px; left: auto; max-width: calc(100vw - 16px); padding: 6px 12px; }
+  #help { top: 62px; right: 8px; }
+  #helpPanel { top: 104px; left: 8px; right: 8px; width: auto; max-height: calc(100vh - 120px); }
+  #tour { left: 8px; right: 8px; bottom: 8px; width: auto; transform: none; }
+  #atour, #ride { left: 8px; right: 8px; bottom: 8px; width: auto; }
+  #atSub { bottom: 168px; max-width: calc(100vw - 32px); font-size: 14px; }
+  #minimap { left: 8px; bottom: 8px; width: calc(100vw - 16px); }
+  #hq { right: 8px; bottom: 8px; padding: 8px 12px; }
+  #minimap svg { height: 46vh; }
+  .panel button, #chips button, #results .r, #nav .leaf, details.d > summary { min-height: 40px; }
+  #chips button { flex: none; }
+  #q { font-size: 16px; }
+  #nav .bar .tabs button { min-height: 0; padding: 0 9px; }
+}
+
+/* Touch screens get finger-sized card buttons. A phone held sideways drops the card photo. */
+
+@media (pointer: coarse) {
+  #close, #cMin, #helpClose { width: 40px; height: 40px; line-height: 40px; font-size: 20px; }
+  #cMin { right: 54px; }
+  #card.min .body { min-height: 58px; padding-right: 108px; }
+}
+@media (max-height: 500px) {
+  #card img { display: none; }
+  #card .body { max-height: 40vh; }
+}

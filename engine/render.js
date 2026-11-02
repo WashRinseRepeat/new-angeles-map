@@ -10,7 +10,8 @@ import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { Pass } from 'three/addons/postprocessing/Pass.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { CITY, DX, DZ, PLAZA_R, STALK } from './core.js';
+import { CENTRE, CENTRE_R, CITY, DX, DZ } from './core.js';
+import { SETTING } from './setting.js';
 
 // ---------- renderer ----------
 
@@ -27,31 +28,45 @@ labels.setSize(innerWidth, innerHeight);
 Object.assign(labels.domElement.style, { position: 'fixed', top: '0', pointerEvents: 'none' });
 document.body.appendChild(labels.domElement);
 
+// The pack sets the look: fog and sky colour, the sky and ground light, and the moon. A pack's look.sky is a gradient,
+// [zenith, horizon, below] as hex colours, wrapped round the scene. Without it the sky is the fog colour.
+
+function skyTexture([top, mid, low]) {
+  const c = document.createElement('canvas');
+  c.width = 4; c.height = 256;
+  const g = c.getContext('2d'), grad = g.createLinearGradient(0, 0, 0, 256), hex = v => `#${new THREE.Color(v).getHexString()}`;
+  grad.addColorStop(0, hex(top)); grad.addColorStop(.48, hex(mid)); grad.addColorStop(.52, hex(mid)); grad.addColorStop(1, hex(low ?? mid));
+  g.fillStyle = grad; g.fillRect(0, 0, 4, 256);
+  const t = new THREE.CanvasTexture(c);
+  t.mapping = THREE.EquirectangularReflectionMapping; t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+const LOOK = SETTING.look, CAM = SETTING.camera;
 export const scene = new THREE.Scene();
-export const FOG = new THREE.Color(0x142036);
-scene.background = FOG;
-scene.fog = new THREE.Fog(FOG, 400, 3800);
+export const FOG = new THREE.Color(LOOK.fog);
+scene.background = LOOK.sky ? skyTexture(LOOK.sky) : FOG;
+scene.fog = new THREE.Fog(FOG, ...LOOK.fogStart);
 
 // Fog distances are tuned for a close view and grow with the camera's distance from its target.
 
-export const FOG_BASE = { near: 850, far: 3900 };
-export const hemi = new THREE.HemisphereLight(0x7f9cc8, 0x1a1410, 1.5);
+export const FOG_BASE = { ...LOOK.fogBase };
+export const hemi = new THREE.HemisphereLight(...LOOK.hemi);
 scene.add(hemi);
-export const moon = new THREE.DirectionalLight(0x8899cc, 0.7);
-moon.position.set(300, 800, 200);
+export const moon = new THREE.DirectionalLight(LOOK.moon[0], LOOK.moon[1]);
+moon.position.set(...LOOK.moon[2]);
 scene.add(moon);
 
-export const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 3, 12000);
+// The pack sets the lens, the start view and the zoom and tilt limits.
 
-// The start view looks north-east from over Rutherford, up through Base de Cayambe to the Beanstalk.
-
-camera.position.set(-1450, 1350, 1330);
+export const camera = new THREE.PerspectiveCamera(CAM.fov, innerWidth / innerHeight, CAM.near, CAM.far);
+camera.position.set(...CAM.position);
 export const controls = new MapControls(camera, renderer.domElement);
 controls.enableDamping = true;
-controls.target.set(-220, 0, -10);
-controls.maxPolarAngle = Math.PI * 0.46;
-controls.minDistance = 20;
-controls.maxDistance = 4200;
+controls.target.set(...CAM.target);
+controls.maxPolarAngle = Math.PI * CAM.maxPolar;
+controls.minDistance = CAM.minDistance;
+controls.maxDistance = CAM.maxDistance;
 
 // Direct manipulation, as in Google Maps. Nothing eases.
 // - One finger or the left or middle mouse button grabs the ground. The point under it stays under it.
@@ -69,7 +84,7 @@ const groundAt = (x, y, out) => {
   ndc.set((x - r.left) / r.width * 2 - 1, -(y - r.top) / r.height * 2 + 1);
   grabRay.setFromCamera(ndc, camera);
   const p = grabRay.ray.intersectPlane(GROUND, out);
-  return p && p.distanceTo(camera.position) < 8000 ? p : null;
+  return p && p.distanceTo(camera.position) < CAM.groundReach ? p : null;
 };
 const grab = new THREE.Vector3(), now = new THREE.Vector3(), shift = new THREE.Vector3();
 const pA = new THREE.Vector3(), pB = new THREE.Vector3(), cA = new THREE.Vector3(), cB = new THREE.Vector3();
@@ -267,7 +282,7 @@ class CloudPass extends Pass {
 }
 const clouds = new CloudPass();
 composer.addPass(clouds);
-export const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.45, 0.35, 1.0);
+export const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), ...LOOK.bloom);
 composer.addPass(bloom);
 
 // The output pass adds the bloom and lays the clouds over the frame before tone mapping, so neither needs a
@@ -314,15 +329,16 @@ smaa.enabled = false;
 composer.addPass(smaa);
 
 // Quality levels trade sharpness, bloom, traffic and prop range for frame rate. Auto starts at medium on touch
-// screens and steps down when frames drop. cars scales street and highway traffic; detail is the prop range in metres;
-// fog scales the fog distances, and tiles past the fog stop drawing.
+// screens and steps down when frames drop. cars scales street and highway traffic; detail is the prop range in metres,
+// which the pack sets per level; fog scales the fog distances, and tiles past the fog stop drawing.
 // Ultra is picked by hand. It renders at 1.5 times the screen's pixel ratio, up to 3, and adds SMAA.
 
+const DETAIL = SETTING.scale.detail;
 export const QUALITY_LEVELS = {
-  ultra: { dpr: 3, ss: 1.5, smaa: true, bloom: true, cars: 1, detail: 1400, fog: 1 },
-  high: { dpr: 2, bloom: true, cars: 1, detail: 1400, fog: 1 },
-  medium: { dpr: 1.5, bloom: true, cars: .55, detail: 1000, fog: .85 },
-  low: { dpr: 1, bloom: false, cars: .3, detail: 650, fog: .6 },
+  ultra: { dpr: 3, ss: 1.5, smaa: true, bloom: true, cars: 1, detail: DETAIL.ultra, fog: 1 },
+  high: { dpr: 2, bloom: true, cars: 1, detail: DETAIL.high, fog: 1 },
+  medium: { dpr: 1.5, bloom: true, cars: .55, detail: DETAIL.medium, fog: .85 },
+  low: { dpr: 1, bloom: false, cars: .3, detail: DETAIL.low, fog: .6 },
 };
 export const QUALITY = { mode: 'auto', level: matchMedia('(pointer: coarse)').matches ? 'medium' : 'high', ...QUALITY_LEVELS.high };
 export function applyQuality(level) {
@@ -335,10 +351,17 @@ export function applyQuality(level) {
 }
 applyQuality(QUALITY.level);
 
+const LIGHT = { dir: [.4, .8, .3], colour: [1, 1, 1], base: .45, up: .25, sun: .4, ...LOOK.buildingLight };
 export const U = {
-  uTime: { value: 0 }, uFog: { value: FOG }, uFogNear: { value: 400 }, uFogFar: { value: 3800 },
-  uBlend: { value: 230 }, uStalk: { value: STALK }, uPlaza: { value: PLAZA_R },
-  uMist: { value: .32 }, uWin: { value: 1 }, uEdge: { value: 1 }, uClipTop: { value: 1e5 }, uMistBase: { value: 0 },
+  uTime: { value: 0 }, uFog: { value: FOG }, uFogNear: { value: LOOK.fogStart[0] }, uFogFar: { value: LOOK.fogStart[1] },
+  uBlend: { value: SETTING.styles.blend }, uCentre: { value: CENTRE }, uCentreR: { value: CENTRE_R },
+  uMist: { value: LOOK.mist }, uWin: { value: 1 }, uEdge: { value: 1 }, uClipTop: { value: 1e5 }, uMistBase: { value: 0 },
+
+  // The building shader's light: a base level, a share from straight up and a share from the light direction, in the
+  // light colour. The pack's look.buildingLight sets them. The defaults are the engine's night values.
+
+  uLightDir: { value: new THREE.Vector3(...LIGHT.dir) }, uLightCol: { value: new THREE.Vector3(...LIGHT.colour) },
+  uLightK: { value: new THREE.Vector3(LIGHT.base, LIGHT.up, LIGHT.sun) },
   uFocus: { value: new THREE.Vector4(0, 0, 0, 1) }, uFocusB: { value: new THREE.Vector3(1, 1, 1) }, uFocusK: { value: new THREE.Vector3(1, 0, 0) },
 };
 
@@ -410,7 +433,7 @@ export const FOG_GLSL = `
 // Sparkles smaller than a pixel fade out so they do not shimmer at a distance.
 
 export const WATER_GLSL = `
-  uniform vec3 uMoonDir;
+  uniform vec3 uMoonDir, uWaterBase;
   float wHash(vec2 p) { vec3 q = fract(vec3(p.xyx) * .1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
   vec3 waterColor(vec3 w, float shallow, float warm) {
     vec2 p = w.xz;
@@ -422,7 +445,7 @@ export const WATER_GLSL = `
     vec3 v = normalize(cameraPosition - w);
     float spec = pow(max(dot(reflect(-uMoonDir, n), v), 0.), 60.);
     float fres = pow(1. - max(dot(n, v), 0.), 4.);
-    vec3 col = vec3(.004, .009, .016) + uFog * fres * .45 + vec3(.16, .19, .24) * spec;
+    vec3 col = uWaterBase + uFog * fres * .45 + vec3(.16, .19, .24) * spec;
     vec2 cell = floor(p / 5.);
     float h = wHash(cell), tw = .5 + .5 * sin(t * (2. + h * 3.) + h * 40.);
     float sharp = 1. - smoothstep(.6, 2.5, max(fwidth(p.x), fwidth(p.y)));
@@ -435,7 +458,7 @@ export const WATER_GLSL = `
   }
 `;
 
-// ---------- ground: foothill terrain, city asphalt, pavement blocks, Root plaza ----------
+// ---------- ground: city asphalt, pavement blocks, the centre plaza ----------
 
 // A landmark that sinks below grade cuts a hole in the ground. Every ground surface discards fragments
 // inside a hole rectangle: world centre, rotation (cos, sin) and half size, as two vec4 per hole.
@@ -471,26 +494,30 @@ export const SURFACE = [];
 export const surface = m => { if (m.material) holed(m.material); SURFACE.push(m); scene.add(m); return m; };
 export const toShape = poly => new THREE.Shape(poly.map(([x, z]) => new THREE.Vector2(x, -z)));
 export const flatGeo = (polys, y) => mergeGeometries(polys.map(p => new THREE.ShapeGeometry(toShape(p)))).rotateX(-Math.PI / 2).translate(0, y, 0);
+
+// The pack sets the ground colours and the pulse of light rings on the plaza round the centre.
+
+const GROUND_RGB = LOOK.ground, vec3 = c => `vec3(${c.join(', ')})`;
 export const outerGround = surface(new THREE.Mesh(new THREE.PlaneGeometry(DX + 40, DZ + 40).rotateX(-Math.PI / 2),
-  new THREE.MeshStandardMaterial({ color: 0x0c140f, roughness: 1, polygonOffset: true, polygonOffsetFactor: 4, polygonOffsetUnits: 4 })));
+  new THREE.MeshStandardMaterial({ color: GROUND_RGB.outer, roughness: 1, polygonOffset: true, polygonOffsetFactor: 4, polygonOffsetUnits: 4 })));
 surface(new THREE.Mesh(flatGeo(CITY.districts.map(d => d.poly), .03), new THREE.ShaderMaterial({
   uniforms: U, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 2,
   vertexShader: `varying vec3 vW; void main(){ vec4 w = modelMatrix*vec4(position,1.); vW = w.xyz; gl_Position = projectionMatrix*viewMatrix*w; }`,
   fragmentShader: `
-    uniform float uTime, uPlaza; uniform vec2 uStalk; varying vec3 vW;
+    uniform float uTime, uCentreR; uniform vec2 uCentre; varying vec3 vW;
     ${FOG_GLSL}
     void main(){
-      vec3 col = vec3(.048, .05, .058);
-      float ds = distance(vW.xz, uStalk);
-      if (ds < uPlaza) {
-        col = vec3(.03, .035, .045);
+      vec3 col = ${vec3(GROUND_RGB.streets)};
+      float ds = distance(vW.xz, uCentre);
+      if (ds < uCentreR) {
+        col = ${vec3(GROUND_RGB.plaza)};
         float ring = 1. - smoothstep(0., .8, abs(mod(ds - uTime * 6., 16.) - 8.));
-        col += vec3(.2, .8, 1.2) * ring * .25 * (1. - ds / uPlaza);
+        col += ${vec3(SETTING.centre.glow)} * ring * .25 * (1. - ds / uCentreR);
       }
       gl_FragColor = vec4(fogged(col, vW), 1.);
     }`,
 })));
-surface(new THREE.Mesh(flatGeo(CITY.blocks, .08), new THREE.MeshStandardMaterial({ color: 0x24262d, emissive: 0x121317, roughness: .95, side: THREE.DoubleSide })));
+surface(new THREE.Mesh(flatGeo(CITY.blocks, .08), new THREE.MeshStandardMaterial({ color: GROUND_RGB.blocks[0], emissive: GROUND_RGB.blocks[1], roughness: .95, side: THREE.DoubleSide })));
 
 // Inland water (the reservoir, the Waterways) and the big parks cut out of the street grid.
 // Chaikin corner cutting rounds the traced outlines, so shores and park edges read as land, not polygons.
@@ -503,7 +530,11 @@ export function smoothPoly(P, n = 3) {
   return P;
 }
 
-U.uMoonDir = { value: new THREE.Vector3(300, 800, 200).normalize() };
+U.uMoonDir = { value: new THREE.Vector3(...LOOK.moon[2]).normalize() };
+
+// The water's own colour under its reflections. A pack's look.water lifts it, for a day mode.
+
+U.uWaterBase = { value: new THREE.Vector3(...LOOK.water ?? [.004, .009, .016]) };
 export const WATER_MAT = new THREE.ShaderMaterial({
   uniforms: U, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1, side: THREE.DoubleSide,
   vertexShader: `varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
@@ -516,16 +547,19 @@ export const WATER_MAT = new THREE.ShaderMaterial({
       gl_FragColor = vec4(fogged(waterColor(vW, 0., 1.) + vec3(.01, .008, .005), vW), 1.);
     }`,
 });
-surface(new THREE.Mesh(flatGeo((CITY.water ?? []).map(w => smoothPoly(w.poly)), .12), WATER_MAT));
-surface(new THREE.Mesh(flatGeo((CITY.parks ?? []).map(w => smoothPoly(w.poly)), .1),
-  new THREE.MeshStandardMaterial({ color: 0x18261a, emissive: 0x0a140b, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 })));
+
+// A city may have no water or no greens. Each surface builds only when its list has an outline.
+
+if (CITY.water?.length) surface(new THREE.Mesh(flatGeo(CITY.water.map(w => smoothPoly(w.poly)), .12), WATER_MAT));
+if (CITY.parks?.length) surface(new THREE.Mesh(flatGeo(CITY.parks.map(w => smoothPoly(w.poly)), .1),
+  new THREE.MeshStandardMaterial({ color: GROUND_RGB.parks[0], emissive: GROUND_RGB.parks[1], roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 })));
 
 // ---------- diorama: the city sits on a slab above dark water ----------
 
 export const slab = surface(new THREE.Mesh(new THREE.BoxGeometry(DX + 40, 80, DZ + 40).translate(0, -40.05, 0),
-  new THREE.MeshStandardMaterial({ color: 0x0d1118, roughness: .9 })));
+  new THREE.MeshStandardMaterial({ color: GROUND_RGB.slab, roughness: .9 })));
 export const water = new THREE.Mesh(new THREE.PlaneGeometry(14000, 14000).rotateX(-Math.PI / 2),
-  new THREE.MeshStandardMaterial({ color: 0x06101e, roughness: .15, metalness: .6 }));
+  new THREE.MeshStandardMaterial({ color: GROUND_RGB.sea, roughness: .15, metalness: .6 }));
 water.position.y = -18;
 surface(water);
 

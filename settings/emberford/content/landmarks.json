@@ -1,0 +1,7 @@
+{
+  "Market Square": { "kicker": "Square", "category": "civic", "text": ["The square where the four gate streets meet. Stalls ring it on market days, round the well and the market cross."] },
+  "Market Hall": { "kicker": "Hall", "category": "civic", "text": ["An open arcade on stone posts, where traders keep their stalls out of the rain. The council meets in the timber hall above."] },
+  "Saint Wenna's Church": { "kicker": "Church", "category": "civic", "text": ["The parish church, its long nave facing east to a round apse. The west tower carries a slate spire that travellers see from the river road."] },
+  "The Keep": { "kicker": "Castle", "category": "civic", "text": ["The lord's keep, a square stone tower with corner turrets, inside its own curtain wall with four round towers. Its gatehouse faces the town."] },
+  "Town Wall": { "kicker": "Defences", "category": "civic", "text": ["A stone wall rings the town, with a tower every few stretches and a gatehouse at each of the four gates. Torches burn at the gates until the curfew bell."] }
+}

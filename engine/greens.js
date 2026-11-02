@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CITY, rng, sdPoly, vnoise } from './core.js';
 import { WATER_MAT, flatGeo, smoothPoly, surface } from './render.js';
-import { PROPS, glow, glows, pools, prop } from './instances.js';
+import { DECOR, PROPS, glow, glows, pools, prop } from './instances.js';
 import { insidePoly } from './grammar.js';
 
 export function fillGreens(H) {
@@ -59,11 +59,11 @@ export function fillGreens(H) {
       if (![[-23, -15], [23, -15], [-23, 15], [23, 15]].every(([du, dv]) => in_(x + du * c - dv * s, z + du * s + dv * c))) continue;
       used.add(`${u},${v}`);
       const kind = r();
-      if (kind < .2) {
+      if (kind < .2 && DECOR.fieldExtras) {
         ponds.push([[-21, -13], [21, -13], [21, 13], [-21, 13]].map(([du, dv]) => [x + du * c - dv * s, z + du * s + dv * c]));
         prop('box', x, -.3, z, 46, 1.4, 30, [.05, .045, .035], ry);
         for (const dv of [-6, 6]) glow(x + 22 * c - dv * s, 2.5, z + 22 * s + dv * c, .3, .3, .3, [.4, 1, 1.2]);
-      } else if (kind < .3) {
+      } else if (kind < .3 && DECOR.fieldExtras) {
         prop('box', x, 2.2, z, 40, 4.4, 24, [.1, .14, .12], ry);
         glow(x, 4.5, z, 40, .1, 24, [.025, .05, .02], ry);
       } else {
@@ -97,6 +97,10 @@ export function fillGreens(H) {
 
 function harvesters(H, crops) {
   const r = rng(4417), N = Math.min(14, crops.length), jobs = [];
+
+  // Greens without a crop field have no harvesters, and nor does a pack whose look.decor turns them off.
+
+  if (!N || !DECOR.harvesters) return {};
   for (let i = 0; i < N; i++) jobs.push({ f: crops.splice(Math.floor(r() * crops.length), 1)[0], ph: r() * 1000, v: 2.2 + r() * .8 });
   const mesh = (geo, mat, n) => {
     const m = new THREE.InstancedMesh(geo, mat, n);

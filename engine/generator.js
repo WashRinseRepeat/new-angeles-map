@@ -2,9 +2,10 @@
 
 import * as THREE from 'three';
 import { S, H } from './state.js';
-import { BDC, BLOCK, CITY, PLAZA_R, STALK, STYLES, density, hash, lerp, mixStyle, pickStyle, quarterAt, rng, sdPoly, smooth, styleAt, vnoise } from './core.js';
+import { AXIS_LO, BLOCK, CENTRE, CENTRE_R, CITY, STYLES, density, hash, lerp, mapToWorld, mixStyle, pickStyle, quarterAt, rng, sdPoly, smooth, styleAt, vnoise } from './core.js';
+import { SETTING, inPack } from './setting.js';
 import { camera, controls, label } from './render.js';
-import { INSTANCED, PROPS, SHAPES, SKINS, beacon, bld, glow, glows, holo, neon, pool, pools, prop, puffs, put, roof, sign, signs, tileAll } from './instances.js';
+import { DECOR, INSTANCED, PROPS, SHAPES, SKINS, beacon, bld, glow, glows, holo, neon, pool, pools, prop, puffs, put, roof, sign, signs, tileAll } from './instances.js';
 import { KITS, M, buildTall, flushMerged, pick, prism, resetMerged, scalePoly, yard } from './grammar.js';
 import { CORRIDORS, HIGHWAYS, STREETS, corridorIn, traffic } from './transport.js';
 
@@ -13,9 +14,9 @@ import { CORRIDORS, HIGHWAYS, STREETS, corridorIn, traffic } from './transport.j
 export const QUERY = new URLSearchParams(location.search);
 export const SHOWCASE = QUERY.get('showcase');
 export async function showcase(fam) {
-  const mod = await import(`../kits/${fam}.js`), names = Object.keys(mod.kits(H));
+  const mod = await import(inPack(`kits/${fam}.js`)), names = Object.keys(mod.kits(H));
 
-  // A district family shows in its own style. Other families show at Base de Cayambe, mixed and Rutherford weights.
+  // A district family shows in its own style. Other families show at both ends of the style axis and halfway.
 
   const showStyle = w => STYLES[fam] ? { ...STYLES[fam], id: fam, mix: [[fam, 1]] } : mixStyle(w);
   names.forEach((k, i) => [0, .5, 1].forEach((w, j) => {
@@ -65,10 +66,13 @@ export function lotFrame(poly) {
 }
 export const FRAMES = CITY.lots.map(lotFrame);
 
-// Mega-housing blocks fill a whole city block in Base de Cayambe and Chakana.
+// City dials scale heights, built lots, street lights and each block zone's cap. The pack sets the first build's values.
+
+export const CITYTUNE = { ...SETTING.kits.cityStart };
+
+// Mega-housing fills a whole city block. A pack's block zones can use it as a builder.
 // A ring stacks four slabs round a courtyard with sky bridges. A stepped block climbs in setbacks.
 
-export const CITYTUNE = { height: 1.5, fill: 1.15, mega: 3, industry: 1, chakana: 1, lights: 1.1 };
 export function megaHousing(x, z, w, d, st, r) {
   w = Math.min(w, 120); d = Math.min(d, 120);
   const H = (130 + 130 * r()) * CITYTUNE.height, ms = { ...st, grime: .85, neon: 1.2 };
@@ -120,46 +124,39 @@ export function megaHousing(x, z, w, d, st, r) {
   roof(x, z, ww, dd, y, ms, r);
   for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) beacon(x + sx * ww / 2, y + 1, z + sz * dd / 2, r);
   for (let k = 1 + Math.floor(r() * 3); k > 0; k--) prop('lattice', x + (r() - .5) * ww * .6, y + 15, z + (r() - .5) * dd * .6, 2, 30, 2, [.2, .2, .22]);
-  const pal = BDC.signs;
+  const pal = AXIS_LO.signs;
   sign(x, z, w, d, y, ms, r, pal[Math.floor(r() * pal.length)], { blade: true, sh: Math.min(40, y * .3), y: 40 + r() * 30 });
   holo(x, z, ww, dd, y - 12, r, undefined, 24);
 }
 
 // Block kits take a whole city block. Each zone picks its blocks, then a random builder of that zone fills each one.
 // Kit modules add builders through blocks(H), which returns { name: { zone, build(x, z, w, d, st, r) } }.
+// The pack lists the zones. Every district is a zone too.
 
-export const BLOCK_MAX = 140;
-export const BLOCK_KITS = { housing: [megaHousing], industry: [], chakana: [], ...Object.fromEntries(CITY.districts.map(d => [d.id, []])) };
-export const CHAKANA_POLY = CITY.districts.find(d => d.id === 'chakana').poly;
-export const toRoot = b => Math.hypot(b.cx - STALK.x, b.cz - STALK.y);
+export const SC = SETTING.scale.city, BLOCK_MAX = SC.blockMax;
+export const CENTRE_POLY = CITY.districts.find(d => d.id === SETTING.centre.district)?.poly ?? [];
+export const toCentre = b => Math.hypot(b.cx - CENTRE.x, b.cz - CENTRE.y);
 
-// Chakana blocks rank nearest-first within each of eight sectors round the Root, so the ring closes on every side.
+// Centre blocks rank nearest-first within each of eight sectors round the centre, so the ring closes on every side.
 
-export const sectorOf = b => Math.floor((Math.atan2(b.cz - STALK.y, b.cx - STALK.x) + Math.PI) / (Math.PI / 4)) % 8;
-export const ringRank = b => b.ring ??= -1000 * ALL_BLOCK_FRAMES.filter(o => o !== b && Math.min(o.w, o.d) >= 30 && sectorOf(o) === sectorOf(b)
-  && sdPoly(o.cx, o.cz, CHAKANA_POLY) > 0 && toRoot(o) < toRoot(b)).length - toRoot(b);
+export const sectorOf = b => Math.floor((Math.atan2(b.cz - CENTRE.y, b.cx - CENTRE.x) + Math.PI) / (Math.PI / 4)) % 8;
+export const ringRank = b => b.ring ??= -1000 * ALL_BLOCK_FRAMES.filter(o => o !== b && Math.min(o.w, o.d) >= SC.blockMin && sectorOf(o) === sectorOf(b)
+  && sdPoly(o.cx, o.cz, CENTRE_POLY) > 0 && toCentre(o) < toCentre(b)).length - toCentre(b);
 export const allows = (b, zone, blend) => STYLES[styleAt(b.cx, b.cz, blend).id].zones.includes(zone);
 // Each district zone takes up to 16 of its own blocks, 140 m apart, for that district's block kits.
 // A style can change these with blockCap, blockGap and blockMin.
 
-export const districtZone = d => ({ zone: d.id, cap: () => STYLES[d.id]?.blockCap ?? 16, gap: STYLES[d.id]?.blockGap ?? 140, minSide: STYLES[d.id]?.blockMin ?? 40,
+export const districtZone = d => ({ zone: d.id, cap: () => STYLES[d.id]?.blockCap ?? SC.district.cap, gap: STYLES[d.id]?.blockGap ?? SC.district.gap,
+  minSide: STYLES[d.id]?.blockMin ?? SC.district.minSide,
   test: b => sdPoly(b.cx, b.cz, d.poly) > 20, rank: b => vnoise(b.cx / 300 + 5, b.cz / 300 + 9) });
-export const BLOCK_ZONES = [
-  ...CITY.districts.filter(d => d.id !== 'chakana').map(districtZone),
 
-  // Chakana kits reach every corner of the district. The ring rank fills the Root side first when the slider is low.
+// The pack's zones get the helpers they need to pick blocks: the district zone, the centre ring rank, the style test
+// allows, noise, the city dials and the built-in mega-housing builder.
 
-  { zone: 'chakana', cap: () => 160 * CITYTUNE.chakana, gap: 0, minSide: 30,
-    test: b => sdPoly(b.cx, b.cz, CHAKANA_POLY) > 0, rank: ringRank },
-
-  // Industry spreads over Base de Cayambe and the border: a 120 m gap keeps one patch from taking every site.
-
-  { zone: 'industry', cap: () => 28 * CITYTUNE.industry, gap: 120,
-    test: (b, blend) => allows(b, 'industry', blend) && vnoise(b.cx / 420 + 11, b.cz / 420 + 5) > .45,
-    rank: b => vnoise(b.cx / 420 + 11, b.cz / 420 + 5) + .3 * vnoise(b.cx / 90 + 3, b.cz / 90 + 8) },
-  { zone: 'housing', cap: () => 10 * CITYTUNE.mega, gap: 240,
-    test: (b, blend) => allows(b, 'housing', blend), rank: b => vnoise(b.cx / 350 + 41, b.cz / 350 + 17) },
-];
+export const BLOCK_ZONES = SETTING.kits.blockZones({ districts: CITY.districts, districtZone, ringRank, allows, vnoise, megaHousing,
+  tune: CITYTUNE, inCentre: b => sdPoly(b.cx, b.cz, CENTRE_POLY) > 0 });
+export const BLOCK_KITS = Object.fromEntries(CITY.districts.map(d => [d.id, []]));
+for (const z of BLOCK_ZONES) BLOCK_KITS[z.zone] = [...BLOCK_KITS[z.zone] ?? [], ...z.builders ?? []];
 export let SITES = [];
 export function blockSites(blend) {
   const out = [];
@@ -171,12 +168,12 @@ export function blockSites(blend) {
     const X = b.cx - p.cx, Z = b.cz - p.cz, pad = Math.min(b.w, b.d) / 2;
     return Math.abs(X * p.c - Z * p.s) < p.size[0] / 2 + pad && Math.abs(X * p.s + Z * p.c) < p.size[1] / 2 + pad;
   });
-  const free = ALL_BLOCK_FRAMES.filter(b => Math.min(b.w, b.d) >= 30 && !b.used && !quarterAt(b.cx, b.cz) && toRoot(b) > PLAZA_R + 40
+  const free = ALL_BLOCK_FRAMES.filter(b => Math.min(b.w, b.d) >= SC.blockMin && !b.used && !quarterAt(b.cx, b.cz) && (!CENTRE_R || toCentre(b) > CENTRE_R + 40)
     && !corridorIn(b, 4, Math.min(b.w, BLOCK_MAX), Math.min(b.d, BLOCK_MAX)).length && !underPlace(b));
   for (const z of BLOCK_ZONES) {
     if (!BLOCK_KITS[z.zone].length) continue;
     const cap = Math.round(z.cap()), mine = [];
-    for (const b of free.filter(b => Math.min(b.w, b.d) >= (z.minSide ?? 46) && z.test(b, blend)).sort((p, q) => z.rank(q) - z.rank(p))) {
+    for (const b of free.filter(b => Math.min(b.w, b.d) >= (z.minSide ?? SC.siteMin) && z.test(b, blend)).sort((p, q) => z.rank(q) - z.rank(p))) {
       if (mine.length >= cap) break;
       if (out.some(s => s.f === b) || mine.some(m => Math.hypot(m.f.cx - b.cx, m.f.cz - b.cz) < z.gap)) continue;
       mine.push({ f: b, zone: z.zone });
@@ -191,15 +188,12 @@ export const inRect = (f, x, z, pad = 0) => {
 };
 export const inSite = (x, z, pad) => SITES.some(s => inRect(s.f, x, z, pad));
 
-// Land-use zones: smooth noise groups each kit family into patches instead of scattering it.
+// Land-use zones from the pack group each kit family into patches instead of scattering it.
 
-export const ZONES = [
-  { fam: 'industry', test: (x, z, w) => w < .6 && vnoise(x / 420 + 11, z / 420 + 5) > .64 },
-  { fam: 'nature', test: (x, z) => vnoise(x / 260 + 3, z / 260 + 9) > .74 },
-];
+export const ZONES = SETTING.kits.landUse?.({ vnoise }) ?? [];
 
 // City ground that no lot covers gets small filler buildings, turned to the nearest street, or the style's fillKit.
-// A 2 m raster marks city land red, then paints lots, streets, highways, place sites and the Root plaza black.
+// A 2 m raster marks city land red, then paints lots, streets, highways, place sites and the centre plaza black.
 
 // Street samples in 50 m buckets. nearestStreet returns [x, z, heading] of the closest sample.
 
@@ -261,9 +255,9 @@ export function fillCells() {
 
   for (const lm of LANDMARKS_KITS) if (lm.free && !lm.fillUnder) {
     const [w, d, a = 0] = lm.free;
-    g.save(); g.translate((lm.at[0] - 680) * 3.6, (lm.at[1] - 390) * 3.6); g.rotate(-a); g.fillRect(-w / 2 - 2, -d / 2 - 2, w + 4, d + 4); g.restore();
+    g.save(); g.translate(...mapToWorld(lm.at)); g.rotate(-a); g.fillRect(-w / 2 - 2, -d / 2 - 2, w + 4, d + 4); g.restore();
   }
-  g.beginPath(); g.arc(STALK.x, STALK.y, PLAZA_R + 10, 0, 7); g.fill();
+  if (CENTRE_R) { g.beginPath(); g.arc(CENTRE.x, CENTRE.y, CENTRE_R + 10, 0, 7); g.fill(); }
   const px = g.getImageData(0, 0, W, D).data, open = new Uint8Array(W * D), city = new Uint8Array(W * D);
   for (let i = 0; i < W * D; i++) { open[i] = px[i * 4] > 128; city[i] = land[i * 4] > 128; }
   const at = (x, z) => {
@@ -277,7 +271,7 @@ export function fillCells() {
   // thicken outward, so the city fades into the jungle. Pixels painted for roads or water stay bare.
 
   BAND = [];
-  if (!NO_INFILL) {
+  if (!NO_INFILL && KITS.grove) {
     const out = new Uint8Array(W * D);
     for (let i = 0; i < W * D; i++) out[i] = city[i] ? 0 : 1;
     const od = chamfer(out, W, D), bare = (x, z) => { const k = at(x, z); return k >= 0 && !city[k] && !px[k * 4 + 3]; };
@@ -289,10 +283,10 @@ export function fillCells() {
     }
   }
 
-  const cells = [], STEP = 10;
+  const cells = [], STEP = SC.fillStep;
   for (let z = oz; z < oz + CITY.dims[1]; z += STEP) for (let x = ox; x < ox + CITY.dims[0]; x += STEP) {
     let ok = true;
-    for (let a = -5; a <= 5 && ok; a += 2.5) for (let b = -5; b <= 5 && ok; b += 2.5) ok = free(x + a, z + b);
+    for (let a = -STEP / 2; a <= STEP / 2 && ok; a += STEP / 4) for (let b = -STEP / 2; b <= STEP / 2 && ok; b += STEP / 4) ok = free(x + a, z + b);
     if (!ok) continue;
     cells.push({ x, z, a: nearestStreet(x, z)[2] });
   }
@@ -396,10 +390,11 @@ export let FILL = null;
 // One lot. f seeds the draws, g is the frame it builds in: the lot itself, or a part trimmed off a corridor.
 // k scales the heights, bare builds only the yard, and slab builds one tower of that height over the whole frame.
 
+const BOOST = SETTING.centre.boost;
 function buildLot(f, g, blend, k = 1, bare = false, slab = 0) {
   const size = Math.min(g.w, g.d) - 2;
   const r = rng(hash(Math.round(f.cx * 10), Math.round(f.cz * 10)));
-  const dS = Math.hypot(f.cx - STALK.x, f.cz - STALK.y);
+  const dS = Math.hypot(f.cx - CENTRE.x, f.cz - CENTRE.y);
   const st = styleAt(f.cx, f.cz, blend);
   const roll = r(), kitRoll = r(), kitPick = r(), Q = quarterAt(f.cx, f.cz);
   S.FRAME = g;
@@ -419,7 +414,7 @@ function buildLot(f, g, blend, k = 1, bare = false, slab = 0) {
   const d = density(f.cx, f.cz) + (r() - .5) * .15;
   const D = pickStyle(st, kitRoll);
   const kits = D.tiers[Math.min(D.tiers.length - 1, Math.floor(smooth(.1, 1.2, d) * D.tiers.length))];
-  const boost = lerp(.6, 1.15, smooth(.15, 1.1, d)) * (1 + .4 * Math.exp(-dS / 300)) * CITYTUNE.height * k;
+  const boost = lerp(.6, 1.15, smooth(.15, 1.1, d)) * (1 + BOOST.k * Math.exp(-dS / BOOST.r)) * CITYTUNE.height * k;
 
   // A quarter lot builds from the quarter's family in its style. Its tiers follow density like a district's.
 
@@ -430,7 +425,7 @@ function buildLot(f, g, blend, k = 1, bare = false, slab = 0) {
     S.FRAME = null;
     return;
   }
-  const zone = size >= 12 && ZONES.find(zn => FAMILY_KITS[zn.fam]?.length && zn.test(f.cx, f.cz, st.w));
+  const zone = size >= SC.zoneLot && ZONES.find(zn => FAMILY_KITS[zn.fam]?.length && zn.test(f.cx, f.cz, st.w));
   if (zone) {
     const ks = FAMILY_KITS[zone.fam];
     KITS[ks[Math.floor(kitPick * ks.length)]](g.cx, g.cz, size, st, boost, r);
@@ -440,14 +435,14 @@ function buildLot(f, g, blend, k = 1, bare = false, slab = 0) {
 
   // Small lots get one infill building that fills the lot. Big lots get a kit.
 
-  // Small lots mostly get small district kits: favela shacks in Base de Cayambe, tier 0 in a new district.
+  // Small lots mostly get small district kits: the pack's small-lot kits in their style, tier 0 in a district family.
 
-  const smallKits = STYLES[st.id] === BDC ? SMALL_BDC : OWN_TIERS.has(st.id) ? STYLES[st.id].tiers[0] : null;
+  const own = STYLES[st.id], smallKits = own === SETTING.kits.smallLots?.style ? SMALL_LOTS : OWN_TIERS.has(st.id) ? own.tiers[0] : null;
   const small = smallKits?.length && r() < (STYLES[st.id].smallShare ?? .8);
-  if (size < 16 && small) KITS[smallKits[Math.floor(kitPick * smallKits.length)]]?.(g.cx, g.cz, size, st, boost, r);
-  else if (size < 16) {
+  if (size < SC.smallLot && small) KITS[smallKits[Math.floor(kitPick * smallKits.length)]]?.(g.cx, g.cz, size, st, boost, r);
+  else if (size < SC.smallLot) {
     const h = lerp(st.h0, st.h1, r() ** 1.4) * boost * (.5 + .6 * r());
-    if (h > 38) buildTall(g.cx, g.cz, g.w - 2, g.d - 2, h, st, r, false);
+    if (h > SC.tallInfill) buildTall(g.cx, g.cz, g.w - 2, g.d - 2, h, st, r, false);
     else if (r() < .5) {
       prism(scalePoly(g.poly, .92), 0, h, st, r, { skin: SKINS[pick('skin', st.w, r)] });
       roof(g.cx, g.cz, (g.w - 2) * .6, (g.d - 2) * .6, h, st, r);
@@ -712,7 +707,7 @@ export function generate(blend) {
     return false;
   });
   for (const f of FRAMES) {
-    if (Math.min(f.w, f.d) - 2 < 4 || Math.hypot(f.cx - STALK.x, f.cz - STALK.y) < PLAZA_R) continue;
+    if (Math.min(f.w, f.d) - 2 < 4 || Math.hypot(f.cx - CENTRE.x, f.cz - CENTRE.y) < CENTRE_R) continue;
     if (f.taken || inSite(f.cx, f.cz, 2)) continue;
     clearOf(f, (g, k, bare, slab) => buildLot(f, g, blend, k, bare, slab));
   }
@@ -743,25 +738,34 @@ export function generate(blend) {
     if (STYLES[st.id].noFill && !fk) continue;
     S.FRAME = { cx: 0, cz: 0, tx: c.x, tz: c.z, a: c.a, c: Math.cos(c.a), s: Math.sin(c.a) };
     if (fk) fk(0, 0, 10, st, 1, r);
-    else bld(0, 0, 5 + r() * 2.5, 5 + r() * 2.5, lerp(st.h0 * .5, st.h1 * .6, r() ** 2), st, r, { skin: SKINS[pick('skin', st.w, r)] });
+    else bld(0, 0, SC.fill + r() * SC.fill / 2, SC.fill + r() * SC.fill / 2, lerp(st.h0 * .5, st.h1 * .6, r() ** 2), st, r, { skin: SKINS[pick('skin', st.w, r)] });
     S.FRAME = null;
   }
 
   // Street lights along main and major streets, one pair every 24 m. A quarter's street colour beats its district's.
+  // The pack's look.lamps sets the lamp heights on main and minor streets, and a post colour to stand each lamp
+  // on a post, such as a lantern post. flicker makes each lamp waver like a flame, down to that share of its light.
 
+  const LAMP = { main: 7, minor: 5, ...SETTING.look.lamps };
+  const post = (x, z, y) => { if (LAMP.post) prop('cyl', x, y / 2, z, .18, y, .18, LAMP.post); };
+  const lamp = (x, y, z, s, sy, rgb) => {
+    const i = glow(x, y, z, s, sy, s, rgb);
+    if (LAMP.flicker) S.flicker.push([glows, i, rgb, hash(Math.round(x * 10), Math.round(z * 10)) % 1000 / 100, false, LAMP.flicker]);
+  };
   const streetAt = (x, z) => quarterAt(x, z)?.style.street ?? styleAt(x, z, blend).street;
-  for (const st of STREETS) if (st.kind !== 'minor') for (let k = 0; k < st.path.length; k += Math.max(2, Math.round(6 / CITYTUNE.lights))) {
+  for (const st of STREETS) if (st.kind !== 'minor') for (let k = 0; k < st.path.length; k += Math.max(2, Math.round(SC.lampStep.main / 4 / CITYTUNE.lights))) {
     if (st.block?.[k]) continue;
     const p = st.path[k], sd = st.side[k], sc = streetAt(p.x, p.z);
-    for (const o of [-4.5, 4.5]) {
-      glow(p.x + sd.x * o, 7, p.z + sd.z * o, .5, .3, .5, sc);
+    for (const o of [-SC.lampOffset.main, SC.lampOffset.main]) {
+      lamp(p.x + sd.x * o, LAMP.main, p.z + sd.z * o, .5, .3, sc);
+      post(p.x + sd.x * o, p.z + sd.z * o, LAMP.main - .2);
       pool(p.x + sd.x * o * .7, p.z + sd.z * o * .7, 16, sc.map(v => v * .07));
     }
   }
 
-  // Faded centre dashes on main and major streets, one every 8 m.
+  // Faded centre dashes on main and major streets, one every 8 m, unless the pack's look.decor turns markings off.
 
-  for (const st of STREETS) if (st.kind !== 'minor') for (let k = 0; k < st.path.length - 1; k += 2) {
+  if (DECOR.markings) for (const st of STREETS) if (st.kind !== 'minor') for (let k = 0; k < st.path.length - 1; k += 2) {
     if (st.block?.[k]) continue;
     const a = st.path[k], b = st.path[k + 1];
     put(glows, (a.x + b.x) / 2, .12, (a.z + b.z) / 2, .25, .05, 2.6, Math.atan2(b.x - a.x, b.z - a.z), 0, [.16, .13, .06]);
@@ -769,11 +773,12 @@ export function generate(blend) {
 
   // Minor streets get one dimmer light every 28 m, alternating sides.
 
-  for (const st of STREETS) if (st.kind === 'minor') for (let k = 3, n = 0, step = Math.max(2, Math.round(7 / CITYTUNE.lights)); k < st.path.length; k += step, n++) {
+  for (const st of STREETS) if (st.kind === 'minor') for (let k = 3, n = 0, step = Math.max(2, Math.round(SC.lampStep.minor / 4 / CITYTUNE.lights)); k < st.path.length; k += step, n++) {
     if (st.block?.[k]) continue;
-    const p = st.path[k], sd = st.side[k], o = n % 2 ? 3.2 : -3.2;
+    const p = st.path[k], sd = st.side[k], o = n % 2 ? SC.lampOffset.minor : -SC.lampOffset.minor;
     const sc = streetAt(p.x, p.z).map(v => v * .6);
-    glow(p.x + sd.x * o, 5, p.z + sd.z * o, .4, .25, .4, sc);
+    lamp(p.x + sd.x * o, LAMP.minor, p.z + sd.z * o, .4, .25, sc);
+    post(p.x + sd.x * o, p.z + sd.z * o, LAMP.minor - .2);
     pool(p.x + sd.x * o * .6, p.z + sd.z * o * .6, 13, sc.map(v => v * .08));
   }
   for (const m of INSTANCED) {
@@ -789,9 +794,9 @@ export function generate(blend) {
 }
 
 
-export const SMALL_BDC = [];
+export const SMALL_LOTS = [];
 export const FAMILY_KITS = {}, LANDMARKS_KITS = [], OWN_TIERS = new Set();
 
 export const ALL_BLOCK_FRAMES = CITY.blocks.map(lotFrame);
 
-export const BLOCK_FRAMES = ALL_BLOCK_FRAMES.filter(f => Math.min(f.w, f.d) >= 46);
+export const BLOCK_FRAMES = ALL_BLOCK_FRAMES.filter(f => Math.min(f.w, f.d) >= SC.siteMin);

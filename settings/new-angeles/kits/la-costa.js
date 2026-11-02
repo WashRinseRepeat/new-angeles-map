@@ -2,7 +2,7 @@
 // Lot kits take (x, z, s, st, b, r) in the lot frame. Block kits and landmarks take (x, z, w, d, st, r).
 
 import { trees } from './nature.js';
-import { vnoise } from '../engine/core.js';
+import { vnoise } from '../../../engine/core.js';
 
 const MAG = [1.5, .3, 1.2], SEC = [.9, 1.2, 1.3], TEAL = [.2, 1.3, 1.1], WARM = [1, .7, .4];
 const SOIL = [.022, .017, .011], MARSH = [.012, .02, .015], DIRT = [.04, .032, .022], WATER = [.006, .014, .02];

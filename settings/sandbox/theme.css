@@ -1,0 +1,10 @@
+/* The sandbox's interface theme: plain slate panels with a green accent and a square badge as the loading logo. */
+
+:root {
+  --accent: #8fe39a; --accent-rgb: 143, 227, 154; --kicker: #7ccf88; --line-on: #4f8a5a; --button-on: #22412a; --tab-on: #22412a;
+  --hover: #1d3322; --district-glow: rgba(120, 220, 140, .4); --loading-bg: #0b0f0c;
+}
+#loading .orbit { display: none; }
+#loading .logo { width: 90px; height: 90px; position: relative; margin-bottom: 6px; }
+#loading .face { position: absolute; inset: 0; display: grid; place-items: center; border: 2px solid var(--accent); border-radius: 10px;
+  font: 700 26px system-ui; color: var(--bright); }

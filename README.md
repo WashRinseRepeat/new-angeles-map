@@ -25,6 +25,8 @@ browser with no build step.
 - **Search, atlas and minimap.** Search finds any landmark or district, the atlas lists them by district, and the
   minimap jumps anywhere.
 - **Mouse, trackpad and touch.** Phones and tablets work, and quality adapts to the device.
+- **Other settings.** The engine draws any city from a setting pack. Emberford, a medieval market town, ships
+  as a second example.
 - **Smooth edges.** A switch in the corner renders at 1.5 times the screen's pixel ratio and adds SMAA, for
   fast graphics cards.
 
@@ -71,19 +73,37 @@ repository. Any static host works, GitHub Pages included.
 
 | Path | Content |
 |---|---|
-| `index.html` | Page, styles and the import map |
-| `engine/` | Renderer, city generator, controls, cards, rides, audio guide |
-| `kits/` | Building and landmark builders, one file per family |
-| `landmarks/` | The Beanstalk and the terrain |
-| `places/` | Two named places that the audio guide films |
-| `content/` | Card texts for landmarks and districts |
+| `index.html` | Page and the import map |
+| `ui.css` | The interface styles, with New Angeles' colours as CSS variables |
+| `engine/` | Renderer, city generator, controls, cards, rides, audio guide. It knows no setting |
+| `settings/new-angeles/` | The New Angeles setting pack: `setting.js` (look, scale, styles, transport, tours, audio guide) and the files below |
+| `settings/new-angeles/kits/` | Building and landmark builders, one file per family |
+| `settings/new-angeles/landmarks/` | The Beanstalk and the terrain |
+| `settings/new-angeles/places/` | Two named places that the audio guide films |
+| `settings/new-angeles/content/` | Card texts for landmarks and districts |
 | `city.json` | Streets, lots, districts and transit lines, made by `gen/` |
 | `audio/` | Audio guide episodes with their cue files, and the ride music |
 | `MODULES.md` | Reference for kit and landmark modules and the helper API |
+| `SETTINGS.md` | How a setting pack is built, for a city other than New Angeles |
 
 The engine reads `city.json` and fills every lot with a kit picked by district, density and a seeded random, so
 the city looks the same on every load. Landmarks claim a block near their position and build their own meshes.
 Static meshes merge into chunks at load, so the city draws in a few hundred calls.
+
+## Other settings
+
+The engine in `engine/` draws any city from a setting pack in `settings/<id>/`. A pack holds the look, scale,
+building styles, kits, transport, audio guide and card texts. Each page names its pack in
+`<meta name="setting">`. The repository has three packs:
+
+| Page | Pack | Content |
+|---|---|---|
+| `index.html` | `settings/new-angeles/` | New Angeles, the full city |
+| `emberford.html` | `settings/emberford/` | Emberford, a walled medieval market town with a keep, church, market hall and a walking tour. `?look=day` shows it in daylight |
+| `sandbox.html` | `settings/sandbox/` | A minimal test town that shows what the engine needs at least |
+
+To make your own setting, copy `settings/sandbox/` and its page, then change the values. `gen/town.py` writes
+a walled or open town from a short JSON file, as for Emberford. `SETTINGS.md` documents every field of a pack.
 
 ## Extending
 
@@ -91,7 +111,7 @@ Static meshes merge into chunks at load, so the city draws in a few hundred call
 
 ### Add a landmark
 
-Add an entry to the `landmarks(H)` export of a file in `kits/`:
+Add an entry to the `landmarks(H)` export of a file in `settings/new-angeles/kits/`:
 
 ```js
 export function landmarks(H) {
@@ -109,15 +129,15 @@ export function landmarks(H) {
 }
 ```
 
-A map pixel `(u, v)` lies at world `((u - 680) * 3.6, (v - 390) * 3.6)` metres. Add the card to the family's file
-in `content/`, keyed by the label:
+A map pixel `(u, v)` lies at world `((u - 680) * 3.6, (v - 390) * 3.6)` metres, as `settings/new-angeles/map.js` sets.
+Add the card to the family's file in `settings/new-angeles/content/`, keyed by the label:
 
 ```json
 "My Tower": { "kicker": "One line under the title", "category": "civic", "text": ["First paragraph.", "Second paragraph."] }
 ```
 
-`category` is one of `civic`, `corp`, `shop` or `food`. A new family file also needs its name in `FIND_FAMILIES`
-in `engine/api.js`. Use `?showcase=<family>` to look at its kits on an empty grid.
+`category` is one of `civic`, `corp`, `shop` or `food`. A new family file also needs its name in `kits.finds`
+in `settings/new-angeles/setting.js`. Use `?showcase=<family>` to look at its kits on an empty grid.
 
 ### Add building kits
 

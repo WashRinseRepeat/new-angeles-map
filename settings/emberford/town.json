@@ -1,0 +1,25 @@
+{
+  "seed": 1347,
+  "radius": 260,
+  "wobble": 0.12,
+  "square": 34,
+  "gates": [15, 100, 190, 340],
+  "road": 50,
+  "lanes": 3,
+  "districts": [
+    { "id": "castle-ward", "name": "Castle Ward", "from": 210, "to": 330 },
+    { "id": "market-ward", "name": "Market Ward", "from": 330, "to": 90 },
+    { "id": "craft-ward", "name": "Craft Ward", "from": 90, "to": 210 }
+  ],
+  "sites": [
+    { "name": "The Keep", "kind": "keep", "bearing": 270, "dist": 190, "w": 64, "d": 64, "rot": 0 },
+    { "name": "Saint Wenna's Church", "kind": "church", "bearing": 40, "dist": 92, "w": 50, "d": 26, "rot": 0 },
+    { "name": "Market Hall", "kind": "hall", "bearing": 200, "dist": 14, "w": 26, "d": 12, "rot": 20 }
+  ],
+  "river": { "name": "River Ember", "bearing": 100, "dist": 430, "width": 28 },
+  "greens": [
+    { "name": "North Fields", "from": 205, "to": 325, "inner": 30, "outer": 130 },
+    { "name": "Hollow Wood park", "from": 112, "to": 176, "inner": 25, "outer": 120 },
+    { "name": "East Fields", "from": 30, "to": 85, "inner": 30, "outer": 120 }
+  ]
+}

@@ -1,19 +1,20 @@
 // The undercity: the old ground level under the plaza, shown by the Undercity layer.
 // Every district gets caverns under its blocks in its own style, plus shared tunnels, coolant mains and metro tubes.
+// It is a New Angeles layer. The engine loads it on the first switch to the layer and shows group and labels.
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { CITY, DX, DZ, PLACES, QUARTERS, STALK, hash, inMercado, lerp, quarterAt, rng, styleAt, vnoise } from './core.js';
-import { flatGeo, label, scene } from './render.js';
-import { put } from './instances.js';
-import { insidePoly } from './grammar.js';
-import { STREETS, pts, sweep } from './transport.js';
+import { CENTRE, CITY, DX, DZ, PLACES, QUARTERS, centroidOf, hash, lerp, quarterAt, rng, styleAt, vnoise } from '../../engine/core.js';
+import { flatGeo, label, scene } from '../../engine/render.js';
+import { put } from '../../engine/instances.js';
+import { insidePoly } from '../../engine/grammar.js';
+import { STREETS, pts, sweep } from '../../engine/transport.js';
 
 export const UNDER = new THREE.Group();
 UNDER.visible = false;
 scene.add(UNDER);
 export const UNDER_LABELS = [];
-export const centroidOf = poly => poly.reduce((a, q) => [a[0] + q[0] / poly.length, a[1] + q[1] / poly.length], [0, 0]);
+const inMercado = (x, z) => quarterAt(x, z)?.id === 'mercado-baja';
 
 // One brief per district, from design/districts/<id>.md.
 // floor: cavern floor height. share: rough fraction of blocks with caverns. fill: shacks per area.
@@ -206,7 +207,7 @@ export function buildUnder() {
   // Chakana: a ring of root pillars round the Beanstalk foundation.
 
   for (let k = 0; k < 32; k++) {
-    const a = k / 32 * Math.PI * 2, x = STALK.x + Math.cos(a) * 70, z = STALK.y + Math.sin(a) * 70;
+    const a = k / 32 * Math.PI * 2, x = CENTRE.x + Math.cos(a) * 70, z = CENTRE.y + Math.sin(a) * 70;
     at(cyl, x, -12, z, 9, 24, 9);
     at(lit, x, -22, z, 9.4, .4, 9.4, UC.chakana.lamps[0]);
   }
@@ -274,3 +275,7 @@ export function buildUnder() {
   for (const el of UNDER_LABELS) el.obj.visible = false;
   UNDER.userData.stats = { cyl: cyl.count, box: box.count, lit: lit.count, meshes: UNDER.children.length };
 }
+
+// The layer contract: the group to show, its labels and an idempotent build.
+
+export { UNDER as group, UNDER_LABELS as labels, buildUnder as build };

@@ -2,10 +2,11 @@
 
 import * as THREE from 'three';
 import { S, H } from './state.js';
-import { BDC, RUT, lerp } from './core.js';
+import { AXIS_HI, AXIS_LO, lerp } from './core.js';
+import { SETTING } from './setting.js';
 import { FOCUS_GLSL, FOG_GLSL, U, scene } from './render.js';
 
-// ---------- buildings: three shapes, procedural windows in the shader ----------
+// ---------- buildings: five shapes, procedural windows and wall materials in the shader ----------
 
 export const B_VS = `
   attribute vec3 aBase, aWin; attribute vec4 aP; attribute float aSkin;
@@ -28,7 +29,7 @@ export const B_VS = `
     gl_Position = projectionMatrix * viewMatrix * w;
   }`;
 export const B_FS = `
-  uniform float uWin, uEdge;
+  uniform float uWin, uEdge; uniform vec3 uLightDir, uLightCol, uLightK;
   varying vec3 vW, vN, vWN, vL, vS, vBase, vWin; varying vec4 vP; varying float vSkin;
   #ifdef MERGED
     varying float vU, vLen;
@@ -40,8 +41,13 @@ export const B_FS = `
     if (vW.y > uClipTop || focusCut(vW)) discard;
     if (!gl_FrontFacing) { gl_FragColor = vec4(fogged(vBase * 1.8 + vec3(.012, .014, .02), vW), 1.); return; }
     vec3 n = normalize(vWN);
-    float diff = .45 + .25 * max(n.y, 0.) + .4 * max(dot(n, normalize(vec3(.4,.8,.3))), 0.);
+    vec3 diff = uLightCol * (uLightK.x + uLightK.y * max(n.y, 0.) + uLightK.z * max(dot(n, normalize(uLightDir)), 0.));
     vec3 col = vBase * diff * (.6 + .4 * clamp(vW.y / 50., 0., 1.));
+
+    // Material skins (plaster, timber, stone, and the roof skins tile and thatch) skip the tower look: floor bands,
+    // glass and edge glow.
+
+    bool mat = vSkin > 4.5;
     if (abs(vN.y) < .5) {
       #if defined(MERGED)
         float u = vU;
@@ -50,11 +56,12 @@ export const B_FS = `
       #else
         float u = abs(vN.x) > .5 ? vL.z * vS.z : vL.x * vS.x;
       #endif
-      col *= .88 + .12 * step(.5, fract(vW.y / 14.));
+      if (!mat) col *= .88 + .12 * step(.5, fract(vW.y / 14.));
 
-      // Skins: 0 grid, 1 ribbon bands, 2 vertical fins, 3 glass curtain, 4 sparse.
+      // Skins: 0 grid, 1 ribbon bands, 2 vertical fins, 3 glass curtain, 4 sparse. Materials: 5 plaster, 6 timber
+      // frame, 7 stone, and on walls under a roof 8 tile and 9 thatch, which take no windows.
 
-      vec2 cell = vSkin > 3.5 ? vec2(4.6, 3.6) : vSkin > 2.5 ? vec2(1.7, 3.6) : vec2(3.2, 3.6);
+      vec2 cell = vSkin > 4.5 ? vec2(3.4, 3.2) : vSkin > 3.5 ? vec2(4.6, 3.6) : vSkin > 2.5 ? vec2(1.7, 3.6) : vec2(3.2, 3.6);
       vec2 g = vec2(u, vW.y) / cell;
       vec2 c = floor(g), f = fract(g);
 
@@ -76,20 +83,44 @@ export const B_FS = `
         r = h21(c + salt);
         litP *= .7;
         col = mix(col, vec3(.03, .06, .09) + vec3(.01, .03, .04) * fract(vW.y / 90.), .7 * win);
-      } else {
+      } else if (vSkin < 4.5) {
         win = step(.35, f.x) * step(f.x, .65) * step(.35, f.y) * step(f.y, .7);
         r = h21(c + salt);
         litP *= .6;
+      } else {
+
+        // Small shuttered windows in a plain wall. Plaster takes a soft grain. Timber frame draws posts every 1.7 m,
+        // a beam at each floor and braces. Stone draws courses 0.55 m high with staggered joints.
+
+        win = vSkin > 7.5 ? 0. : step(.38, f.x) * step(f.x, .62) * step(.38, f.y) * step(f.y, .72);
+        r = h21(c + salt);
+        litP *= .5;
+        vec2 q = vec2(u, vW.y);
+        float n = h21(floor(q * 1.3) + salt);
+        if (vSkin < 6.5 && vSkin > 5.5) {
+          vec2 t = q / vec2(1.7, 3.2), tf = fract(t);
+          float frame = clamp(step(tf.x, .09) + step(.91, tf.x) + step(tf.y, .07) + step(.93, tf.y)
+            + step(abs(tf.x - tf.y), .05) * step(.5, h21(floor(t) + salt)), 0., 1.) * (1. - win);
+          col = mix(col * (.95 + .1 * n), vec3(.035, .022, .014), frame);
+        } else if (vSkin < 7.5 && vSkin > 6.5) {
+          vec2 t = q / vec2(.9, .55);
+          t.x += .5 * mod(floor(t.y), 2.);
+          vec2 tf = fract(t);
+          col *= (.8 + .35 * h21(floor(t) + salt)) * (1. - .45 * clamp(step(tf.x, .04) + step(tf.y, .07), 0., 1.));
+        } else {
+          col *= .9 + .2 * n;
+        }
       }
       float lit = step(1. - litP, r) * win * step(1., c.y);
       float lvl = .25 + .55 * h21(c * 1.7 + floor(vP.x));
 
       // Windows smaller than a pixel fade into their average brightness instead of shimmering.
 
-      float cover = vSkin < .5 ? .32 : vSkin < 1.5 ? .44 : vSkin < 2.5 ? .23 : vSkin < 3.5 ? .85 : .1;
+      float cover = vSkin < .5 ? .32 : vSkin < 1.5 ? .44 : vSkin < 2.5 ? .23 : vSkin < 3.5 ? .85 : vSkin < 4.5 ? .1 : vSkin > 7.5 ? 0. : .07;
       float sharp = 1. - smoothstep(.35, .9, max(fwidth(g.x), fwidth(g.y)));
+      if (mat) col *= 1. - .7 * mix(cover, win, sharp);
       col += vWin * mix(litP * cover * .65, lit * lvl, sharp) * uWin;
-      col += vec3(.015, .02, .03) * mix(cover, win, sharp);
+      if (!mat) col += vec3(.015, .02, .03) * mix(cover, win, sharp);
       #if defined(MERGED)
         float edge = exp(-min(vU, vLen - vU) / .45);
       #elif defined(CYL)
@@ -98,9 +129,14 @@ export const B_FS = `
         float fl = abs(vN.x) > .5 ? vL.z : vL.x, span = abs(vN.x) > .5 ? vS.z : vS.x;
         float edge = exp(-(.5 - abs(fl)) * span / .45);
       #endif
-      col += vWin * vP.w * (edge * .85 + exp(-vW.y / 60.) * .25) * uEdge;
+      if (!mat) col += vWin * vP.w * (edge * .85 + exp(-vW.y / 60.) * .25) * uEdge;
     } else {
       col *= .55;
+
+      // Roof skins: tile rows every 0.32 m up the slope, thatch in coarse streaks.
+
+      if (vSkin > 8.5) col *= .8 + .3 * h21(floor(vW.xz * vec2(2., .4)) + floor(vP.x));
+      else if (vSkin > 7.5) col *= .75 + .35 * step(.2, fract(vW.y / .32));
     }
     col *= 1. - vP.z * .3;
     gl_FragColor = vec4(fogged(col, vW), 1.);
@@ -117,6 +153,11 @@ export const SHAPES = {
   cyl: buildingMesh(new THREE.CylinderGeometry(.5, .5, 1, 16), 24000, { CYL: 1 }),
   oct: buildingMesh(new THREE.CylinderGeometry(.5, .5, 1, 8).rotateY(Math.PI / 8), 24000, { CYL: 1 }),
   pyr: buildingMesh(new THREE.CylinderGeometry(0, .5 * Math.SQRT2, 1, 4).rotateY(Math.PI / 4), 16000),
+
+  // A pitched roof: a triangular prism with its ridge along local x, 1 m wide, deep and high.
+
+  gable: buildingMesh(new THREE.ExtrudeGeometry(new THREE.Shape([new THREE.Vector2(-.5, -.5), new THREE.Vector2(.5, -.5),
+    new THREE.Vector2(0, .5)]), { depth: 1, bevelEnabled: false }).translate(0, 0, -.5).rotateY(Math.PI / 2), 40000),
 };
 
 // ---------- props, signs, glows ----------
@@ -147,7 +188,7 @@ export const helipads = new THREE.InstancedMesh(new THREE.CircleGeometry(.5, 32)
 export const signs = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }), 100000);
 export const glows = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial(), 300000);
 
-// Animated holo billboards on Rutherford towers.
+// Animated holo billboards on towers at the high end of the style axis.
 
 export const bbGeo = new THREE.PlaneGeometry(1, 1);
 export const aSeed = new THREE.InstancedBufferAttribute(new Float32Array(800), 1);
@@ -240,7 +281,15 @@ S.flicker = [];
 // Red aviation lights mark only tall structures. Below 60 m a beacon is skipped; its random draw still runs,
 // so the rest of the block lays out the same.
 
+// The pack's look.decor switches off engine decoration that does not fit its setting: rooftop clutter (roof),
+// facade add-ons (kibble), neon signs (neon and signs), holo billboards (holo), helipads, aviation beacons and
+// road markings, and harvesters, fish ponds and greenhouses on the fields (fieldExtras). Each switch defaults to on
+// and covers kit calls too.
+
+export const DECOR = { roof: true, kibble: true, neon: true, signs: true, holo: true, helipads: true, beacons: true, markings: true,
+  harvesters: true, fieldExtras: true, ...SETTING.look.decor };
 export function beacon(x, y, z, r) {
+  if (!DECOR.beacons) return;
   const phase = r() * 10;
   if (y < 60) return;
   const rgb = [2.2, .08, .04];
@@ -249,22 +298,26 @@ export function beacon(x, y, z, r) {
 
 export const grey = (r, v = .12) => { const g = v * (.7 + .6 * r()); return [g, g, g * 1.08]; };
 
-export function bld(x, z, w, d, h, st, r, { y0 = 0, lit = st.lit, shape = 'box', roof: withRoof = true, glow: gl = 0, ry = 0, skin, kibble: addOns = true } = {}) {
+// The pack's wallSkins name the default skins, [the one more likely at the low end of the style axis, the other].
+
+const WALLS = SETTING.styles.wallSkins ?? ['sparse', 'grid'];
+export function bld(x, z, w, d, h, st, r, { y0 = 0, lit = st.lit, shape = 'box', roof: withRoof = true, glow: gl = 0, ry = 0, skin, kibble: addOns = true, base } = {}) {
   const m = SHAPES[shape];
   const i = put(m, x, y0 + h / 2, z, w, h, d, ry);
   if (i < 0) return;
-  m.geometry.attributes.aSkin.setX(i, skin ?? (r() < (1 - st.w) * .5 ? SKINS.sparse : SKINS.grid));
-  const v = .7 + .6 * r();
-  m.geometry.attributes.aBase.setXYZ(i, st.base[0] * v, st.base[1] * v, st.base[2] * v);
-  m.geometry.attributes.aWin.setXYZ(i, ...(r() < .18 ? (st.w > .5 ? BDC.win : RUT.win) : st.win));
+  m.geometry.attributes.aSkin.setX(i, skin ?? (r() < (1 - st.w) * .5 ? SKINS[WALLS[0]] : SKINS[WALLS[1]]));
+  const v = .7 + .6 * r(), b = base ?? st.base;
+  m.geometry.attributes.aBase.setXYZ(i, b[0] * v, b[1] * v, b[2] * v);
+  m.geometry.attributes.aWin.setXYZ(i, ...(r() < .18 ? (st.w > .5 ? AXIS_LO.win : AXIS_HI.win) : st.win));
   m.geometry.attributes.aP.setXYZW(i, r() * 100, lit, st.grime, gl);
-  if (withRoof && shape !== 'pyr') roof(x, z, w, d, y0 + h, st, r);
+  if (withRoof && shape !== 'pyr' && shape !== 'gable') roof(x, z, w, d, y0 + h, st, r);
   if (addOns && shape === 'box' && h > 8 && !ry) kibble(x, z, w, d, y0, h, st, r);
 }
 
-// Boxes bolted onto facades: balconies, add-on rooms, AC units. Dense in Base de Cayambe.
+// Boxes bolted onto facades: balconies, add-on rooms, AC units. Dense at the low end of the style axis.
 
 export function kibble(x, z, w, d, y0, h, st, r) {
+  if (!DECOR.kibble) return;
   for (let k = Math.floor((1.2 - st.w) * h / 5 * r()); k > 0; k--) {
     const n = FACES[Math.floor(r() * 4)], span = n[0] ? d : w;
     const kw = 2 + r() * 4, kh = 2 + r() * 3, kd = .8 + r() * 2;
@@ -276,9 +329,10 @@ export function kibble(x, z, w, d, y0, h, st, r) {
   }
 }
 
-// Rooftop clutter. Base de Cayambe gets tanks and lattice masts, Rutherford gets dishes and pads.
+// Rooftop clutter. The low end of the style axis gets tanks and lattice masts, the high end dishes and pads.
 
 export function roof(x, z, w, d, y, st, r) {
+  if (!DECOR.roof) return;
   const at = (m = 2) => [x + (r() - .5) * Math.max(0, w - m * 2), z + (r() - .5) * Math.max(0, d - m * 2)];
   for (let k = Math.floor(r() * (2 + w * d / 150)); k > 0; k--) {
     const [px, pz] = at(1.5);
@@ -310,6 +364,7 @@ export function roof(x, z, w, d, y, st, r) {
 }
 
 export function helipad(x, z, s, y, r) {
+  if (!DECOR.helipads) return;
   prop('cyl', x, y + .5, z, s, 1, s, grey(r, .07));
   put(helipads, x, y + 1.05, z, s * .92, 1, s * .92);
   for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) glow(x + dx * s * .47, y + 1.2, z + dz * s * .47, .4, .3, .4, [.2, 1.3, .3]);
@@ -317,6 +372,7 @@ export function helipad(x, z, s, y, r) {
 
 export const FACES = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 export function sign(x, z, w, d, h, st, r, rgb, opts = {}) {
+  if (!DECOR.signs) return;
   const n = FACES[opts.face ?? Math.floor(r() * 4)];
   const span = n[0] ? d : w;
   const tall = h > 16;
@@ -332,25 +388,27 @@ export function sign(x, z, w, d, h, st, r, rgb, opts = {}) {
   if (r() < .06) S.flicker.push([signs, i, rgb, r() * 10, false]);
 }
 export function neon(x, z, w, d, h, st, r) {
+  if (!DECOR.neon) return;
   for (let k = Math.floor(st.neon * r() * 3.5); k > 0; k--) {
-    const pal = st.signs ?? (r() < st.w ? RUT.signs : BDC.signs);
+    const pal = st.signs ?? (r() < st.w ? AXIS_HI.signs : AXIS_LO.signs);
     const s = .6 + .6 * r();
     sign(x, z, w, d, h, st, r, pal[Math.floor(r() * pal.length)].map(c => c * s));
   }
 }
 export function holo(x, z, w, d, y, r, face, size = 16) {
-  if (billboards.count >= 800) return;
+  if (!DECOR.holo || billboards.count >= 800) return;
   const f = FACES[face ?? Math.floor(r() * 4)];
   const bw = Math.min(size, (f[0] ? d : w) * .8), bh = bw * .6;
   const out = (f[0] ? w : d) / 2 + .4;
   aSeed.setX(put(billboards, x + f[0] * out, y, z + f[1] * out, bw, bh, 1, Math.atan2(f[0], f[1])), r() * 50);
 }
 
-// ---------- tiles: engine instances split into 1.2 km tiles after each build ----------
-// Tiles let frustum culling skip what is off screen. Detail tiles (props, smoke, text) hide beyond DETAIL_R.
-// The source meshes keep the data and stay hidden; tileOf maps a source instance to its tile copy.
+// ---------- tiles: engine instances split into square tiles after each build ----------
+// Tiles let frustum culling skip what is off screen. Detail tiles (props, smoke, text) are half a tile wide and
+// hide beyond the quality level's prop range. The source meshes keep the data and stay hidden; tileOf maps a
+// source instance to its tile copy. The pack sets the tile side.
 
-export const TILE = 1600, DETAIL_R = 1400;
+export const TILE = SETTING.scale.tile;
 export let TILES = [];
 export function tileAll() {
   for (const t of TILES) { scene.remove(t.mesh); t.mesh.geometry.dispose(); }
@@ -508,4 +566,4 @@ export function textSign(text, x, y, z, w, h, ry, rgb) {
 }
 
 
-export const SKINS = { grid: 0, bands: 1, fins: 2, curtain: 3, sparse: 4 };
+export const SKINS = { grid: 0, bands: 1, fins: 2, curtain: 3, sparse: 4, plaster: 5, timber: 6, stone: 7, tile: 8, thatch: 9 };

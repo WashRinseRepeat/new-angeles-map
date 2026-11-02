@@ -1,0 +1,5 @@
+{
+  "castle-ward": { "kicker": "Ward", "text": ["The north side of town, under the keep. Stone houses with slate roofs line its lanes, built by the lord's masons and the families who serve the castle."] },
+  "market-ward": { "kicker": "Ward", "text": ["The east side of town, round the square and the church. Merchants build tall here, timber floors jutting over the street above a stone shop at the ground."] },
+  "craft-ward": { "kicker": "Ward", "text": ["The south and west of town, toward the river road. Smiths, dyers and coopers keep workshops in the yards behind their houses, and the smoke hangs low at dusk."] }
+}

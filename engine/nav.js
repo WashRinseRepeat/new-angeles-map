@@ -1,11 +1,11 @@
 // Player navigation: search, atlas, session tours, minimap and filter chips.
 
 import * as THREE from 'three';
-import { CITY, PLACES, STALK_PLACE, STANDALONE } from './core.js';
+import { CENTRE_PLACE, CITY, PLACES, SITE, centroidOf } from './core.js';
+import { SETTING, atRoot, inPack } from './setting.js';
 import { camera, controls, scene } from './render.js';
 import { insidePoly } from './grammar.js';
 import { FIND_FAMILIES, LANDMARK_SITES } from './api.js';
-import { centroidOf } from './undercity.js';
 import { DISTRICT_LABELS, LOCAL, card, flyTo, hideCard, pins, select, viewPlace } from './ui.js';
 import { fireworks } from './fireworks.js';
 import { EPISODES, initAudioTour, resumeAt, startAudioTour, stopAudioTour } from './audiotour.js';
@@ -19,9 +19,13 @@ const site = () => LOCAL ? 'http://localhost:1313/' : '../';
 const PHONE = matchMedia('(max-width: 600px)').matches;
 const V = (x, z, y = 0) => new THREE.Vector3(x, y, z);
 
-// Places with a card: campaign pins, the Beanstalk and landmarks with a slug.
+// District outlines and tour routes take the theme's accent colour from ui.css.
 
-const CARDS = [...PLACES, STALK_PLACE, ...LANDMARK_SITES.map(l => l.place).filter(Boolean)].filter(p => p.top);
+const ACCENT = new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#7ff3ff');
+
+// Places with a card: campaign pins, the centre landmark and landmarks with a slug.
+
+const CARDS = [...PLACES, CENTRE_PLACE, ...LANDMARK_SITES.map(l => l.place).filter(Boolean)].filter(p => p?.top);
 const bySlug = new Map(CARDS.map(p => [p.slug, p]));
 
 const DISTRICTS = CITY.districts.map(d => {
@@ -41,7 +45,7 @@ const districtNear = (x, z) => districtAt(x, z) ?? DISTRICTS.reduce((a, d) => {
   const g = Math.min(...d.poly.map(([px, pz]) => Math.hypot(px - x, pz - z)));
   return g < a.g ? { d, g } : a;
 }, { d: null, g: Infinity }).d;
-for (const p of CARDS) if (p !== STALK_PLACE) districtAt(p.x ?? p.top.x, p.z ?? p.top.z)?.places.push(p);
+for (const p of CARDS) if (p !== CENTRE_PLACE) districtAt(p.x ?? p.top.x, p.z ?? p.top.z)?.places.push(p);
 // A landmark without a label, such as a second block of a larger site, stays out of the lists.
 
 for (const l of LANDMARK_SITES) if (l.el) districtNear(l.x, l.z)?.marks.push(l);
@@ -76,7 +80,7 @@ function showDistrict(d) {
   current = d;
   if (outline) { scene.remove(outline); outline.geometry.dispose(); }
   outline = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(d.poly.map(([x, z]) => V(x, z, 4))),
-    new THREE.LineBasicMaterial({ color: 0x7ff3ff, fog: false, transparent: true, opacity: .9 }));
+    new THREE.LineBasicMaterial({ color: ACCENT, fog: false, transparent: true, opacity: .9 }));
   scene.add(outline);
   flyTo(V(d.cx, d.cz), Math.min(2600, d.size * .9));
   drawMinimap();
@@ -157,7 +161,7 @@ function buildAtlas() {
     const page = pageOf(d);
     return `<details class="d" data-d="${di}"><summary><span>${esc(nameOf(d))}</span><b>${d.places.length + d.marks.length}</b></summary>
       <p class="sum">${esc(SUMMARY[d.id] ?? '')}${page ? ` <a href="${site()}locations/${page.slug}/" target="_blank">District page →</a>` : ''}</p>
-      ${d.places.length ? `<div class="hd">${STANDALONE ? 'Places' : 'Crew places'}</div>${d.places.map((p, i) => leaf(p.title, 'p', i, rgb(p.color ?? [1, 1, 1]))).join('')}` : ''}
+      ${d.places.length ? `<div class="hd">${SITE ? 'Crew places' : 'Places'}</div>${d.places.map((p, i) => leaf(p.title, 'p', i, rgb(p.color ?? [1, 1, 1]))).join('')}` : ''}
       ${d.marks.length ? `<div class="hd">Landmarks</div>${d.marks.map((l, i) => leaf(l.name, 'm', i, '#bfefff')).join('')}` : ''}
     </details>`;
   }).join('');
@@ -212,9 +216,12 @@ function stopsOf(recap) {
   }
   return out;
 }
-// The audio guide comes first: narrated flights through the city. The newest session's tour follows.
+// The audio guide comes first: narrated flights through the city. The pack's walking tours follow, then the newest
+// session's tour. A walk is { title, summary, stops: [{ slug, h, text }] }, and a stop's slug names a place card,
+// a landmark (its label, slugged) or a district id.
 
 let RECAPS = [];
+const WALKS = (SETTING.walks ?? []).map(w => ({ ...w, walk: true }));
 function buildSessions() {
   RECAPS = [...INDEX.recaps].sort((a, b) => b.session - a.session).slice(0, 1);
   const guide = EPISODES.filter(e => !e.session);
@@ -229,7 +236,13 @@ function buildSessions() {
     return `<div class="ses"><div class="kicker">S-${String(r.session).padStart(2, '0')}</div><b>${esc(r.title.replace(/^S-\d+\s*/, '').replace(/ Recap$/, ''))}</b>
       <p>${esc(r.summary)}</p>${pod}<button data-r="${i}" ${n ? '' : 'disabled'}>▶ Play tour · ${n} stop${n === 1 ? '' : 's'}</button></div>`;
   }).join('');
-  sessions.innerHTML = `<details class="d" open><summary><span>Audio guide</span><b>${guide.length}</b></summary>${audioTours}</details>`
+  const walkTours = WALKS.map((w, i) => {
+    const n = stopsOf(w).length;
+    return `<div class="ses"><div class="kicker">Walking tour</div><b>${esc(w.title)}</b><p>${esc(w.summary ?? '')}</p>
+      <button data-w="${i}" ${n ? '' : 'disabled'}>▶ Start walk · ${n} stop${n === 1 ? '' : 's'}</button></div>`;
+  }).join('');
+  sessions.innerHTML = (guide.length ? `<details class="d" open><summary><span>Audio guide</span><b>${guide.length}</b></summary>${audioTours}</details>` : '')
+    + (WALKS.length ? `<details class="d"${guide.length ? '' : ' open'}><summary><span>Walking tours</span><b>${WALKS.length}</b></summary>${walkTours}</details>` : '')
     + (RECAPS.length ? `<details class="d"><summary><span>Session tours</span><b>${RECAPS.length}</b></summary>${sessionTours}</details>` : '');
   listenButtons();
 }
@@ -250,8 +263,9 @@ function listenButtons() {
   }
 }
 sessions.onclick = e => {
-  const b = e.target.closest('[data-r], [data-a]');
+  const b = e.target.closest('[data-r], [data-a], [data-w]');
   if (b?.dataset.a) startAudioTour(EPISODES[+b.dataset.a], !!b.dataset.resume);
+  else if (b?.dataset.w) startTour(WALKS[+b.dataset.w]);
   else if (b) startTour(RECAPS[+b.dataset.r]);
 };
 
@@ -265,7 +279,7 @@ function startTour(recap) {
   focus(true);
   if (stops.length > 1) {
     const curve = new THREE.CatmullRomCurve3(stops.map(s => s.at.clone().setY(90)), false, 'centripetal');
-    route = new THREE.Line(new THREE.BufferGeometry().setFromPoints(curve.getPoints(stops.length * 24)), new THREE.LineBasicMaterial({ color: 0x7ff3ff, fog: false }));
+    route = new THREE.Line(new THREE.BufferGeometry().setFromPoints(curve.getPoints(stops.length * 24)), new THREE.LineBasicMaterial({ color: ACCENT, fog: false }));
     scene.add(route);
   }
   if (PHONE) tab('');
@@ -275,12 +289,13 @@ function startTour(recap) {
 function showStop() {
   const { recap, stops, i } = tour, s = stops[i];
   card.style.display = 'none';
-  $('tKick').textContent = `S-${String(recap.session).padStart(2, '0')} · Stop ${i + 1} / ${stops.length}`;
+  $('tKick').textContent = `${recap.walk ? recap.title : `S-${String(recap.session).padStart(2, '0')}`} · Stop ${i + 1} / ${stops.length}`;
   $('tName').textContent = s.name;
   $('tHead').textContent = s.h;
   $('tText').textContent = s.text || [s.place?.summary ?? ''].flat()[0];
   $('tRecap').href = `${site()}${recap.url}`;
   $('tLoc').href = `${site()}locations/${s.slug}/`;
+  $('tRecap').hidden = $('tLoc').hidden = !!recap.walk;
   $('tPrev').disabled = i === 0;
   $('tNext').textContent = i === stops.length - 1 ? 'Finish' : 'Next →';
   tourEl.hidden = false;
@@ -315,6 +330,7 @@ const ridePick = $('ridePick');
 // The picker offers the tours, which together pass every station. The single lines still run on the map.
 
 const RIDES = TOURS;
+rail.querySelector('[data-tab=ride]').hidden = !RIDES.length;
 ridePick.innerHTML = RIDES.map((R, i) => `<details class="d"${i ? '' : ' open'}><summary><span>${esc(R.name)}</span><b>${R.stops.length}</b></summary>
   <div class="stns">${R.stops.map(st => `<button data-r="${i}" data-s="${R.stops.indexOf(st)}">${esc(st.name)}</button>`).join('')}</div></details>`).join('');
 ridePick.addEventListener('toggle', e => {
@@ -339,16 +355,20 @@ initAudioTour({
 // The first visit opens a welcome card that offers the audio guide. A deep link to a place skips it,
 // and ?new=1 shows it again. Exploring alone opens the help with a pointer to the guide.
 
-const WELCOME_KEY = 'na-map-welcomed', welcome = $('welcome');
+const WELCOME_KEY = `${SETTING.storage}-map-welcomed`, welcome = $('welcome');
 const closeWelcome = () => { welcome.hidden = true; try { localStorage.setItem(WELCOME_KEY, '1'); } catch {} };
 let welcomed = true;
 try { welcomed = !!localStorage.getItem(WELCOME_KEY); } catch {}
 const params = new URLSearchParams(location.search);
 welcome.hidden = params.get('new') !== '1' && (welcomed || params.has('focus') || params.has('listen'));
+
+// A setting without an audio guide offers only the way in on foot.
+
+$('wTour').hidden = !EPISODES.length;
 $('wTour').onclick = () => { closeWelcome(); startAudioTour(EPISODES[0]); };
 $('wSkip').onclick = () => {
   closeWelcome();
-  $('helpGuide').hidden = false;
+  $('helpGuide').hidden = !EPISODES.length;
   if ($('helpPanel').hidden) $('help').click();
 };
 addEventListener('keydown', e => { if (e.key === 'Escape' && !welcome.hidden) closeWelcome(); });
@@ -475,13 +495,16 @@ export async function initNav() {
   applyChips();
   buildRows();
   const get = url => fetch(url).then(r => r.ok ? r.json() : null).catch(() => null);
-  const [index, summary, districts, landmarks] = await Promise.all([STANDALONE ? null : get(LOCAL ? '/public/map-index.json' : '../map-index.json'),
-    get('districts.json'), get('content/districts.json'), get('content/landmarks.json')]);
-  for (const more of await Promise.all(FIND_FAMILIES.map(f => get(`content/${f}.json`)))) Object.assign(landmarks ?? {}, more);
+  // Card texts come from the pack. Each find family brings its own file.
+
+  const C = SETTING.cards;
+  const [index, summary, districts, landmarks] = await Promise.all([!SITE ? null : get(LOCAL ? '/public/map-index.json' : '../map-index.json'),
+    get(atRoot(SETTING.data.summaries)), get(inPack(C.districts)), get(inPack(C.landmarks))]);
+  for (const more of await Promise.all(FIND_FAMILIES.map(f => get(inPack(`content/${f}.json`))))) Object.assign(landmarks ?? {}, more);
   SUMMARY = summary ?? {};
   LORE = { districts: districts ?? {}, landmarks: landmarks ?? {} };
-  const stalkLore = LORE.landmarks['The Beanstalk'];
-  if (stalkLore) Object.assign(STALK_PLACE, { type: stalkLore.kicker, summary: stalkLore.text });
+  const centreLore = LORE.landmarks[SETTING.centre.lore];
+  if (centreLore && CENTRE_PLACE) Object.assign(CENTRE_PLACE, { type: centreLore.kicker, summary: centreLore.text });
   applyChips();
 
   // The site index fills place cards and adds the session tours. The audio guide shows with or without it.
@@ -494,7 +517,7 @@ export async function initNav() {
     }
   }
   buildSessions();
-  rail.querySelector('[data-tab=sessions]').hidden = false;
+  rail.querySelector('[data-tab=sessions]').hidden = !EPISODES.length && !RECAPS.length && !WALKS.length;
   buildRows();
   buildAtlas();
 }

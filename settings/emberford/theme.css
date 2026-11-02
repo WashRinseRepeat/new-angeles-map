@@ -1,0 +1,31 @@
+/* Emberford's interface theme: dark oak panels, parchment text, amber accents and a serif face. The loading logo is a
+   red shield with the town's initials, swinging gently like an inn sign. */
+
+:root {
+  --accent: #f2b45a; --accent-rgb: 242, 180, 90; --font: Georgia, 'Palatino Linotype', Palatino, serif;
+  --bg: #0c0806; --text: #efe3cc; --panel: rgba(22, 14, 9, .93); --panel-soft: rgba(22, 14, 9, .82);
+  --line: #4a3422; --line-2: #5c412a; --line-on: #a8743a; --muted: #a8977c; --muted-2: #b8a68a; --faint: #8a7a62;
+  --loading-bg: #120c08; --bright: #fff4dc; --text-soft: #e0d2b6; --text-2: #e6d8bc; --text-strong: #fff2d8; --text-3: #d8c8aa;
+  --key: #f2c27a; --key-line: #6a4a2a; --button: #24180f; --button-text: #d8c4a0; --button-on: #4a3218; --tab-on: #4a3218;
+  --note: #9a8a70; --button-2: #2a1c12; --button-2-text: #f0dcb8; --card: #160f0a; --card-img: #1a120c; --kicker: #e0a050;
+  --district: #fff0d6; --district-glow: rgba(240, 170, 80, .45); --landmark: #f6dcae; --warm: #ffd9a0; --place: #f2e6d0;
+  --podcast: #d0603a; --podcast-bg: rgba(208, 96, 58, .08); --chip: rgba(36, 24, 15, .85); --subtitle-bg: rgba(14, 9, 6, .8);
+  --subtitle: #fff4e0; --cone: rgba(242, 180, 90, .25); --coast: #6a5a3a; --input: #1a120c; --input-text: #f2e6d0; --hover: #3a2814;
+}
+#loading .logo { width: 110px; height: 120px; position: relative; margin-bottom: 6px; }
+#loading .orbit { display: none; }
+#loading .coin { position: absolute; inset: 8px 14px; transform-origin: 50% 0; will-change: transform; animation: ef-swing 3.2s ease-in-out infinite; }
+#loading .face { position: absolute; inset: 0; display: grid; place-items: center; border-radius: 8px 8px 50% 50% / 8px 8px 62% 62%;
+  background: radial-gradient(circle at 40% 30%, #9a2a1c, #4a0f0a 75%); border: 3px solid #d9a24e;
+  box-shadow: 0 0 22px rgba(242, 160, 70, .35), inset 0 0 12px rgba(0, 0, 0, .5);
+  font: 700 28px Georgia, serif; letter-spacing: .04em; color: #f6dcae; text-shadow: 0 1px 2px #000; }
+@keyframes ef-swing { 0%, 100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } }
+
+/* The compass takes the oak panel and an iron needle with a red north point. */
+
+#compass > svg > circle:first-child { fill: var(--panel-soft); stroke: var(--line-2); }
+#compass > svg > circle:nth-child(2) { stroke: var(--line); }
+#needle path:first-of-type { fill: #c8402e; }
+#needle path:last-of-type { fill: #5a4632; }
+#needle circle { fill: var(--accent); }
+#needle text { fill: #f6dcae; font-family: Georgia, serif; }
