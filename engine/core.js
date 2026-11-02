@@ -150,7 +150,7 @@ export const STYLES = {
     tiers: [['block', 'tenement'], ['block', 'tenement', 'stack'], ['tenement', 'block', 'stack']] }),
   'la-costa': STYLE({ w: .3, h0: 4, h1: 16, density: .15, neon: .08, lit: .15, grime: .2, base: [.13, .11, .09], win: [1, .76, .46],
     signs: [[1.5, .3, 1.2], [.9, 1.2, 1.3], [.2, 1.3, 1.1]], street: [1, .7, .4],
-    tiers: [['park', 'park', 'warehouse'], ['park', 'warehouse', 'block']], yardKit: 'lc_fields', fillKit: 'lc_fill', infill: false }),
+    tiers: [['park', 'park', 'warehouse'], ['park', 'warehouse', 'block']], yardKit: 'lc_fields', fillKit: 'lc_fill' }),
   quinde: STYLE({ w: .25, h0: 7, h1: 30, density: .82, neon: .25, lit: .35, grime: .9, base: [.12, .1, .08], win: [1, .78, .45],
     signs: [[1.6, 1.1, .1], [1.5, .45, .08], [1.4, 1.4, 1.5], [.4, 1.4, .3]], street: [1, .55, .15], zones: ['industry'],
     tiers: [['warehouse', 'cargo', 'tenement'], ['warehouse', 'tenement', 'block'], ['block', 'tower', 'tenement']] }),

@@ -271,7 +271,7 @@ export function fillCells() {
     return i >= 0 && j >= 0 && i < W && j < D ? j * W + i : -1;
   };
   const free = (x, z) => { const k = at(x, z); return k >= 0 && open[k] === 1; };
-  INFILL = NO_INFILL ? [] : infillSites(open, chamfer(city, W, D), W, D, S, at, free);
+  INFILL = NO_INFILL || !Object.values(STYLES).some(st => st.infill) ? [] : infillSites(open, chamfer(city, W, D), W, D, S, at, free);
 
   // Band: open land up to 40 m outside the districts, where the ground is still flat, gets grove cells that
   // thicken outward, so the city fades into the jungle. Pixels painted for roads or water stay bare.
@@ -335,7 +335,8 @@ function chamfer(m, W, D) {
 // Infill: open ground wider than 12 m becomes synthetic lots that build like real ones. Seeds go widest
 // first. Each grows a rectangle square to the nearest street until it touches a lot, a street or another
 // site, then paints itself and a 3 m margin closed. A site carries its distance to the district edge, so
-// sites by the jungle can grow forest instead. A style with infill: false leaves its ground to its fillKit.
+// sites by the jungle can grow forest instead. Only styles with infill: true take sites; the rest keep the
+// scattered 10 m fill, which reads more organic.
 
 const MIN_SIDE = 12, MAX_HALF = 60, GAP = 3;
 
@@ -364,7 +365,7 @@ function infillSites(open, edge, W, D, S, at, free) {
   for (const k of seeds) {
     if (!open[k]) continue;
     const x = ox + (k % W + .5) * S, z = oz + (Math.floor(k / W) + .5) * S;
-    if (STYLES[styleAt(x, z, 0).id].infill === false) continue;
+    if (!STYLES[styleAt(x, z, 0).id].infill) continue;
     const a = nearestStreet(x, z)[2] - Math.PI / 2, c = Math.cos(a), s = Math.sin(a);
     const fits = (hw, hd) => {
       for (let u = -hw; u <= hw; u += S) for (let v = -hd; v <= hd; v += S) if (!free(x + u * c + v * s, z - u * s + v * c)) return false;
