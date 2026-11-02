@@ -371,9 +371,10 @@ for (const lm of LANDMARKS_KITS) {
     }
     return site;
   };
-  // A free landmark ([w, d]) stands at its point without a block, for a park or open ground.
+  // A free landmark ([w, d, a]) stands at its point without a block, for a park or open ground. The optional a turns it.
 
-  let site = lm.free ? { cx: x, cz: z, a: 0, c: 1, s: 0, w: lm.free[0], d: lm.free[1] } : seek(true);
+  const fa = lm.free?.[2] ?? 0;
+  let site = lm.free ? { cx: x, cz: z, a: fa, c: Math.cos(fa), s: Math.sin(fa), w: lm.free[0], d: lm.free[1] } : seek(true);
   if (!site && (site = seek(false))) console.warn('landmark over a corridor', lm.name);
   if (!site) { console.warn('landmark without a site', lm.name); continue; }
   site.used = true;

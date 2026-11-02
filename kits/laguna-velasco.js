@@ -5,6 +5,7 @@
 // A low-frequency noise field turns clusters of lots into gardens, so parks read as parks, not gaps.
 
 import { trees } from './nature.js';
+import { sights as lakeside } from './lv-lakeside.js';
 
 let LIB = null;
 
@@ -1397,5 +1398,6 @@ export function landmarks(H) {
       reflect(A, 0, S / 2 - 6, Lu * .4, 3);
       return { face: front() };
     } },
+    ...lakeside(H, L),
   };
 }
