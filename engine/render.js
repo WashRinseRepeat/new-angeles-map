@@ -164,10 +164,13 @@ el.addEventListener('pointercancel', release);
 // Trackpads, as on a MacBook: two fingers slide the map, a pinch zooms about the cursor, and ⌥ with two fingers
 // turns and tilts. Browsers send the slide as a wheel event and the pinch as a wheel event with ctrlKey.
 // Safari also sends pinch and twist as gesture events. A mouse wheel keeps MapControls' zoom.
-// A trackpad wheel reports wheelDeltaY as -3 × deltaY; a notched mouse wheel does not. Each burst of wheel
+// A mouse wheel sends notches: line steps, whole steps of 50 px or more, or in Chrome on macOS multiples of
+// 4.000244140625 px. A trackpad slide starts with small pixel steps or a sideways part. Each burst of wheel
 // events keeps the device it started with, so a slow trackpad tail never turns into a zoom.
 
-const padLike = e => e.ctrlKey || e.deltaX !== 0 || (e.wheelDeltaY ? Math.abs(e.wheelDeltaY + 3 * e.deltaY) < 1 : e.deltaMode === 0 && !Number.isInteger(e.deltaY));
+const MAC_NOTCH = 4.000244140625;
+const notch = e => e.deltaMode !== 0 || e.deltaY !== 0 && (e.deltaY % MAC_NOTCH === 0 || Number.isInteger(e.deltaY) && Math.abs(e.deltaY) >= 50);
+const padLike = e => e.ctrlKey || e.deltaX !== 0 || !notch(e);
 const zoomAbout = (p, k) => {
   const dist = camera.position.distanceTo(controls.target);
   k = THREE.MathUtils.clamp(k, controls.minDistance / dist, controls.maxDistance / dist);
