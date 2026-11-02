@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { S, H } from './state.js';
-import { AXIS_HI, AXIS_LO, BLOCK, CENTRE, CENTRE_PLACE, CENTRE_R, CITY, PLACES, STANDALONE, STYLES, hash, lerp, loadMsg, mapToWorld, mixStyle, rng, smooth, styleAt } from './core.js';
+import { AXIS_HI, AXIS_LO, BLOCK, CENTRE, CENTRE_PLACE, CENTRE_R, CITY, PLACES, STANDALONE, STYLES, hash, lerp, loadMsg, mapToWorld, mixStyle, rng, sdPoly, smooth, styleAt } from './core.js';
 import { SETTING, atRoot, inPack } from './setting.js';
 import { FOG_GLSL, SURFACE, U, WATER_GLSL, addHole, holed, label, outerGround, slab, surface, water } from './render.js';
 import { FACES, GLOWS, INSTANCED, PROPS, SKINS, beacon, beam, bld, glow, glows, grey, helipad, holo, kibble, neon, pool, prop, puff, put, soften, roof, sign, textSign } from './instances.js';
@@ -375,23 +375,27 @@ for (const lm of LANDMARKS_KITS) {
 
   const moved = SEATS[`lm:${lm.name}`]?.at, [x, z] = moved ?? mapToWorld(lm.at ?? [0, 0]);
 
-  // A landmark takes the nearest free block clear of the maglev and the highways. With none in reach it takes
-  // the nearest free block and warns.
+  // A landmark takes the nearest free block in its own district, clear of the maglev and the highways if it can.
+  // With none in reach it takes the nearest block in another district, and warns for a corridor or no block.
 
-  const seek = clear => {
+  const home = CITY.districts.find(d => sdPoly(x, z, d.poly) > 0)?.poly;
+  const seek = (clear, poly) => {
     let site = null, best = moved ? SC.seatReach : lm.reach ?? SC.landmarkReach;
     for (const b of ALL_BLOCK_FRAMES) {
       const d = Math.hypot(b.cx - x, b.cz - z);
-      if (!b.used && Math.min(b.w, b.d) >= (lm.minSide ?? SC.siteMin) && d < best
+      if (!b.used && Math.min(b.w, b.d) >= (lm.minSide ?? SC.siteMin) && d < best && (!poly || sdPoly(b.cx, b.cz, poly) > 0)
         && (!clear || !corridorIn(b, 4, Math.min(b.w, BLOCK_MAX), Math.min(b.d, BLOCK_MAX)).length)) { best = d; site = b; }
     }
     return site;
   };
+
   // A free landmark ([w, d, a]) stands at its point without a block, for a park or open ground. The optional a turns it.
 
   const fa = lm.free?.[2] ?? 0;
-  let site = lm.free ? { cx: x, cz: z, a: fa, c: Math.cos(fa), s: Math.sin(fa), w: lm.free[0], d: lm.free[1] } : seek(true);
-  if (!site && (site = seek(false))) console.warn('landmark over a corridor', lm.name);
+  let site = lm.free ? { cx: x, cz: z, a: fa, c: Math.cos(fa), s: Math.sin(fa), w: lm.free[0], d: lm.free[1] } : null;
+  for (const poly of home ? [home, null] : [null]) for (const clear of [true, false]) {
+    if (!site && (site = seek(clear, poly)) && !clear) console.warn('landmark over a corridor', lm.name);
+  }
   if (!site) { console.warn('landmark without a site', lm.name); continue; }
   site.used = true;
   site.size = [Math.min(site.w, BLOCK_MAX), Math.min(site.d, BLOCK_MAX)];

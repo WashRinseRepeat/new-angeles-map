@@ -29,6 +29,9 @@ export default class TensorField {
 
     public smooth = false;
 
+    // Scales the global noise per point, 0 to 1.
+    public noiseWeight = (p: Vector) => 1;
+
     constructor(public noiseParams: NoiseParams) {
         this.noise = new SimplexNoise();
     }
@@ -103,7 +106,7 @@ export default class TensorField {
         }
 
         if (this.noiseParams.globalNoise) {
-            tensorAcc.rotate(this.getRotationalNoise(point, this.noiseParams.noiseSizeGlobal, this.noiseParams.noiseAngleGlobal));
+            tensorAcc.rotate(this.getRotationalNoise(point, this.noiseParams.noiseSizeGlobal, this.noiseParams.noiseAngleGlobal) * this.noiseWeight(point));
         }
 
         return tensorAcc;

@@ -25,6 +25,7 @@ export interface StreamlineParams {
     seedTries: number;  // Max failed seeds
     simplifyTolerance: number;
     collideEarly: number;  // Chance of early collision 0-1
+    dsepScale?: (p: Vector) => number;  // Scales dsep per seed, at most 1
 }
 
 /**
@@ -311,7 +312,7 @@ export default class StreamlineGenerator {
         if (this.SEED_AT_ENDPOINTS && this.candidateSeeds(major).length > 0) {
             while (this.candidateSeeds(major).length > 0) {
                 const seed = this.candidateSeeds(major).pop();
-                if (this.isValidSample(major, seed, this.paramsSq.dsep)) {
+                if (this.isValidSample(major, seed, this.dsepSq(seed))) {
                     return seed;
                 }
             }
@@ -319,7 +320,7 @@ export default class StreamlineGenerator {
 
         let seed = this.samplePoint();
         let i = 0;
-        while (!this.isValidSample(major, seed, this.paramsSq.dsep)) {
+        while (!this.isValidSample(major, seed, this.dsepSq(seed))) {
             if (i >= this.params.seedTries) {
                 return null;
             }
@@ -328,6 +329,10 @@ export default class StreamlineGenerator {
         }
 
         return seed;
+    }
+
+    protected dsepSq(p: Vector): number {
+        return this.paramsSq.dsep * (this.params.dsepScale?.(p) ?? 1) ** 2;
     }
 
     protected isValidSample(major: boolean, point: Vector, dSq: number, bothGrids=false): boolean {

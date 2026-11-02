@@ -117,10 +117,33 @@ const DIMS = new Vector(1272 * MAP.scale, 1600 * MAP.scale);
 // ---------- tensor field ----------
 
 // BEND=<degrees> turns on a slow rotational noise over the whole field, so long streets curve gently. It writes
-// city-bend.json, which the map loads with ?streets=bend.
+// city-bend.json, which the map loads with ?streets=bend. BEND_IN=<id,id> bends only those districts, fading out
+// over 150 m each side of their edge, and writes city-blend.json.
 
-const BEND = Number(process.env.BEND ?? 0);
+const BEND = Number(process.env.BEND ?? 0), BEND_IN = (process.env.BEND_IN ?? '').split(',').filter(Boolean);
+const VARIANT = BEND_IN.length ? 'blend' : BEND ? 'bend' : '';
 const field = new TensorField({ globalNoise: BEND > 0, noiseSizePark: 90, noiseAnglePark: 35, noiseSizeGlobal: 350, noiseAngleGlobal: BEND });
+
+// The bend weight is 1 inside the bent districts and 0 outside, on a 20 m raster.
+
+const sdPoly = ([x, y]: number[], poly: number[][]) => {
+  let d = Infinity, inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [ax, ay] = poly[j], [bx, by] = poly[i], ex = bx - ax, ey = by - ay;
+    const t = Math.max(0, Math.min(1, ((x - ax) * ex + (y - ay) * ey) / (ex * ex + ey * ey)));
+    d = Math.min(d, Math.hypot(x - ax - ex * t, y - ay - ey * t));
+    if ((ay > y) !== (by > y) && x < ax + (y - ay) * ex / ey) inside = !inside;
+  }
+  return inside ? d : -d;
+};
+const RW = 20, RX = Math.ceil(DIMS.x / RW) + 1, RY = Math.ceil(DIMS.y / RW) + 1, WEIGHT = new Float32Array(RX * RY).fill(1);
+if (BEND_IN.length) for (let j = 0; j < RY; j++) for (let i = 0; i < RX; i++) {
+  const p = [ORIGIN.x + i * RW, ORIGIN.y + j * RW], d = Math.max(...BEND_IN.map(id => sdPoly(p, byId(id).poly)));
+  const t = Math.max(0, Math.min(1, (d + 150) / 300));
+  WEIGHT[j * RX + i] = t * t * (3 - 2 * t);
+}
+const bendAt = (p: Vector) => WEIGHT[Math.max(0, Math.min(RY - 1, Math.round((p.y - ORIGIN.y) / RW))) * RX + Math.max(0, Math.min(RX - 1, Math.round((p.x - ORIGIN.x) / RW)))];
+field.noiseWeight = bendAt;
 const centroid = (p: number[][]) => p.reduce((a, q) => [a[0] + q[0] / p.length, a[1] + q[1] / p.length], [0, 0]);
 const V = ([x, y]: number[]) => new Vector(x, y);
 
@@ -167,12 +190,16 @@ field.onLand = (p: Vector) => inCity(p) && !inHole(p);
 // ---------- streets ----------
 
 // Bent streets meet sooner and leave gaps for new ones, so BEND widens the spacing to keep blocks as large.
+// Unbent ground keeps the straight spacing.
+
+const spaced = (straight: number, bent: number) =>
+  BEND ? { dsep: bent, dsepScale: (p: Vector) => 1 + (straight / bent - 1) * (1 - bendAt(p)) } : { dsep: straight };
 
 const base = { dstep: 1, dcirclejoin: 5, joinangle: 0.1, seedTries: 300, simplifyTolerance: 0.5, collideEarly: 0 };
 const PARAMS = {
   main: { ...base, dsep: 420, dtest: 200, dlookahead: 500, pathIterations: 4000 },
-  major: { ...base, dsep: BEND ? 150 : 130, dtest: 45, dlookahead: 220, pathIterations: 3000 },
-  minor: { ...base, dsep: BEND ? 50 : 46, dtest: 20, dlookahead: 60, pathIterations: 1500 },
+  major: { ...base, ...spaced(130, 150), dtest: 45, dlookahead: 220, pathIterations: 3000 },
+  minor: { ...base, ...spaced(46, 50), dtest: 20, dlookahead: 60, pathIterations: 1500 },
 };
 const integrator = new RK4Integrator(field, PARAMS.minor);
 const gens: Record<string, StreamlineGenerator> = {};
@@ -249,12 +276,15 @@ const nearRoad = (poly: number[][]) => poly.some(([x, z]) => roadCells.has(`${Ma
 const keptLots = lots.filter(poly => !nearRoad(poly));
 console.log(`coast roads: ${coastRoads.length}, lots dropped: ${lots.length - keptLots.length}`);
 
-const OUT = BEND ? 'city-bend.json' : 'city.json';
-writeFileSync(new URL(`../../${OUT}`, import.meta.url), JSON.stringify({
+// A variant takes everything but its streets, blocks and lots from city.json, so places and lines match.
+
+const OUT = VARIANT ? `city-${VARIANT}.json` : 'city.json';
+const rest = VARIANT ? JSON.parse(readFileSync(new URL('../../city.json', import.meta.url), 'utf8')) : {
   seed: SEED, origin: [ORIGIN.x, ORIGIN.y], dims: [DIMS.x, DIMS.y],
   districts: DISTRICTS, root: ROOT, places: PLACES, placeHalf: PLACE_HALF, quarters: QUARTERS, highways: HIGHWAYS, maglev: MAGLEV, spurs: SPURS, rings: RINGS, lines: LINES,
-  subareas: SUBAREAS, water: WATER, parks: PARKS, coast: COAST, streets, blocks, lots: keptLots,
-}));
+  subareas: SUBAREAS, water: WATER, parks: PARKS, coast: COAST,
+};
+writeFileSync(new URL(`../../${OUT}`, import.meta.url), JSON.stringify({ ...rest, streets, blocks, lots: keptLots }));
 console.log(`wrote ${OUT}`);
 
 // The Hugo site shows a "Show on the map" link on these location pages.
