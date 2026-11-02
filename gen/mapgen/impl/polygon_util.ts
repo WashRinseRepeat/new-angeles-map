@@ -77,7 +77,7 @@ export default class PolygonUtil {
     /**
      * Recursively divide a polygon by its longest side until the minArea stopping condition is met
      */
-    public static subdividePolygon(p: Vector[], minArea: number): Vector[][] {
+    public static subdividePolygon(p: Vector[], minArea: number, depth = 0): Vector[][] {
         const area = PolygonUtil.calcPolygonArea(p);
         if (area < 0.5 * minArea) {
             return [];
@@ -105,7 +105,9 @@ export default class PolygonUtil {
             return [];
         }
 
-        if (area < 2 * minArea) {
+        // A cut that fails to split p recurses on p again. The depth cap keeps p whole instead of overflowing.
+
+        if (area < 2 * minArea || depth > 1000) {
             return [p];
         }
 
@@ -125,7 +127,7 @@ export default class PolygonUtil {
             const sliced = PolyK.Slice(PolygonUtil.polygonToPolygonArray(p), bisect[0].x, bisect[0].y, bisect[1].x, bisect[1].y);
             // Recursive call
             for (const s of sliced) {
-                divided.push(...PolygonUtil.subdividePolygon(PolygonUtil.polygonArrayToPolygon(s), minArea));
+                divided.push(...PolygonUtil.subdividePolygon(PolygonUtil.polygonArrayToPolygon(s), minArea, depth + 1));
             }
 
             return divided;

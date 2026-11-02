@@ -166,11 +166,13 @@ field.onLand = (p: Vector) => inCity(p) && !inHole(p);
 
 // ---------- streets ----------
 
+// Bent streets meet sooner and leave gaps for new ones, so BEND widens the spacing to keep blocks as large.
+
 const base = { dstep: 1, dcirclejoin: 5, joinangle: 0.1, seedTries: 300, simplifyTolerance: 0.5, collideEarly: 0 };
 const PARAMS = {
   main: { ...base, dsep: 420, dtest: 200, dlookahead: 500, pathIterations: 4000 },
-  major: { ...base, dsep: 130, dtest: 45, dlookahead: 220, pathIterations: 3000 },
-  minor: { ...base, dsep: 46, dtest: 20, dlookahead: 60, pathIterations: 1500 },
+  major: { ...base, dsep: BEND ? 150 : 130, dtest: 45, dlookahead: 220, pathIterations: 3000 },
+  minor: { ...base, dsep: BEND ? 50 : 46, dtest: 20, dlookahead: 60, pathIterations: 1500 },
 };
 const integrator = new RK4Integrator(field, PARAMS.minor);
 const gens: Record<string, StreamlineGenerator> = {};
