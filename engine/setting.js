@@ -32,6 +32,7 @@ T.maglev.stops ??= [];
 S.audio ??= {};
 S.audio.episodes ??= [];
 S.layers ??= {};
+S.kits.tune ??= {};
 S.cards ??= {};
 
 // A pack may offer lighting modes in look.modes, such as day or lantern-lit night. ?look=<mode> lays that mode over

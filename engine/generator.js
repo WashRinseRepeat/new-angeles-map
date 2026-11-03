@@ -71,7 +71,7 @@ export const FRAMES = CITY.lots.map(lotFrame);
 // the pack's cityTune rows. skew bends small-lot heights toward low, so tall ones grow rarer. small scales each
 // style's smallShare.
 
-export const CITYTUNE = { skew: 1.4, small: 1, needles: 0, needleTop: 350, ...Object.fromEntries(SETTING.kits.cityTune.map(([k, , , , , def]) => [k, def])) };
+export const CITYTUNE = { skew: 1.4, small: 1, needles: 0, needleTop: 350, shapes: 1, ...SETTING.kits.tune, ...Object.fromEntries(SETTING.kits.cityTune.map(([k, , , , , def]) => [k, def])) };
 
 // Mega-housing fills a whole city block. A pack's block zones can use it as a builder.
 // A ring stacks four slabs round a courtyard with sky bridges. A stepped block climbs in setbacks.
@@ -360,8 +360,14 @@ export let FILL = null;
 // One lot. f seeds the draws, g is the frame it builds in: the lot itself, or a part trimmed off a corridor.
 // k scales the heights, bare builds only the yard, and slab builds one tower of that height over the whole frame.
 
+// A landmark with hush r keeps the lots round it low: 35% height at the landmark, full height at r metres.
+
+export const HUSH = [];
+const hushAt = (x, z) => HUSH.reduce((m, h) => m * lerp(.35, 1, smooth(h.r * .3, h.r, Math.hypot(x - h.x, z - h.z))), 1);
+
 const BOOST = SETTING.centre.boost;
 function buildLot(f, g, blend, k = 1, bare = false, slab = 0) {
+  k *= hushAt(f.cx, f.cz);
   const size = Math.min(g.w, g.d) - 2;
   const r = rng(hash(Math.round(f.cx * 10), Math.round(f.cz * 10)));
   const dS = Math.hypot(f.cx - CENTRE.x, f.cz - CENTRE.y);

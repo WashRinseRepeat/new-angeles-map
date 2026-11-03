@@ -216,10 +216,16 @@ export function crownOf(crown, t, H, st, r, accent) {
       beacon(t.x, H + sh + .5, t.z, r);
       break;
     }
+    // Armillary globe: three crossed neon rings round a small bright core, on a stem with a mast and beacon.
+
     case 'sphere': {
-      const rad = m * .42;
-      prop('cyl', t.x, H + rad * .4, t.z, rad * .5, rad * .8, rad * .5, grey(r, .1));
-      put(GLOWS.sphere, t.x, H + rad * 1.1, t.z, rad * 2, rad * 2, rad * 2, 0, 0, accent.map(c => c * .55));
+      const rad = m * .4, cy = H + rad * 1.25;
+      prop('cyl', t.x, H + rad * .15, t.z, rad * .9, rad * .3, rad * .9, grey(r, .1));
+      prop('cyl', t.x, H + rad * .6, t.z, rad * .12, rad * .9, rad * .12, grey(r, .2));
+      put(GLOWS.sphere, t.x, cy, t.z, rad * .5, rad * .5, rad * .5, 0, 0, accent.map(c => c * 1.4));
+      for (const rx of [0, 1, -1]) put(GLOWS.ring, t.x, cy, t.z, rad * 2, rad * 2, rad * 2, 0, rx, accent.map(c => c * (rx ? .8 : 1.1)));
+      prop('cone', t.x, cy + rad + 7, t.z, 1, 14, 1, grey(r, .25));
+      beacon(t.x, cy + rad + 14.5, t.z, r);
       break;
     }
     case 'dishes':
@@ -321,7 +327,10 @@ export const ARCHETYPES = {
     for (let f = 0; f < 4; f++) holo(x, z, W * .7, D * .7, H + 8, r, f, 30);
   },
 };
-export const ARCH_WEIGHTS = { grammar: [10, 10], ziggurat: [0, .5], split: [0, .6], launch: [.5, .2], kowloon: [2.5, 0], screens: [0, .8] };
+// The pack's shapes dial (kits.tune.shapes) scales every archetype but the grammar tower.
+
+export const ARCH_BASE = { grammar: [10, 10], ziggurat: [0, .5], split: [0, .6], launch: [.5, .2], kowloon: [2.5, 0], screens: [0, .8] };
+export const ARCH_WEIGHTS = Object.fromEntries(Object.entries(ARCH_BASE).map(([k, w]) => [k, k === 'grammar' ? w : w.map(v => v * (SETTING.kits.tune.shapes ?? 1))]));
 export const TALLY = {};
 export function buildTall(x, z, W, D, H, st, r, mega) {
   const opts = Object.entries(ARCH_WEIGHTS).map(([k, [a, b]]) => [k, lerp(a, b, st.w) * (k !== 'grammar' && !mega ? .35 : 1)]);

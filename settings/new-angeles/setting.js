@@ -23,7 +23,7 @@ export default {
   // highwayReach stay up, because they meet the road terminals. fade is the box an audio-tour gaze thins out.
 
   centre: {
-    district: 'chakana', radius: 150, top: 190, pinLift: 30, boost: { k: .4, r: 300 }, highwayReach: 260,
+    district: 'chakana', radius: 150, top: 190, pinLift: 30, boost: { k: .6, r: 450 }, highwayReach: 260,
     glow: [.2, .8, 1.2], module: 'landmarks/beanstalk.js', lore: 'The Beanstalk',
     fade: { y: 200, edge: 30, half: [90, 200, 90] },
     place: { slug: 'new-angeles', title: 'The Beanstalk', district: 'Chakana', type: 'Landmark · space elevator',
@@ -118,6 +118,10 @@ export default {
         test: (b, blend) => Z.allows(b, 'housing', blend), rank: b => Z.vnoise(b.cx / 350 + 41, b.cz / 350 + 17) },
     ],
 
+    // Starting values for the engine's city dials in the tuning panel.
+
+    tune: { cores: 1.1, skew: 1, needles: .02, needleTop: 300, shapes: 4.3 },
+
     // City dials. The first build uses each row's default. A row is [key, name, min, max, step, default, info, group],
     // and group is a tuning panel tab, Lots unless named.
 
@@ -127,7 +131,7 @@ export default {
       ['mega', 'Mega-housing blocks', 0, 3, .1, 3, 'How many whole-block mega-housing complexes Base de Cayambe and Chakana get.', 'Skyline'],
       ['industry', 'Industry blocks', 0, 3, .1, 1, 'How many whole blocks the industry zone takes.'],
       ['chakana', 'Chakana Root blocks', 0, 3, .1, 1, 'How many Chakana Root block kits ring the centre.'],
-      ['lights', 'Street light density', .3, 3, .05, 1.1, 'How close the street lamps stand. Higher puts them closer together.'],
+      ['lights', 'Street light density', .3, 3, .05, .9, 'How close the street lamps stand. Higher puts them closer together.'],
     ],
   },
 

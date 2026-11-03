@@ -13,7 +13,7 @@ import { packClouds } from './clouds.js';
 import { keep } from './edge.js';
 import { STREETS, buildPylons, centre, corridorIn, traffic } from './transport.js';
 import { buildStations } from './ride.js';
-import { ALL_BLOCK_FRAMES, BLOCK_FRAMES, BLOCK_KITS, BLOCK_MAX, FAMILY_KITS, SC, FRAMES, frontOf, LANDMARKS_KITS, OWN_TIERS, SHOWCASE, SMALL_LOTS, generate, inRect, showcase } from './generator.js';
+import { ALL_BLOCK_FRAMES, BLOCK_FRAMES, BLOCK_KITS, BLOCK_MAX, FAMILY_KITS, SC, FRAMES, HUSH, frontOf, LANDMARKS_KITS, OWN_TIERS, SHOWCASE, SMALL_LOTS, generate, inRect, showcase } from './generator.js';
 
 // ---------- module API: what place and kit files may use ----------
 
@@ -389,6 +389,7 @@ for (const lm of LANDMARKS_KITS) {
     return site;
   };
 
+  // hush r lowers the lots round the landmark out to r metres, so it stands clear of its neighbours.
   // A free landmark ([w, d, a]) stands at its point without a block, for a park or open ground. The optional a turns it.
 
   const fa = lm.free?.[2] ?? 0;
@@ -398,6 +399,7 @@ for (const lm of LANDMARKS_KITS) {
   }
   if (!site) { console.warn('landmark without a site', lm.name); continue; }
   site.used = true;
+  if (lm.hush) HUSH.push({ x: site.cx, z: site.cz, r: lm.hush });
   site.size = [Math.min(site.w, BLOCK_MAX), Math.min(site.d, BLOCK_MAX)];
   if (!lm.free) for (const f of FRAMES) if (inRect(site, f.cx, f.cz, 2)) f.taken = true;
   const g = new THREE.Group(), sy = lm.scaleY ?? 1, ly = (lm.labelY ?? SETTING.scale.labels.landmarkY) * sy;

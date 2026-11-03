@@ -72,7 +72,7 @@ export const quarterAt = (x, z) => QUARTERS.find(q => sdPoly(x, z, q.poly) > 0) 
 // DENSITY.cores scales every core's peak. DENSITY.grain widens the 70 m noise, so tall and low lots mix
 // more closely, and keeps its mean.
 
-export const CORES = SETTING.styles.cores, DENSITY = { cores: 1, grain: 1 };
+export const CORES = SETTING.styles.cores, DENSITY = { cores: SETTING.kits.tune.cores ?? 1, grain: SETTING.kits.tune.grain ?? 1 };
 export function vnoise(x, z) {
   const xi = Math.floor(x), zi = Math.floor(z), u = smooth(0, 1, x - xi), v = smooth(0, 1, z - zi);
   const h = (a, b) => hash(a, b) / 4294967296;

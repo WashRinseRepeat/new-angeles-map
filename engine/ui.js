@@ -8,7 +8,7 @@ import { CENTRE, CENTRE_PLACE, CENTRE_R, CITY, CORES, DENSITY, PLACES, SITE, STA
 import { SETTING, inPack } from './setting.js';
 import { FOG, FOG_BASE, LOCK, QUALITY, SURFACE, U, applyQuality, bloom, camera, composer, controls, fadeTwin, flatGeo, hemi, label, labelRoot, labels, lockCamera, moon, renderer, scene } from './render.js';
 import { SHAPES, TILE, TILES, glows, pools, put, signs, yawAt } from './instances.js';
-import { ARCHETYPES, ARCH_WEIGHTS, MERGED_MAT, TALLY, decor, insidePoly, merged } from './grammar.js';
+import { ARCHETYPES, ARCH_BASE, ARCH_WEIGHTS, MERGED_MAT, TALLY, decor, insidePoly, merged } from './grammar.js';
 import { rideFocus, rideTick, riding } from './ride.js';
 import { TRAFFIC, centre, hwCars, hwTraffic, moveCars, nearHighway, track, uploadUsed } from './transport.js';
 import { BLOCK_MAX, CITYTUNE, FRAMES, QUERY, SC, SITES, frontOf, generate } from './generator.js';
@@ -304,7 +304,7 @@ blendInput.oninput = () => {
 // rebuilds the city when its slider is released. The i pill shows the row's info, and the search box finds rows
 // in every group.
 
-const T = SETTING.look.tune, BOOST = SETTING.centre.boost, ARCH0 = structuredClone(ARCH_WEIGHTS);
+const T = SETTING.look.tune, BOOST = SETTING.centre.boost;
 export const TUNE = {
   Light: [
     ['exposure', 'Exposure', .3, 2.5, .05, T.exposure, 'Brightness of the whole image.', v => { renderer.toneMappingExposure = v; }],
@@ -338,20 +338,20 @@ export const TUNE = {
   // Skyline and Lots rows change how the city builds.
 
   Skyline: [
-    CORES.length && ['cores', 'Skyline clusters', 0, 2.5, .05, 1, 'Scales the peaks of the density cores. Higher grows taller, denser clusters with low ground between them. At 0 only the noise remains.', v => { DENSITY.cores = v; }, true],
-    ['grain', 'Tall next to low', 0, 4, .1, 1, 'Widens the fine 70 m noise in the density field. Higher puts tall and low lots side by side more often.', v => { DENSITY.grain = v; }, true],
-    ['skew', 'Height skew', .6, 3, .05, 1.4, 'Shapes the heights of one-building lots. Higher keeps most of them low and makes the tall ones rarer. Lower evens them out.', v => { CITYTUNE.skew = v; }, true],
-    ['needles', 'Needle towers', 0, .2, .005, 0, 'The share of lots in every district that grow one slim tower, whatever the district\'s own heights. Odd tower shapes apply to them too.', v => { CITYTUNE.needles = v; }, true],
-    ['needleTop', 'Needle height (m)', 80, 800, 10, 350, 'The tallest a needle grows. Each needle stands 35% to 100% of this, and most stay in the lower half. Building height and the centre lift do not change it.', v => { CITYTUNE.needleTop = v; }, true],
+    CORES.length && ['cores', 'Skyline clusters', 0, 2.5, .05, DENSITY.cores, 'Scales the peaks of the density cores. Higher grows taller, denser clusters with low ground between them. At 0 only the noise remains.', v => { DENSITY.cores = v; }, true],
+    ['grain', 'Tall next to low', 0, 4, .1, DENSITY.grain, 'Widens the fine 70 m noise in the density field. Higher puts tall and low lots side by side more often.', v => { DENSITY.grain = v; }, true],
+    ['skew', 'Height skew', .6, 3, .05, CITYTUNE.skew, 'Shapes the heights of one-building lots. Higher keeps most of them low and makes the tall ones rarer. Lower evens them out.', v => { CITYTUNE.skew = v; }, true],
+    ['needles', 'Needle towers', 0, .2, .005, CITYTUNE.needles, 'The share of lots in every district that grow one slim tower, whatever the district\'s own heights. Odd tower shapes apply to them too.', v => { CITYTUNE.needles = v; }, true],
+    ['needleTop', 'Needle height (m)', 80, 800, 10, CITYTUNE.needleTop, 'The tallest a needle grows. Each needle stands 35% to 100% of this, and most stay in the lower half. Building height and the centre lift do not change it.', v => { CITYTUNE.needleTop = v; }, true],
     ['tallInfill', 'Infill towers from (m)', 15, 80, 1, SC.tallInfill, 'A one-building small lot taller than this becomes a tower. Its height still follows the district, so low districts only get towers of about 50 m.', v => { SC.tallInfill = v; }, true],
-    ['shapes', 'Odd tower shapes', 0, 5, .1, 1, 'Scales the odds of the special tower shapes (ziggurat, split, launch, kowloon and screens) against the plain stacked tower. Only generic towers take them, which is mostly Rutherford and the needles.',
-      v => { for (const k in ARCH0) if (k !== 'grammar') ARCH_WEIGHTS[k] = ARCH0[k].map(w => w * v); }, true],
+    ['shapes', 'Odd tower shapes', 0, 5, .1, CITYTUNE.shapes, 'Scales the odds of the special tower shapes (ziggurat, split, launch, kowloon and screens) against the plain stacked tower. Only generic towers take them, which is mostly Rutherford and the needles.',
+      v => { for (const k in ARCH_BASE) if (k !== 'grammar') ARCH_WEIGHTS[k] = ARCH_BASE[k].map(w => w * v); }, true],
     BOOST.k && ['boost', 'Lift near the centre', 0, 3, .05, BOOST.k, 'Raises buildings close to the centre. The lift fades with distance.', v => { BOOST.k = v; }, true],
     BOOST.k && ['boostReach', 'Lift reach (m)', 100, 3000, 50, BOOST.r, 'How far the centre lift reaches. At this distance the lift falls to about a third.', v => { BOOST.r = v; }, true],
   ].filter(Boolean),
   Lots: [
     ['smallLot', 'Small lot width (m)', 8, 30, 1, SC.smallLot, 'Lots narrower than this take a small kit or one building. Wider lots take a full kit from the district tiers.', v => { SC.smallLot = v; }, true],
-    ['small', 'Small kit share', 0, 1.5, .05, 1, 'Scales the share of small lots that take their district\'s small kits. The rest get one plain building.', v => { CITYTUNE.small = v; }, true],
+    ['small', 'Small kit share', 0, 1.5, .05, CITYTUNE.small, 'Scales the share of small lots that take their district\'s small kits. The rest get one plain building.', v => { CITYTUNE.small = v; }, true],
   ],
 };
 

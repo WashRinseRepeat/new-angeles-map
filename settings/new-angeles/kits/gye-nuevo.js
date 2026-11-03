@@ -131,15 +131,16 @@ export function sights(G) {
     // each in three stepped phalanges with lit knuckles, and end in slim towers. From above it reads as an open hand.
 
     gye_mano: {
-      at: [990, 1425], label: 'La Mano del Cielo', minSide: 60, reach: 360, labelY: 300,
+      at: [990, 1425], label: 'La Mano del Cielo', minSide: 60, reach: 360, labelY: 390, hush: 320,
       build(x, z, w, d, st, r) {
         const S = T.ctx(x, z, st, .8).st, q = settle(x, z, Math.min(w, d, 132) / 2 - 2), R = q.R;
-        const F = facing(q.x, q.z), { at, fr } = F, ph = 10, PINK = [1.6, .35, .8];
+        const F = facing(q.x, q.z), { at, fr } = F, ph = 10, PINK = [1.6, .35, .8], K = 1.3, Rh = R * K;
         plinth(F, R, ph, S, r, 'LA MANO DEL CIELO');
 
-        // Hub tower in three tapering octagonal sections, a lit crown and the name on its front.
+        // The hand stands K times the plinth's size. Hub tower in three tapering octagonal sections, a lit crown and
+        // the name on its front.
 
-        const ha = -.45 * R, hw = .34 * R, [hx, hz] = at(ha, 0), TOPH = 300 + 40 * r(), P = 150 + 20 * r();
+        const ha = -.45 * Rh, hw = .34 * Rh, [hx, hz] = at(ha, 0), TOPH = (300 + 40 * r()) * K, P = (150 + 20 * r()) * K;
         for (let k = 0; k < 3; k++) {
           const y0 = ph + k * (TOPH - ph) / 3;
           bld(hx, hz, hw * (1 - .1 * k), hw * (1 - .1 * k), (TOPH - ph) / 3, { ...S, lit: .4 }, r, { y0, roof: false, shape: 'oct', skin: k % 2 ? SKINS.bands : SKINS.grid });
@@ -152,7 +153,7 @@ export function sights(G) {
 
         // The palm: a round deck of shops and offices round the hub, ringed in gold and pink, with a garden on top.
 
-        const pw = .82 * R;
+        const pw = .82 * Rh;
         bld(hx, hz, pw, pw, 18, { ...S, lit: .85, win: [1, .84, .58] }, r, { y0: P - 9, roof: false, shape: 'cyl', skin: SKINS.curtain });
         put(GLOWS.ring, hx, P - 9.2, hz, pw * 1.02, 1, pw * 1.02, 0, 0, dim(GOLD, .9));
         put(GLOWS.ring, hx, P + 9.2, hz, pw * 1.02, 1, pw * 1.02, 0, 0, dim(PINK, .8));
@@ -163,13 +164,13 @@ export function sights(G) {
           put(GLOWS.sphere, hx + Math.cos(a) * pw * .47, P + 10.6, hz + Math.sin(a) * pw * .47, .5, .5, .5, 0, 0, [1.4, 1.05, .7]);
         }
 
-        // Thumb and four fingers: angle off the front, reach in R and rise from palm to tip.
+        // Thumb and four fingers: angle off the front, reach in Rh and rise from palm to tip.
 
         for (const [deg, len, rise] of [[-78, .6, -30], [-34, .95, 20], [-10, 1.08, 34], [14, 1, 24], [38, .8, 12]]) {
-          const th = deg * Math.PI / 180, ca = Math.cos(th), cb = Math.sin(th), L0 = hw * .45, L1 = len * R;
+          const th = deg * Math.PI / 180, ca = Math.cos(th), cb = Math.sin(th), L0 = hw * .45, L1 = len * Rh;
           const pt = f => at(ha + ca * (L0 + (L1 - L0) * f), cb * (L0 + (L1 - L0) * f));
-          const cuts = [0, .42, .74, 1], bws = [.2, .17, .14].map(v => v * R), bhs = [16, 13, 11];
-          const ys = [0, 1, 2].map(k => P - 6 + rise * k / 2);
+          const cuts = [0, .42, .74, 1], bws = [.2, .17, .14].map(v => v * Rh), bhs = [16, 13, 11];
+          const ys = [0, 1, 2].map(k => P - 6 + rise * K * k / 2);
           for (let k = 0; k < 3; k++) {
             span(pt(cuts[k]), pt(cuts[k + 1]), ys[k], bws[k], bhs[k], S, r, { accent: k % 2 ? PINK : GOLD, lit: .7 + .15 * r() });
             if (k) {
@@ -181,7 +182,7 @@ export function sights(G) {
 
           // Fingertip tower with a pink nail ring where the finger meets it.
 
-          const [tx, tz] = pt(1), tw = .19 * R, top = ys[2] + bhs[2] + 40 + 60 * r();
+          const [tx, tz] = pt(1), tw = .19 * Rh, top = ys[2] + bhs[2] + (40 + 60 * r()) * K;
           const t = T.layered(tx, tz, tw, tw, top - ph, S, r, { y0: ph, layers: 3 });
           roof(t.x, t.z, t.w, t.d, t.y, S, r);
           beacon(t.x, t.y + 2, t.z, r);
