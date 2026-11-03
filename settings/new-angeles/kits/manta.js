@@ -664,11 +664,12 @@ export function landmarks(H) {
     // Al-Ghym: a sky-blue hotel with white trim. Its floors turn slowly, and lit rooms slide up and down the core.
 
     alghym: {
-      at: [345, 880], reach: 400, minSide: 40, label: 'Al-Ghym', labelY: 160,
+      at: [345, 880], reach: 400, minSide: 40, label: 'Al-Ghym', labelY: 190,
       build(x, z, w, d, st, r) {
         const S = look(st, { base: [.15, .3, .42], win: [.85, .95, 1], lit: .6 });
         bld(0, 0, Math.min(w, 56), Math.min(d, 44), 9, S, r, { skin: SKINS.curtain, glow: 1, roof: false });
-        bld(0, 0, 11, 11, 140, look(S, { base: [.4, .42, .45], lit: .3 }), r, { shape: 'cyl', skin: SKINS.bands, roof: false });
+        const FL = 3.8, N = 40, G = 10, base = 12, top = base + N * FL;
+        bld(0, 0, 11, 11, top + 6.4, look(S, { base: [.4, .42, .45], lit: .3 }), r, { shape: 'cyl', skin: SKINS.bands, roof: false });
         const facade = H.canvasTexture(256, 64, (g, W, Hh) => {
           g.fillStyle = '#3d8fd0'; g.fillRect(0, 0, W, Hh);
           for (let i = 0; i < 16; i++) { g.fillStyle = (i * 7) % 5 ? '#e8f4ff' : '#ffd9a0'; g.fillRect(i * 16 + 3, 16, 10, 34); }
@@ -683,7 +684,6 @@ export function landmarks(H) {
           s.quadraticCurveTo(x0, -z0, x0, -z0 - rad); s.lineTo(x0, z0 + rad); s.quadraticCurveTo(x0, z0, x0 + rad, z0);
           return s;
         };
-        const FL = 3.8, N = 32, G = 8, base = 12;
         for (let g = 0; g < G; g++) {
           const fl = [], tr = [];
           for (let k = g * N / G; k < (g + 1) * N / G; k++) {
@@ -701,10 +701,10 @@ export function landmarks(H) {
           const a = k * 1.571 + .4, m = add(new THREE.BoxGeometry(4, 3.4, 4), roomMat, Math.cos(a) * 7.6, 0, Math.sin(a) * 7.6), ph = k * 1.7;
           m.onBeforeRender = () => { m.position.y = base + 4 + (Math.sin(now() * .08 + ph) * .5 + .5) * (N * FL - 8); m.updateMatrixWorld(); };
         }
-        const top = base + N * FL, sky = [.4, .9, 1.8];
+        const sky = [.4, .9, 1.8];
         put(GLOWS.ring, 0, top + 1, 0, 30, 30, 30, 0, 0, sky);
         put(GLOWS.ring, 0, 9.4, 0, 60, 60, 60, 0, 0, dim(sky, .5));
-        beacon(0, 141, 0, r);
+        beacon(0, top + 7.4, 0, r);
         for (const f of [{ x: 0, z: 1 }, { x: 0, z: -1 }]) {
           const m = logo('AL-GHYM', '#7fd0ff', 26, 5.5);
           m.position.set(0, top + 6, f.z * 2); m.rotation.y = ryOf(f);

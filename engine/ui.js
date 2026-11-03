@@ -473,7 +473,14 @@ document.getElementById('treset').onclick = () => {
   rebuild();
   try { localStorage.removeItem(TUNE_KEY); } catch {}
 };
-document.getElementById('tcopy').onclick = () => navigator.clipboard.writeText(JSON.stringify({ ...tuned, fog: '#' + FOG.getHexString() }));
+
+// Copy values also copies the camera view, so a bug report can name the exact spot.
+
+document.getElementById('tcopy').onclick = () => {
+  const v = a => a.toArray().map(n => Math.round(n * 10) / 10);
+  const view = { pos: v(camera.position), target: v(controls.target), quality: QUALITY.level, size: [innerWidth, innerHeight], dpr: renderer.getPixelRatio() };
+  navigator.clipboard.writeText(JSON.stringify({ ...tuned, fog: '#' + FOG.getHexString(), view }));
+};
 
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
