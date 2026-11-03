@@ -417,7 +417,7 @@ export function build(H, group) {
 
         float d = distance(cameraPosition, vW);
         float f = clamp(smoothstep(uFogNear, uFogFar, d), 0., 1.);
-        c = mix(c, uFog * 1.2, f * .78) + vec3(.02, .035, .055) * smoothstep(600., 5000., h);
+        c = mix(c, uFog, f * .65) + vec3(.01, .018, .028) * smoothstep(600., 5000., h);
         gl_FragColor = vec4(c + e * (1. - .55 * f), 1.);
       }`,
   });
