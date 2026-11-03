@@ -288,9 +288,10 @@ function jungle(H, land) {
   const byLength = q => { let lo = 0, hi = sum.length - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (sum[m] < q * sum.at(-1)) lo = m + 1; else hi = m; } return lo; };
   const OLD = new URLSearchParams(location.search).get('infill') === '0';
 
-  // Trees keep off the city, but grow up to its edge and into the ground where the edge frays.
+  // Trees keep off the city, but grow up to its edge and into the ground where the edge frays. Outside the city
+  // they also keep off the ground a landmark holds, such as the power plant's clearing.
 
-  const tooClose = (x, z, d, gap) => OLD ? d < gap : d > 0 ? d < 3 : edgeAt(x, z) > -.05;
+  const tooClose = (x, z, d, gap) => OLD ? d < gap : d > 0 ? d < 3 || edgeAt(x, z) > .3 : edgeAt(x, z) > -.05;
   const crowns = new THREE.InstancedMesh(new THREE.OctahedronGeometry(1, 0), new THREE.MeshStandardMaterial({ roughness: 1, flatShading: true }), 45000);
   const huts = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ roughness: .9 }), 1500);
   const lamps = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial(), 1500);
