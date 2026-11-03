@@ -25,15 +25,18 @@ function lib(H) {
   const COLD = [1.3, 1.45, 1.6], POLICE = [.5, .8, 1.8];
   const GARDEN = [.03, .075, .035], PLANT = [.03, .09, .04], PATH = [.11, .1, .09], RENDER = [.27, .27, .26], POOLW = [.08, .5, .6];
   const IVORY = [.28, .26, .22], ESTLAWN = [.035, .09, .04], GRAVEL = [.15, .14, .12], ROOF = [.3, .12, .06];
+  const OCHRE = [.25, .17, .1], BLUSH = [.27, .2, .19], MINT = [.2, .25, .23], WASH = [.3, .3, .29], CONC = [.13, .125, .115];
+  const SLATE = [.07, .075, .085], BLOOM = [.3, .05, .13], DARKWOOD = [.1, .065, .04];
 
   const dims = (s, cap = 120) => { const f = H.frame(); return f?.w ? [Math.min(f.w - 2, cap), Math.min(f.d - 2, cap)] : [s, s]; };
   const front = () => { const f = H.frame()?.front; return f ? [f.x, f.z] : [0, 1]; };
 
   // Street-relative axes: u runs along the street, v points toward it. at() and sz() map back to the lot frame.
+  // ry turns a shape whose long axis is local x so that axis runs along u.
 
   const axesOf = (x, z, W, D, [fx, fz]) => fz
-    ? { L: W, S: D, at: (u, v) => [x + u, z + v * fz], sz: (a, c) => [a, c] }
-    : { L: D, S: W, at: (u, v) => [x + v * fx, z + u], sz: (a, c) => [c, a] };
+    ? { L: W, S: D, ry: 0, at: (u, v) => [x + u, z + v * fz], sz: (a, c) => [a, c] }
+    : { L: D, S: W, ry: Math.PI / 2, at: (u, v) => [x + v * fx, z + u], sz: (a, c) => [c, a] };
   const boxIn = A => (kind, u, v, lu, lv, y, h, rgb) => { const [px, pz] = A.at(u, v), [w, d] = A.sz(lu, lv); return prop(kind, px, y + h / 2, pz, w, h, d, rgb); };
   const glowIn = A => (u, v, lu, lv, y, h, rgb) => { const [px, pz] = A.at(u, v), [w, d] = A.sz(lu, lv); return glow(px, y + h / 2, pz, w, h, d, rgb); };
   const p3 = (A, u, y, v) => { const [px, pz] = A.at(u, v); return [px, y, pz]; };
@@ -112,36 +115,56 @@ function lib(H) {
     boat(ax ? ex - sg * 2 : ex + 3, ax ? ez + 3 : ez - sg * 2, ax, 7 + r() * 3, r);
   };
 
-  // A lit swimming pool: a turquoise water box and its glow on the ground.
+  // A lit swimming pool: a turquoise water box and its glow on the ground. The water stands just clear of the lawn top.
 
   const swim = (x, y, z, w, d) => {
-    glow(x, y + .12, z, w, .12, d, POOLW);
+    glow(x, y + .2, z, w, .2, d, POOLW);
     if (!y) pool(x, z, Math.max(w, d) * .7, [.02, .09, .11]);
   };
 
-  // Hip roof in terracotta over a wing.
+  // Hip roof in terracotta tiles over a wing.
 
-  const hip = (x, z, w, d, y, st, r, c = TILE) => bld(x, z, w + 1, d + 1, Math.min(w, d) * .3, { ...st, base: dim(c, .8 + .4 * r()) }, r, { y0: y, shape: 'pyr', lit: 0, roof: false });
+  const hip = (x, z, w, d, y, st, r, c = TILE) => bld(x, z, w + 1, d + 1, Math.min(w, d) * .3, { ...st, base: dim(c, .8 + .4 * r()) }, r, { y0: y, shape: 'pyr', skin: SKINS.tile, lit: 0, roof: false });
+
+  // Gable roof in tiles over a wing, its ridge along u.
+
+  const gableIn = (A, u, v, lu, lv, y, h, st, r, c = TILE) => {
+    const [px, pz] = A.at(u, v);
+    bld(px, pz, lu, lv, h, { ...st, base: dim(c, .8 + .4 * r()) }, r, { y0: y, shape: 'gable', ry: A.ry, skin: SKINS.tile, lit: 0, roof: false });
+  };
 
   // ---------- reusable builders: mansion, villa, campus ----------
 
   // Spanish Colonial mansion: a U of hip-roofed wings round a fountain court, a pool, hedges, and by the water a jetty and a boat.
+  // Walls, wall finish and roof colour vary. Half the mansions raise a mirador tower on one arm of the U.
 
   const mansionAt = (x, z, W, D, st, r, fv) => {
     const A = axesOf(x, z, W, D, fv), { L, S } = A, box = boxIn(A), gl = glowIn(A);
-    const ms = { ...st, base: dim(CREAM, .95 + .3 * r()), win: WARM, lit: .6 + .25 * r(), grime: 0 };
+    const ms = { ...st, base: dim(pick(r, [CREAM, CREAM, IVORY, OCHRE, WASH]), .95 + .3 * r()), win: WARM, lit: .6 + .25 * r(), grime: 0 };
+    const skin = pick(r, [SKINS.plaster, SKINS.plaster, SKINS.grid, SKINS.stone]), rc = pick(r, [TILE, TILE, ROOF, SLATE]);
     lawn(x, z, W, D, 0, GARDEN);
     const hl = Math.min(L * .62, 36), hs = Math.min(S * .5, 26), hv = -S * .06, t = Math.min(8, hs * .38), h = 7 + 2.5 * r();
     const wings = [[0, hv - hs / 2 + t / 2, hl, t, h + 3], [-(hl / 2 - t / 2), hv, t, hs, h], [hl / 2 - t / 2, hv, t, hs, h]];
     for (const [u, v, lu, lv, wh] of wings) {
       const [px, pz] = A.at(u, v), [w, d] = A.sz(lu, lv);
-      bld(px, pz, w, d, wh, ms, r, { roof: false, kibble: false, skin: SKINS.grid, glow: .2 });
-      hip(px, pz, w, d, wh, st, r);
+      bld(px, pz, w, d, wh, ms, r, { roof: false, kibble: false, skin, glow: .2 });
+      hip(px, pz, w, d, wh, st, r, rc);
+    }
+    if (r() < .5) {
+      const tu = (r() < .5 ? -1 : 1) * (hl / 2 - t / 2), tv = hv + hs / 2 - t / 2, th = h + 5 + 2 * r(), [px, pz] = A.at(tu, tv);
+      bld(px, pz, t, t, th, ms, r, { roof: false, kibble: false, skin, glow: .25 });
+      hip(px, pz, t, t, th, st, r, rc);
+      for (const s of [-1, 1]) gl(tu + s * t * .2, tv + t / 2 + .1, .8, .2, th - 2.8, 1.6, dim(WARM, .8));
     }
 
     // Lit arcade on the court face, a fountain, a pool beside the house.
 
     gl(0, hv - hs / 2 + t + .2, hl - 2 * t, .2, 1, 1.6, dim(WARM, .35));
+    for (let k = 0, n = Math.max(2, Math.floor((hl - 2 * t) / 3.5)); k <= n; k++) {
+      const [cx, cz] = A.at(-(hl / 2 - t) + .5 + k * (hl - 2 * t - 1) / n, hv - hs / 2 + t + 1.6);
+      prop('cyl', cx, 1.6, cz, .55, 3.2, .55, ms.base);
+    }
+    box('box', 0, hv - hs / 2 + t + 1, hl - 2 * t, 2.2, 3.2, .35, dim(ms.base, .9));
     const [cx, cz] = A.at(0, hv + t / 2);
     put(GLOWS.sphere, cx, .9, cz, 1.4, .6, 1.4, 0, 0, dim(TEAL, .4));
     pool(cx, cz, 6, [.08, .07, .05]);
@@ -169,18 +192,20 @@ function lib(H) {
   };
 
   // Wood-and-stone villa set back among trees: a long timber hall, a stone wing, a lit deck and a pergola.
+  // The timber tone and the stone wing's side vary. Half the halls carry a steep gable roof instead of a flat overhang.
 
   const villaAt = (x, z, W, D, st, r, fv) => {
     const A = axesOf(x, z, W, D, fv), { L, S } = A, box = boxIn(A), gl = glowIn(A);
     lawn(x, z, W, D, 0, GARDEN);
-    const hl = Math.min(L * .5, 26), hs = Math.min(S * .25, 10), v0 = -S * .15, h = 5 + 2 * r();
-    const ws = { ...st, base: dim([.17, .11, .07], .8 + .4 * r()), win: WARM, lit: .65 + .2 * r(), grime: 0 };
+    const hl = Math.min(L * .5, 26), hs = Math.min(S * .25, 10), v0 = -S * .15, h = 5 + 2 * r(), side = r() < .5 ? -1 : 1, gabled = r() < .5;
+    const ws = { ...st, base: dim(pick(r, [[.17, .11, .07], [.12, .08, .05], [.2, .15, .1]]), .8 + .4 * r()), win: WARM, lit: .65 + .2 * r(), grime: 0 };
     const ss = { ...ws, base: dim(STONE, .8 + .3 * r()) };
-    const parts = [[0, v0, hl, hs, h, ws], [-hl / 2, v0 - hs / 2, Math.min(10, hl * .4), hs * 1.6, h + 2, ss]];
-    for (const [u, v, lu, lv, vh, vs] of parts) {
+    const parts = [[0, v0, hl, hs, h, ws, SKINS.timber], [side * hl / 2, v0 - hs / 2, Math.min(10, hl * .4), hs * 1.6, h + 2, ss, SKINS.stone]];
+    for (const [u, v, lu, lv, vh, vs, skin] of parts) {
       const [px, pz] = A.at(u, v), [w, d] = A.sz(lu, lv);
-      bld(px, pz, w, d, vh, vs, r, { roof: false, kibble: false, skin: SKINS.grid, glow: .2 });
-      prop('box', px, vh + .2, pz, w + 2.4, .35, d + 2.4, [.05, .04, .03]);
+      bld(px, pz, w, d, vh, vs, r, { roof: false, kibble: false, skin, glow: .2 });
+      if (gabled && vs === ws) gableIn(A, u, v, lu + 1.6, lv + 1.6, vh, lv * .6, st, r, DARKWOOD);
+      else prop('box', px, vh + .2, pz, w + 2.4, .35, d + 2.4, [.05, .04, .03]);
     }
     box('box', 0, v0 + hs / 2 + 2.5, hl * .8, 5, 0, .6, WOOD);
     gl(0, v0 + hs / 2 + .2, hl * .7, .2, 2.5, .2, dim(WARM, .8));
@@ -250,11 +275,11 @@ function lib(H) {
 
   const glassOf = (st, r, lit = .45) => ({ ...st, base: dim([.2, .22, .25], .85 + .3 * r()), win: [.78, .9, 1], lit, neon: .08 });
 
-  // A reflecting pool with teal edge strips.
+  // A reflecting pool with teal edge strips. The water stands just clear of the lawn top.
 
   const reflect = (A, u, v, lu, lv) => {
-    boxIn(A)('box', u, v, lu, lv, .1, .16, WATER);
-    for (const s of [-1, 1]) glowIn(A)(u, v + s * lv / 2, lu, .18, .2, .1, dim(TEAL, .35));
+    boxIn(A)('box', u, v, lu, lv, .2, .1, WATER);
+    for (const s of [-1, 1]) glowIn(A)(u, v + s * lv / 2, lu, .18, .22, .1, dim(TEAL, .35));
   };
 
   // ---------- small-lot builders: modern villa, terraced residence, sky residence, garden, brick hall ----------
@@ -262,9 +287,9 @@ function lib(H) {
   // Homes use white render, warm interior light and no grime.
 
   const homeOf = (st, r, lit = .8) => ({ ...st, base: dim(RENDER, .85 + .3 * r()), win: WARM, lit, grime: 0, neon: 0 });
-  const homeBld = (A, u, v, lu, lv, y0, h, s, r, skin, gl = 0) => {
+  const homeBld = (A, u, v, lu, lv, y0, h, s, r, skin, gl = 0, shape = 'box') => {
     const [px, pz] = A.at(u, v), [w, d] = A.sz(lu, lv);
-    bld(px, pz, w, d, h, s, r, { y0, roof: false, kibble: false, skin, glow: gl });
+    bld(px, pz, w, d, h, s, r, { y0, roof: false, kibble: false, skin, glow: gl, shape });
   };
 
   // A planted terrace edge: a planter on the step, and warm balcony light under its lip.
@@ -274,28 +299,42 @@ function lib(H) {
     glowIn(A)(u, v + .1, lu * .94, .15, y - .7, .25, dim(WARM, .6));
   };
 
-  // Modern villa: a glass ground floor and white upper floors that step back from the street and slide sideways.
-  // Each step carries a planter. The top has a roof garden. The front garden has a lit pool and a palm.
+  // Modern villa: a glass ground floor and upper floors that step back from the street and slide sideways.
+  // The upper floors take white render, ivory plaster, dark cedar or stone. Each step carries a planter.
+  // The top holds a roof garden, a timber pergola under string lights, or a glass penthouse under a floating roof.
+  // The front garden has a lit pool and a tree.
 
   const modernVillaAt = (x, z, W, D, st, r, fv) => {
-    const A = axesOf(x, z, W, D, fv), { L, S } = A, box = boxIn(A);
-    const vs = homeOf(st, r), gs = { ...vs, base: [.1, .11, .12], lit: .95 }, n = Math.min(L, S) > 22 ? 3 : 2, side = r() < .5 ? -1 : 1;
+    const A = axesOf(x, z, W, D, fv), { L, S } = A, box = boxIn(A), gl = glowIn(A);
+    const [wall, skin] = pick(r, [[RENDER, SKINS.bands], [RENDER, SKINS.bands], [IVORY, SKINS.plaster], [dim(DARKWOOD, 1.5), SKINS.plaster], [STONE, SKINS.stone]]);
+    const vs = { ...homeOf(st, r), base: dim(wall, .85 + .3 * r()) }, gs = { ...vs, base: [.1, .11, .12], lit: .95 }, n = Math.min(L, S) > 22 ? 3 : 2, side = r() < .5 ? -1 : 1;
     lawn(x, z, W, D, 0, GARDEN);
     let lu = L * .72, lv = S * .5, u = side * L * .06, v = -S * .1, y = 0;
     for (let k = 0; k < n; k++) {
-      homeBld(A, u, v, lu, lv, y, 3.5, k ? vs : gs, r, k ? SKINS.bands : SKINS.curtain, k ? 0 : .3);
+      homeBld(A, u, v, lu, lv, y, 3.5, k ? vs : gs, r, k ? skin : SKINS.curtain, k ? 0 : .3);
       y += 3.5;
       if (k === n - 1) break;
       terraceEdge(A, u, v + lv / 2, lu, y);
       const step = Math.max(1.6, lv * .3);
       lv -= step; v -= step / 2; lu *= .85; u -= side * L * .05;
     }
-    box('box', u, v, lu * .7, lv * .6, y, .35, PLANT);
-    tree(...p3(A, u + lu * .2, y + .35, v), 2 + r() * 1.5, r, 'shrub');
+    const top = pick(r, ['garden', 'pergola', 'penthouse']);
+    if (top === 'garden') {
+      box('box', u, v, lu * .7, lv * .6, y, .35, PLANT);
+      tree(...p3(A, u + lu * .2, y + .35, v), 2 + r() * 1.5, r, 'shrub');
+    } else if (top === 'pergola') {
+      box('box', u, v, lu * .8, lv * .7, y + 2.6, .25, WOOD);
+      for (const su of [-1, 1]) box('cyl', u + su * lu * .38, v + lv * .32, .25, .25, y, 2.6, WOOD);
+      stringLights(p3(A, u - lu * .38, y + 2.4, v + lv * .34), p3(A, u + lu * .38, y + 2.4, v + lv * .34), .3, 6, dim(WARM, 1.1));
+    } else {
+      homeBld(A, u - side * lu * .15, v, lu * .5, lv * .7, y, 3, gs, r, SKINS.curtain, .6);
+      box('box', u - side * lu * .1, v, lu * .8, lv * .95, y + 3, .3, dim(wall, 1.1));
+      gl(u - side * lu * .1, v + lv * .475, lu * .8, .1, y + 2.95, .1, dim(GOLD, .6));
+    }
     const [sx, sz] = A.at(-side * L * .2, S * .32), [sw, sd] = A.sz(L * .38, Math.min(S * .16, 6));
     swim(sx, 0, sz, sw, sd);
     const [px, pz] = A.at(side * L * .33, S * .3);
-    tree(px, .3, pz, 7 + r() * 3, r, 'palm');
+    tree(px, .3, pz, 7 + r() * 3, r, pick(r, ['palm', 'palm', 'cypress', 'broad']));
     pool(px, pz, 3, [.09, .06, .03]);
     box('box', 0, S / 2 - .6, L - 2, 1, 0, 1, HEDGE);
     dock(x, z, W, D, r);
@@ -445,12 +484,14 @@ function lib(H) {
   };
 
   // Estate: a private lawn behind a hedge or a low stone wall. One in four walls carries a gold-lit top.
-  // The house takes one of five plans (bar with wings, L, courtyard, pavilions, stacked modern slabs).
+  // The house takes one of five plans (bar with wings, L, courtyard, pavilions, stacked modern slabs), and its walls,
+  // wall finish and roof colour vary.
   // The pool varies in shape and place. The grounds are open lawn, dense private woods, a formal forecourt or a canal.
 
   const estateAt = (x, z, W, D, st, r, fv) => {
     const A = axesOf(x, z, W, D, fv), { L, S } = A, box = boxIn(A), gl = glowIn(A);
-    const hs = { ...st, base: dim(IVORY, .9 + .2 * r()), win: WARM, lit: .65 + .25 * r(), grime: 0, neon: 0 };
+    const hs = { ...st, base: dim(pick(r, [IVORY, IVORY, CREAM, WASH, OCHRE]), .9 + .2 * r()), win: WARM, lit: .65 + .25 * r(), grime: 0, neon: 0 };
+    const wallSkin = pick(r, [SKINS.grid, SKINS.plaster, SKINS.plaster, SKINS.stone]), rc = pick(r, [ROOF, ROOF, TILE, SLATE]);
     const glass = { ...hs, base: [.1, .11, .12], lit: 1 };
     lawn(x, z, W, D, 0, ESTLAWN);
 
@@ -467,7 +508,7 @@ function lib(H) {
 
     const plan = pick(r, ['bar', 'bar', 'L', 'court', 'court', 'pav', 'modern']), keep = [];
     const part = (u, v, lu, lv, y0, ph, s, skin, g = .2) => { homeBld(A, u, v, lu, lv, y0, ph, s, r, skin, g); if (!y0) keep.push([u, v, lu / 2 + 3, lv / 2 + 3]); };
-    const roofed = (u, v, lu, lv, ph) => { part(u, v, lu, lv, 0, ph, hs, SKINS.grid); hip(...A.at(u, v), ...A.sz(lu, lv), ph, st, r, ROOF); };
+    const roofed = (u, v, lu, lv, ph) => { part(u, v, lu, lv, 0, ph, hs, wallSkin); hip(...A.at(u, v), ...A.sz(lu, lv), ph, st, r, rc); };
     const flat = (u, v, lu, lv, y0, ph, s = hs) => { part(u, v, lu, lv, y0, ph, s, s === glass ? SKINS.curtain : SKINS.bands, s === glass ? .4 : .15); box('box', u, v, lu * .8, lv * .8, y0 + ph, .35, PLANT); };
     const side = r() < .5 ? -1 : 1, deep = r() < .4;
     const Lm = Math.min(L * (.38 + .14 * r()), 40), Sm = Math.min(S * .24, 15), h = 9 + 4 * r();
@@ -715,6 +756,314 @@ function lib(H) {
     lamp(...A.at(0, S / 2 - 1.5), 3.5);
   };
 
+  // ---------- house builders: colonial townhouse, streamline villa, glass pavilion, concrete villa, hillside cascade, tower house ----------
+
+  // Spanish Colonial townhouse: two plaster floors under a terracotta hip or gable roof, an arcade along the front
+  // with a timber balcony on top, a mirador tower with its own roof, and a walled front court with a fountain and bougainvillea.
+
+  const colonialAt = (x, z, W, D, st, r, fv) => {
+    const A = axesOf(x, z, W, D, fv), { L, S } = A, box = boxIn(A), gl = glowIn(A);
+    const cs = { ...homeOf(st, r, .7), base: dim(pick(r, [CREAM, IVORY, OCHRE, BLUSH, WASH]), .9 + .2 * r()) };
+    const lu = Math.min(L * .8, 30), lv = Math.min(S * .4, 14), v0 = -S * .15, h = 7.6, fr = v0 + lv / 2, side = r() < .5 ? -1 : 1;
+    lawn(x, z, W, D, 0, GARDEN);
+    homeBld(A, 0, v0, lu, lv, 0, h, cs, r, SKINS.plaster, .15);
+    const gabled = r() < .45;
+    if (gabled) gableIn(A, 0, v0, lu + 1, lv + 1.2, h, lv * .42, st, r);
+    else hip(...A.at(0, v0), ...A.sz(lu, lv), h, st, r);
+
+    // Arcade: columns under a gallery slab, a lit back wall and soffit, a timber balcony rail on the slab.
+
+    const n = Math.max(3, Math.round(lu / 3.2));
+    for (let k = 0; k <= n; k++) { const [cx, cz] = A.at(-lu / 2 + .5 + k * (lu - 1) / n, fr + 2.6); prop('cyl', cx, 1.8, cz, .5, 3.6, .5, cs.base); }
+    box('box', 0, fr + 1.5, lu, 3.1, 3.6, .4, dim(cs.base, 1.3));
+    gl(0, fr + .12, lu * .92, .2, .6, 2.6, dim(WARM, .55));
+    gl(0, fr + 1.5, lu * .9, 2.6, 3.48, .1, dim(WARM, .25));
+    box('box', 0, fr + 2.95, lu, .15, 4, 1, DARKWOOD);
+
+    // Mirador tower over one end, taller than any ridge.
+
+    const tw = Math.min(5.5, lu * .26), tu = side * (lu / 2 - tw / 2), th = h + 3 + lv * .45;
+    homeBld(A, tu, v0 - .5, tw, tw, 0, th, cs, r, SKINS.plaster, .2);
+    hip(...A.at(tu, v0 - .5), tw, tw, th, st, r);
+    for (const s of [-1, 1]) gl(tu + s * tw * .2, v0 - .5 + tw / 2 + .1, .8, .2, th - 2.6, 1.6, dim(WARM, .8));
+
+    // Front court: a white wall with a lamp-lit gate, bougainvillea on the wall, a fountain and palms.
+
+    const gate = 3.4, ww = (L - gate) / 2 - .5, cv = (fr + 3.1 + S / 2) / 2;
+    for (const sd of [-1, 1]) {
+      box('box', sd * (gate / 2 + ww / 2), S / 2 - .5, ww, .5, 0, 1.6, dim(cs.base, .85));
+      box('box', sd * (gate / 2 + ww * (.3 + .4 * r())), S / 2 - .5, ww * .4, .9, 1.4, .6, BLOOM);
+      lamp(...A.at(sd * (gate / 2 + .3), S / 2 - .5), 2.6);
+    }
+    if (S / 2 - fr - 3.1 > 3.5) {
+      const [fx, fz] = A.at(0, cv);
+      prop('cyl', fx, .35, fz, 2.4, .5, 2.4, dim(STONE, .9));
+      put(GLOWS.sphere, fx, .65, fz, 2, .1, 2, 0, 0, dim(POOLW, .9));
+      put(GLOWS.sphere, fx, 1.2, fz, .3, 1.4, .3, 0, 0, [.6, .9, 1]);
+    }
+    if (L > 13) for (const sd of [-1, 1]) tree(...p3(A, sd * (L / 2 - 2), .3, cv), 7 + r() * 3, r, 'palm');
+
+    // A pool behind on deep lots.
+
+    const back = v0 - lv / 2 + S / 2;
+    if (back > 6) { const [sx, sz] = A.at(-side * lu * .15, -S / 2 + back / 2), [sw, sd] = A.sz(lu * .5, back - 3); swim(sx, 0, sz, sw, sd); }
+    dock(x, z, W, D, r);
+  };
+
+  // Streamline Moderne villa: pastel decks with round ends, ribbon windows, speed lines in one accent colour, a round
+  // glass stair tower with a lit crown ring, and a kidney pool on a terrazzo deck.
+
+  const decoAt = (x, z, W, D, st, r, fv) => {
+    const A = axesOf(x, z, W, D, fv), { L, S } = A, box = boxIn(A), gl = glowIn(A);
+    const ds = { ...homeOf(st, r, .75), base: dim(pick(r, [WASH, MINT, BLUSH, IVORY]), .9 + .15 * r()) }, ac = pick(r, [TEAL, TEAL, ROSE, GOLD]);
+    const side = r() < .5 ? -1 : 1, lv = Math.min(S * .38, 12, L * .3), lu = Math.min(L * .72, 30) - lv, v0 = -S * .12, u0 = -side * lv / 4;
+
+    // A deck: a box with a half-round end, a speed line round both, an eyebrow slab on top.
+
+    const deck = (u, v, l, d, y, h) => {
+      homeBld(A, u, v, l, d, y, h, ds, r, SKINS.bands, .2);
+      const [cx, cz] = A.at(u + side * l / 2, v);
+      bld(cx, cz, d, d, h, ds, r, { y0: y, shape: 'cyl', roof: false, kibble: false, skin: SKINS.bands, glow: .2 });
+      put(GLOWS.ring, cx, y + h * .5, cz, d + .3, 1, d + .3, 0, 0, dim(ac, .9));
+      gl(u, v + d / 2 + .05, l, .1, y + h * .5 - .06, .12, dim(ac, .9));
+      put(GLOWS.ring, cx, y + h + .2, cz, d + .5, 1, d + .5, 0, 0, dim(WARM, .35));
+      box('box', u, v, l, d + .8, y + h, .25, dim(ds.base, 1.15));
+    };
+    lawn(x, z, W, D, 0, GARDEN);
+    deck(u0, v0, lu, lv, 0, 3.6);
+    const l2 = lu * .62, d2 = lv * .74, u2 = u0 - side * lu * .12, v2 = v0 - lv * .12;
+    deck(u2, v2, l2, d2, 3.85, 3.2);
+
+    // Glass stair tower at the flat end, a lit ring and a mast on top.
+
+    const td = Math.min(4, lv * .4), [tx, tz] = A.at(u0 - side * lu / 2, v0 - lv * .1), th = 10 + 2 * r();
+    bld(tx, tz, td, td, th, { ...ds, base: [.08, .09, .1], lit: 1 }, r, { shape: 'cyl', roof: false, kibble: false, skin: SKINS.curtain, glow: .6 });
+    put(GLOWS.ring, tx, th + .1, tz, td + .4, 1, td + .4, 0, 0, dim(ac, 1.1));
+    prop('cyl', tx, th + 2.5, tz, .12, 5, .12, [.25, .25, .27]);
+    glow(tx, th + 5.1, tz, .3, .3, .3, dim(ac, 1.2));
+
+    // Kidney pool: two overlapping ovals on a terrazzo deck in the front garden, palms beside.
+
+    const fd = S / 2 - (v0 + lv / 2), pv = v0 + lv / 2 + fd * .5, pl = Math.min(L * .32, 11), pd = Math.min(fd * .45, 5);
+    if (pd > 1.8) {
+      box('box', side * L * .1, pv, pl + 3.5, pd + 2.6, 0, .28, dim(IVORY, .95));
+      for (const [ou, ov, k] of [[0, 0, 1], [side * pl * .38, pd * .22, .65]]) {
+        const [px, pz] = A.at(side * L * .1 + ou, pv + ov), [pw, pdd] = A.sz(pl * k, pd * k);
+        put(GLOWS.sphere, px, .33, pz, pw, .1, pdd, 0, 0, POOLW);
+      }
+      pool(...A.at(side * L * .1, pv), pl * .7, [.02, .09, .11]);
+    }
+    for (const sd of [-1, 1]) if (L > 12) tree(...p3(A, sd * (L / 2 - 1.8), .3, pv + sd * 1.5), 7 + r() * 4, r, 'palm');
+    for (const sd of [-1, 1]) box('box', sd * (L / 4 + 1), S / 2 - .6, L / 2 - 3, 1, 0, 1, HEDGE);
+    for (const sd of [-1, 1]) { const [lx, lz] = A.at(sd * 2, S / 2 - .6); prop('cyl', lx, 1, lz, .3, 2, .3, dim(ds.base, .9)); put(GLOWS.sphere, lx, 2.2, lz, .6, .6, .6, 0, 0, dim(WARM, 1.1)); }
+    dock(x, z, W, D, r);
+  };
+
+  // Glass pavilion: a glowing glass room between two thin white slabs on steel posts. The floor floats over the lawn,
+  // and its far end cantilevers over a reflecting pool. A travertine terrace with a floating step, one great tree.
+
+  const pavilionAt = (x, z, W, D, st, r, fv) => {
+    const A = axesOf(x, z, W, D, fv), { L, S } = A, box = boxIn(A), gl = glowIn(A);
+    const ps = { ...st, base: [.06, .07, .08], win: WARM, lit: 1, grime: 0, neon: 0 }, slab = dim(WHITE, 1.9);
+    const side = r() < .5 ? -1 : 1, lu = Math.min(L * .7, 30), lv = Math.min(S * .36, 12), v0 = -S * .1, fl = 1.3, gh = 3.4;
+    lawn(x, z, W, D, 0, GARDEN);
+    reflect(A, side * lu * .3, v0, lu * .48, lv + 3);
+    box('box', 0, v0, lu, lv, fl - .3, .3, slab);
+    homeBld(A, -side * lu * .06, v0, lu * .72, lv - 2, fl, gh, ps, r, SKINS.curtain, .7);
+    box('box', 0, v0, lu + 1.2, lv + 1.2, fl + gh, .32, slab);
+    gl(0, v0, lu * .9, lv * .8, fl - .36, .05, dim(WARM, .22));
+    gl(side * lu * .3, v0, lu * .44, lv + 2.6, .3, .02, dim(POOLW, .14));
+    gl(0, v0 + lv / 2 + .62, lu + 1.2, .08, fl + gh - .05, .1, dim(WARM, .5));
+    pool(...A.at(side * lu * .3, v0), lu * .35, [.12, .08, .04]);
+
+    // Steel posts carry only the near end, so the far end hangs free over the water.
+
+    for (const sv of [-1, 1]) for (let k = 0; k < 3; k++) box('cyl', -side * (lu / 2 - .5 - k * lu * .27), v0 + sv * (lv / 2 - .3), .22, .22, 0, fl + gh, slab);
+
+    // Terrace, step and path to the street.
+
+    const tv = v0 + lv / 2 + 2;
+    box('box', -side * lu * .12, tv, lu * .55, 4, 0, .5, dim(IVORY, .95));
+    box('box', -side * lu * .12, v0 + lv / 2 + .4, 3, .8, .5, .4, dim(IVORY, .95));
+    box('box', -side * lu * .12, (tv + 2 + S / 2) / 2, 1.8, Math.max(.5, S / 2 - tv - 2), 0, .26, PATH);
+    for (let k = 0, v = tv + 3; v < S / 2 - 1 && k < 3; v += 3, k++) for (const sd of [-1, 1]) gl(-side * lu * .12 + sd * 1.4, v, .25, .25, 0, .6, dim(WARM, .9));
+
+    // One great tree, a second glass cube on wide lots, a few trees behind.
+
+    tree(...p3(A, -side * (L / 2 - 3), .3, v0 - lv / 2 - 1), 11 + r() * 4, r, 'broad');
+    const guest = L > 24 && v0 - lv / 2 + S / 2 > 9;
+    if (guest) {
+      homeBld(A, side * (L / 2 - 4.5), -S / 2 + 4, 6, 5, 0, 3.2, ps, r, SKINS.curtain, .6);
+      box('box', side * (L / 2 - 4.5), -S / 2 + 4, 7.4, 6.4, 3.2, .3, slab);
+    }
+    scatter(A, 4, 0, -S / 2 + 3, L - 4, 4, guest ? [[side * (L / 2 - 4.5), -S / 2 + 4, 5, 5]] : [], r, ['broad', 'cypress']);
+    box('box', 0, S / 2 - .5, L - 1, .4, 0, .6, dim(IVORY, .8));
+    dock(x, z, W, D, r);
+  };
+
+  // Brutalist concrete villa: a heavy board-marked upper box thrown forward over a set-back glass ground floor, a deep
+  // roof slab, a slit window, blade walls into the garden, a chimney stack, and a long lap pool beside a row of cypresses.
+
+  const brutalAt = (x, z, W, D, st, r, fv) => {
+    const A = axesOf(x, z, W, D, fv), { L, S } = A, box = boxIn(A), gl = glowIn(A);
+    const cs = { ...st, base: dim(CONC, .9 + .25 * r()), win: WARM, lit: .55, grime: .05, neon: 0 }, gs = { ...cs, base: [.06, .06, .065], lit: .95 };
+    const side = r() < .5 ? -1 : 1, lu = Math.min(L * .74, 32), lv = Math.min(S * .34, 12), v0 = -S * .16, uf = v0 + 1.2 + lv / 2;
+    lawn(x, z, W, D, 0, GARDEN);
+    homeBld(A, side * lu * .14, v0 - 1, lu * .62, lv - 2, 0, 3.2, gs, r, SKINS.curtain, .55);
+    homeBld(A, -side * lu * .32, v0 - .5, lu * .34, lv - 1, 0, 3.2, cs, r, SKINS.stone);
+    homeBld(A, 0, v0 + 1.2, lu, lv, 3.2, 4.4, cs, r, pick(r, [SKINS.stone, SKINS.fins, SKINS.sparse]), .1);
+    box('box', 0, v0 + 1.4, lu + 2, lv + 2, 7.6, .7, dim(cs.base, .8));
+    gl(0, uf - 1.6, lu * .9, 2.8, 3.1, .08, dim(WARM, .35));
+    gl(0, uf + .06, lu * .7, .12, 5, .7, dim(WARM, .7));
+    box('box', -side * (lu / 2 - 1.4), v0 - lv / 2 + 2, 2, 2, 0, 10.5 + 2 * r(), dim(cs.base, .9));
+
+    // Blade walls run from the house into the garden.
+
+    const fd = S / 2 - uf, bl = Math.min(3.5, fd - 1);
+    for (const bu of [side * (lu / 2 - .3), -side * lu * .1]) box('box', bu, uf + bl / 2, .6, bl, 0, 2.8, dim(cs.base, .95));
+
+    // Lap pool on a concrete deck past the blades, cypresses up one side with uplights, a low wall with a slot gate.
+
+    if (fd - bl > 4.5) {
+      const pl = Math.min(L * .6, 24), pv = uf + bl + 2.4, pu = side * (L / 2 - pl / 2 - 2.5);
+      box('box', pu, pv, pl + 2, 4.2, 0, .3, dim(cs.base, 1.05));
+      const [sx, sz] = A.at(pu, pv), [sw, sd] = A.sz(pl, 2.2);
+      swim(sx, .3, sz, sw, sd);
+    }
+    for (let k = 0, n = Math.max(2, Math.round(S / 7)); k < n; k++) {
+      const [tx, tz] = A.at(-side * (L / 2 - 1.5), -S / 2 + 3 + k * (S - 6) / Math.max(1, n - 1));
+      tree(tx, .3, tz, 8 + r() * 3, r, 'cypress');
+      pool(tx, tz, 2.4, [.1, .07, .04]);
+    }
+    for (const sd of [-1, 1]) box('box', sd * (L / 4 + .8), S / 2 - .6, L / 2 - 2.6, .8, 0, 1.3, dim(cs.base, .9));
+    lamp(...A.at(-side * 2.2, S / 2 - 1.4), 3);
+    dock(x, z, W, D, r);
+  };
+
+  // Mediterranean hillside cascade: whitewashed cubes climb stone terraces away from the street. Each roof is a terrace
+  // under a tile pergola or planters. A pool on a middle step, a stair up one side, cypresses, string lights on top.
+
+  const cascadeAt = (x, z, W, D, st, r, fv) => {
+    const A = axesOf(x, z, W, D, fv), { L, S } = A, box = boxIn(A), gl = glowIn(A);
+    const ws = { ...homeOf(st, r, .7), base: dim(WASH, 1.1 + .15 * r()) }, ss = { ...st, base: dim(STONE, .75 + .25 * r()), lit: 0, grime: 0 };
+    const n = Math.min(L, S) < 16 ? 3 : 4, step = (S - 3) / n, rise = 2.2, side = r() < .5 ? -1 : 1, pk = n > 3 ? 2 : 1;
+    lawn(x, z, W, D, 0, GARDEN);
+    const stairU = side * (L / 2 - 1.3);
+    let last = null;
+    for (let k = 0; k < n; k++) {
+      const vf = S / 2 - 1.5 - k * step, y = k * rise, vb = -S / 2 + .5;
+
+      // Stone podium from this terrace's front edge to the back of the lot, its edge planted and lit.
+
+      if (k) {
+        homeBld(A, -side * .6, (vf + vb) / 2, L - 2.6, vf - vb, 0, y, ss, r, SKINS.stone);
+        gl(-side * .6, vf + .05, L - 3, .1, y - .5, .2, dim(WARM, .45));
+        box('box', -side * L * (.1 + .25 * r()), vf - .5, L * .25, .8, y, .5, BLOOM);
+      }
+
+      // A white cube at the back of the terrace, shifted sideways. The top cube takes two floors.
+
+      const cl = L * (.38 + .2 * r()), cd = step * .62, cu = (r() - .5) * (L - cl - 4), cv = vf - step + cd / 2 + (k ? 0 : .3), ch = k === n - 1 ? 6.2 : 3.2;
+      homeBld(A, cu, cv, cl, cd, y, ch, ws, r, SKINS.plaster, .15);
+      if (k === n - 1) last = [cu, cv, cl, cd, y + ch];
+      else if (r() < .55) {
+        box('box', cu + cl * .2, cv, cl * .5, cd * .9, y + ch + 2.3, .18, TILE);
+        box('cyl', cu + cl * .42, cv + cd * .4, .2, .2, y + ch, 2.3, DARKWOOD);
+        gl(cu + cl * .2, cv, cl * .4, cd * .7, y + ch + 2.12, .06, dim(WARM, .3));
+      } else box('box', cu, cv, cl * .7, cd * .6, y + ch, .35, PLANT);
+
+      // Pool on the terrace in front of a middle cube.
+
+      if (k === pk) {
+        const pl = Math.min(L - 6, 14), pv = vf - step * .22;
+        const [sx, sz] = A.at(-side * 1, pv), [sw, sd] = A.sz(pl, Math.max(1.4, step * .3));
+        swim(sx, y + .1, sz, sw, sd);
+        gl(-side, vf + .1, pl, .12, y - .08, .14, dim(POOLW, .8));
+      }
+      tree(...p3(A, -side * (L / 2 - 2), y + .3, vf - step * .6), 6 + r() * 3, r, 'cypress');
+    }
+
+    // Stair up the open side with a lit rail, and string lights over the top terrace.
+
+    const topY = (n - 1) * rise, topV = S / 2 - 1.5 - (n - 1) * step;
+    beam(p3(A, stairU, .2, S / 2 - 1), p3(A, stairU, topY, topV), 1.6, dim(STONE, .9));
+    beam(p3(A, stairU - side * .8, 1.1, S / 2 - 1), p3(A, stairU - side * .8, topY + .9, topV), .1, dim(WARM, .35), 'glow');
+    if (last) {
+      const [cu, cv, cl, cd, ty] = last;
+      box('box', cu, cv, cl + .4, cd + .4, ty, .6, dim(WASH, 1.05));
+      stringLights(p3(A, cu - cl * .45, ty + 2.6, cv + cd * .4), p3(A, cu + cl * .45, ty + 2.6, cv - cd * .4), .4, 7, dim(WARM, 1.1));
+      tree(...p3(A, cu + cl * .35, ty + .6, cv), 3 + r() * 1.5, r, 'shrub');
+    }
+    lamp(...A.at(stairU - side * 2, S / 2 - 1.2), 2.8);
+    dock(x, z, W, D, r);
+  };
+
+  // Tower house: a slim stone, ochre or brick tower of five to seven floors beside a low wing, a cornice every two floors,
+  // a lit stair slot, and on top a roof terrace under a pergola or a glass belvedere, behind a gold-lit parapet.
+
+  const towerAt = (x, z, W, D, st, r, fv) => {
+    const A = axesOf(x, z, W, D, fv), { L, S } = A, box = boxIn(A), gl = glowIn(A);
+    const [mat, skin] = pick(r, [[STONE, SKINS.stone], [OCHRE, SKINS.plaster], [CREAM, SKINS.plaster], [BRICK, SKINS.grid]]);
+    const ts = { ...homeOf(st, r, .7), base: dim(mat, .9 + .2 * r()) }, side = r() < .5 ? -1 : 1;
+    const tw = Math.min(L * .4, 10), td = Math.min(S * .42, 10), th = (5 + Math.floor(r() * 3)) * 3.3, tu = side * (L / 2 - tw / 2 - 1.2), tv = -S * .14;
+    lawn(x, z, W, D, 0, GARDEN);
+    homeBld(A, tu, tv, tw, td, 0, th, ts, r, skin, .15);
+    for (let y = 6.6; y < th - 2; y += 6.6) box('box', tu, tv, tw + .5, td + .5, y - .15, .3, dim(ts.base, .8));
+    box('box', tu, tv, tw + 1, td + 1, th, .5, dim(ts.base, .8));
+    gl(tu, tv + td / 2 + .05, .9, .1, 2, th - 4, dim(WARM, .7));
+    for (const s of [-1, 1]) {
+      gl(tu, tv + s * (td / 2 + .45), tw + .9, .1, th + .5, .08, dim(GOLD, .7));
+      gl(tu + s * (tw / 2 + .45), tv, .1, td + .9, th + .5, .08, dim(GOLD, .7));
+    }
+
+    // Roof terrace: a pergola with string lights and potted trees, or a glass belvedere.
+
+    const ty = th + .5;
+    if (r() < .55) {
+      for (const [a, c] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) box('cyl', tu + a * (tw / 2 - .6), tv + c * (td / 2 - .6), .2, .2, ty, 2.6, DARKWOOD);
+      for (let k = 0; k < 4; k++) box('box', tu, tv + (k - 1.5) * td * .26, tw - .6, .4, ty + 2.6, .2, WOOD);
+      stringLights(p3(A, tu - tw * .4, ty + 2, tv - td * .4), p3(A, tu + tw * .4, ty + 2, tv + td * .4), .3, 6, dim(WARM, 1.1));
+      for (const s of [-1, 1]) tree(...p3(A, tu + s * tw * .28, ty, tv - s * td * .25), 2.4 + r(), r, 'shrub');
+    } else {
+      homeBld(A, tu - side * tw * .15, tv - td * .15, tw * .5, td * .5, ty, 2.8, { ...ts, base: [.08, .09, .1], lit: 1 }, r, SKINS.curtain, .55);
+      box('box', tu - side * tw * .15, tv - td * .15, tw * .62, td * .62, ty + 2.8, .25, dim(ts.base, .8));
+      tree(...p3(A, tu + side * tw * .25, ty, tv + td * .25), 2.6 + r(), r, 'shrub');
+    }
+
+    // Low wing with a roof garden, a pool before it, palms and a lit gate.
+
+    const wl = L - tw - 4, wv = tv - td * .15, wd = Math.min(S * .28, 8), wu = -side * (L / 2 - wl / 2 - 1), wh = r() < .7 ? 3.6 : 6.6;
+    if (wl > 4) {
+      homeBld(A, wu, wv, wl, wd, 0, wh, { ...ts, base: dim(CREAM, .95) }, r, SKINS.plaster, .2);
+      box('box', wu, wv, wl * .8, wd * .7, wh, .35, PLANT);
+      tree(...p3(A, wu, wh + .35, wv), 2 + r(), r, 'shrub');
+      const pv = wv + wd / 2 + 1 + Math.min(4, (S / 2 - wv - wd / 2 - 3) / 2);
+      if (S / 2 - wv - wd / 2 > 5) { const [sx, sz] = A.at(wu, pv), [sw, sd] = A.sz(wl * .75, Math.min(4, (S / 2 - wv - wd / 2 - 3) * .6)); swim(sx, 0, sz, sw, sd); }
+    }
+    tree(...p3(A, -side * (L / 2 - 1.5), .3, S / 2 - 2), 7 + r() * 3, r, pick(r, ['palm', 'cypress']));
+    box('box', 0, S / 2 - .6, L - 1, 1, 0, 1, HEDGE);
+    lamp(...A.at(tu, S / 2 - 1.5), 3);
+    dock(x, z, W, D, r);
+  };
+
+  // A house kit on any lot. A lot narrower than the house needs (minL along the street, minS deep) gets a modern villa.
+  // Past 40 m a lot becomes grounds: the house takes a plot at the back, a lamp-lit gravel drive runs to it
+  // between stone gate piers, and woods fill the rest.
+
+  const homeKit = (at, minL, minS) => function (x, z, s, st, b, r) {
+    const [W, D] = dims(s), fv = front(), A = axesOf(x, z, W, D, fv), { L, S } = A;
+    if (L < minL || S < minS) { modernVillaAt(x, z, W, D, st, r, fv); return; }
+    if (Math.min(W, D) < 40) { at(x, z, W, D, st, r, fv); return; }
+    const box = boxIn(A), pl = Math.min(L - 8, 36), ps = Math.min(S * .5, 34);
+    const pu = (r() - .5) * (L - pl - 8), pv = -S / 2 + ps / 2 + 3, dv = (pv + ps / 2 + S / 2) / 2, dl = S / 2 - pv - ps / 2;
+    lawn(x, z, W, D, -.08, ESTLAWN);
+    at(...A.at(pu, pv), ...A.sz(pl, ps), st, r, fv);
+    box('box', pu, dv, 3.6, dl, 0, .26, GRAVEL);
+    for (let v = pv + ps / 2 + 6, k = 0; v < S / 2 - 3; v += 12, k++) lamp(...A.at(pu + (k % 2 ? 2.6 : -2.6), v), 3);
+    for (const sd of [-1, 1]) { box('box', pu + sd * 3, S / 2 - 1, 1.2, 1.2, 0, 2.4, dim(IVORY, .8)); glow(...p3(A, pu + sd * 3, 2.6, S / 2 - 1), .5, .3, .5, ORANGE); }
+    scatter(A, Math.min(30, Math.round(L * S / 160)), 0, 0, L - 4, S - 4, [[pu, pv, pl / 2 + 2, ps / 2 + 2], [pu, dv, 4, dl / 2 + 1]], r, ['broad', 'broad', 'palm', 'cypress'], 8, 7);
+  };
+
   // ---------- lot kits ----------
 
   const K = {
@@ -840,6 +1189,30 @@ function lib(H) {
       modernVillaAt(x, z, W, D, st, r, front());
     },
 
+    // Spanish Colonial townhouse with an arcade, a balcony, a mirador tower and a walled fountain court.
+
+    lv_colonial: homeKit(colonialAt, 12, 12),
+
+    // Streamline Moderne villa with round ends, speed lines, a glass stair tower and a kidney pool.
+
+    lv_deco: homeKit(decoAt, 14, 10),
+
+    // Glass pavilion on steel posts, cantilevered over a reflecting pool.
+
+    lv_pavilion: homeKit(pavilionAt, 14, 12),
+
+    // Brutalist concrete villa with a deep overhang, blade walls and a lap pool.
+
+    lv_brutal: homeKit(brutalAt, 14, 10),
+
+    // Whitewashed cubes climbing stone terraces, a pool on a middle step.
+
+    lv_cascade: homeKit(cascadeAt, 12, 14),
+
+    // Slim tower house with a roof terrace beside a low wing.
+
+    lv_towerhouse: homeKit(towerAt, 10, 10),
+
     // Stepped green-terraced residence, three to six steps.
 
     lv_terrace(x, z, s, st, b, r) {
@@ -961,14 +1334,14 @@ function lib(H) {
   const SIZE = s => s < 16 ? 0 : s < 30 ? 1 : 2;
   const ALLOW = {
     Downtown: [
-      ['lv_terrace', 'lv_terrace', 'lv_villa', 'lv_villa', 'lv_garden', 'lv_skyres'],
-      ['lv_skyres', 'lv_apartments', 'lv_apartments', 'lv_terrace', 'lv_villa', 'lv_garden', 'lv_sailtower'],
+      ['lv_terrace', 'lv_terrace', 'lv_villa', 'lv_towerhouse', 'lv_deco', 'lv_colonial', 'lv_garden', 'lv_skyres'],
+      ['lv_skyres', 'lv_apartments', 'lv_apartments', 'lv_terrace', 'lv_villa', 'lv_towerhouse', 'lv_brutal', 'lv_pavilion', 'lv_garden', 'lv_sailtower'],
       ['lv_govarc', 'lv_sailtower', 'lv_gardenring', 'lv_ziggurat', 'lv_lawnplaza', 'lv_terrace', 'lv_skyres'],
     ],
     Lakeside: [
-      ['lv_villa', 'lv_villa', 'lv_villa', 'lv_villa', 'lv_terrace'],
-      ['lv_villa', 'lv_villa', 'lv_terrace', 'lv_terrace', 'lv_skyres'],
-      ['lv_estate', 'lv_estate', 'lv_mansion', 'lv_lodge', 'lv_marina'],
+      ['lv_villa', 'lv_villa', 'lv_colonial', 'lv_colonial', 'lv_deco', 'lv_cascade', 'lv_towerhouse', 'lv_pavilion', 'lv_terrace'],
+      ['lv_villa', 'lv_colonial', 'lv_deco', 'lv_pavilion', 'lv_brutal', 'lv_cascade', 'lv_towerhouse', 'lv_lodge', 'lv_terrace'],
+      ['lv_estate', 'lv_estate', 'lv_mansion', 'lv_mansion', 'lv_lodge', 'lv_marina', 'lv_colonial', 'lv_pavilion', 'lv_brutal'],
     ],
     'Levy University': [
       ['lv_campus', 'lv_campus', 'lv_campus', 'lv_villa'],
@@ -986,6 +1359,7 @@ function lib(H) {
   for (const name of Object.keys(K)) kits[name] = (x, z, s, st, b, r) => route(name, x, z, s, r)(x, z, s, st, b, r);
 
   LIB = { kits, area, axesOf, boxIn, glowIn, p3, lawn, lamp, tree, boat, reflect, glassOf, mansionAt, villaAt, campusAt, roofKit, front, pick, dim, fvRy,
+    colonialAt, decoAt, towerAt, cascadeAt,
     terraceAt, skyresAt, gardenAt, estateAt, apartmentsAt, iconAt, fitRect, fringe, shore,
     C: { GARDEN, LAWN, HEDGE, WATER, DECK, STONE, WOOD, TILE, CREAM, BRICK, GRANITE, SILVER, WHITE, WARM, ORANGE, TEAL, GOLD, ROSE, COLD, POLICE } };
   return LIB;
@@ -1006,7 +1380,8 @@ export const tiers = {
 
 export function blocks(H) {
   const { SKINS, bld, glow, prop, pool, beam, grammarTowerBody } = H;
-  const L = lib(H), { C, axesOf, boxIn, glowIn, p3, lawn, lamp, tree, boat, reflect, glassOf, mansionAt, villaAt, campusAt, terraceAt, skyresAt, gardenAt, estateAt, apartmentsAt, iconAt, fitRect, fringe, shore, front, dim, pick } = L;
+  const L = lib(H), { C, axesOf, boxIn, glowIn, p3, lawn, lamp, tree, boat, reflect, glassOf, mansionAt, villaAt, campusAt, terraceAt, skyresAt, gardenAt, estateAt, apartmentsAt, iconAt, fitRect, fringe, shore, front, dim, pick,
+    colonialAt, decoAt, towerAt, cascadeAt } = L;
 
   const B = {
     // Civic arcology campus: twin white towers joined by skybridges, a long reflecting pool, allées and a raised jogging loop.
@@ -1059,7 +1434,7 @@ export function blocks(H) {
         const lu = u1 - u0 - 2, lv = v1 - v0 - 2;
         if (lu < 16 || lv < 16) { const [px, pz] = A.at((u0 + u1) / 2, (v0 + v1) / 2), [iw, id] = A.sz(Math.max(lu, 2), Math.max(lv, 2)); lawn(px, pz, iw, id); continue; }
         const [px, pz] = A.at((u0 + u1) / 2, (v0 + v1) / 2), [iw, id] = A.sz(lu, lv), ifv = [fv[0] * sv, fv[1] * sv];
-        (r() < .7 ? mansionAt : villaAt)(px, pz, iw, id, st, r, ifv, false);
+        pick(r, [mansionAt, mansionAt, mansionAt, villaAt, colonialAt])(px, pz, iw, id, st, r, ifv);
 
         // A jetty and a boat on the main channel.
 
@@ -1169,7 +1544,7 @@ export function blocks(H) {
     fringe(x, z, w, d, R, r);
     if (Math.min(fw, fd) < 24) {
       const m = Math.min(fw, fd), k = r();
-      if (m >= 14 && k < .35) villaAt(fx, fz, fw, fd, st, r, front());
+      if (m >= 14 && k < .4) pick(r, [villaAt, colonialAt, decoAt, towerAt, cascadeAt])(fx, fz, fw, fd, st, r, front());
       else if (m >= 14 && k < .6) terraceAt(fx, fz, fw, fd, st, r, front(), 3);
       else if (m > 8) gardenAt(fx, fz, fw, fd, r, front());
       return;

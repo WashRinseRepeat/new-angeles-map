@@ -94,7 +94,7 @@ export default {
     districts: ['esmeraldas', 'nihongai', 'manta', 'laguna-velasco', 'rabotgorod', 'la-costa', 'quinde', 'guayaquil'],
     finds: ['finds-broadcast', 'finds-downtown', 'finds-base', 'finds-spread', 'finds-east', 'finds-south', 'golden-spire', 'finds-story'],
     private: ['finds-story'],
-    smallLots: { style: BDC, kits: ['shacks', 'shacks', 'shophouse'] },
+    smallLots: { style: BDC, kits: ['shacks', 'shacks', 'shophouse', 'shophouse', 'bodega', 'bodega', 'walkup', 'walkup', 'boxhomes', 'boxhomes', 'noodles', 'taller', 'chapel'] },
 
     // Land-use zones group a kit family into patches of smooth noise instead of scattering it.
 

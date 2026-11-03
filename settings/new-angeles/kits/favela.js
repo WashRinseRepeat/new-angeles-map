@@ -2,7 +2,7 @@
 // Kit signature: (x, z, s, st, b, r) in the lot frame. Kits read H.frame() and fall back to an s × s square.
 
 export function kits(H) {
-  const { GLOWS, BDC, SKINS, beacon, bld, glow, lerp, prop, put, sign, stringLights } = H;
+  const { FACES, GLOWS, BDC, SKINS, beacon, bld, glow, lerp, pool, prop, puff, put, sign, stringLights, textSign } = H;
 
   const pick = (r, a) => a[Math.floor(r() * a.length)];
   const dims = s => { const f = H.frame(); return f ? [Math.min(f.w - 2, 60), Math.min(f.d - 2, 60)] : [s, s]; };
@@ -14,6 +14,19 @@ export function kits(H) {
   const TARP = [[.05, .09, .2], [.2, .07, .04], [.05, .14, .1], [.2, .16, .05], [.1, .1, .1]];
   const CLOTH = [[.3, .08, .06], [.06, .12, .3], [.3, .28, .22], [.25, .2, .05], [.1, .25, .15], [.3, .12, .2]];
   const WARM = [1.4, .7, .25], PALE = [.9, 1.1, .85], SODIUM = [1.3, .6, .15];
+  const STORE = [[1.5, .9, .4], [.6, 1.5, .8], [1.4, 1.4, 1.3], [1.6, .3, .2], [.3, 1.1, 1.6], [1.6, 1.2, .2]];
+  const CRATE = [[.2, .1, .03], [.08, .14, .04], [.22, .05, .03], [.2, .16, .04]];
+  const LIME = [[.3, .27, .22], [.3, .21, .14], [.22, .24, .25], [.3, .22, .2]], TILE = [[.17, .06, .04], [.12, .05, .03], [.08, .08, .08]];
+  const TIN = [[.09, .06, .045], [.05, .06, .065], [.11, .05, .035], [.06, .07, .05]], METAL = [.06, .06, .065];
+  const CONT = [[.22, .06, .04], [.05, .1, .2], [.06, .14, .08], [.25, .13, .03], [.14, .14, .13], [.24, .2, .04], [.2, .2, .21]];
+  const CAR = [[.25, .03, .03], [.04, .06, .12], [.18, .18, .17], [.2, .14, .02], [.03, .03, .03]];
+  const GOLD = [1.9, 1.1, .3], CANDLE = [2, 1.1, .35], STEAM = [.16, .15, .14];
+  const WORDS = {
+    bodega: ['BODEGA', 'TIENDA', 'ABARROTES', '24 HORAS', 'MINIMARKET', 'LICORES', 'FARMACIA', 'CAFÉ'],
+    noodles: ['FIDEOS', 'CHIFA', 'RAMEN', 'CALDOS', 'PHO 24H', 'NOODLES', 'SOPAS'],
+    taller: ['TALLER', 'MECÁNICA', 'REPUESTOS', 'SOLDADURA', 'LLANTAS', 'MOTOS', 'CYBERWARE'],
+  };
+  const dim = (c, k) => c.map(v => v * k);
   const paint = (st, r) => { const p = pick(r, PAINT), v = .75 + .5 * r(); return p.map((c, i) => lerp(c, st.base[i], st.w) * v); };
   const look = (st, r, lit) => ({ ...st, base: paint(st, r), win: pick(r, WIN).map((c, i) => lerp(c, st.win[i], st.w)), lit: lit ?? st.lit * (.8 + 1.4 * r()) });
 
@@ -80,6 +93,26 @@ export function kits(H) {
     vol(x, z, w, d, h, st, r, { y0, roof: false, skin: r() < .5 ? SKINS.sparse : SKINS.grid, lit: .3 + .4 * r() });
     if (r() < .5) prop('box', x, y0 + h + .1, z, w + .6, .1, d + .6, r() < .5 ? pick(r, TARP) : [.09, .07, .05], 0, (r() - .5) * .25);
     if (r() < .4) glow(x + (r() - .5) * w * .5, y0 + 1, z + (r() < .5 ? 1 : -1) * (d / 2 + .05), .9, 1.8, .1, WARM.map(c => c * .9));
+  };
+
+  // A lot frame turned to the street. u runs along the front, v points out to the street.
+  //   U, V     lot size along u and v
+  //   P, at    local point for (u, v), or (u, y, v) as a 3D point
+  //   b, vol   a plain bld, or a volume in favela paint, sizes in u and v
+  //   box, gl  prop and glow boxes turned to the front
+
+  const front = (x, z, s) => {
+    const f = H.frame(), fr = f?.front ?? { x: 0, z: 1 }, fx = fr.x, fz = fr.z, ry = Math.atan2(fx, fz), [W, D] = dims(s);
+    const P = (u, v) => [x + u * fz + v * fx, z - u * fx + v * fz], sz = (su, sv) => fx ? [sv, su] : [su, sv];
+    return {
+      U: fx ? D : W, V: fx ? W : D, P, ry,
+      at: (u, y, v) => { const [px, pz] = P(u, v); return [px, y, pz]; },
+      b: (u, v, su, sv, h, st, r, o) => bld(...P(u, v), ...sz(su, sv), h, st, r, o),
+      vol: (u, v, su, sv, h, st, r, o) => vol(...P(u, v), ...sz(su, sv), h, st, r, o),
+      box: (u, y, v, su, sy, sv, rgb, kind = 'box', rx = 0) => { const [px, pz] = P(u, v); prop(kind, px, y, pz, su, sy, sv, rgb, ry, rx); },
+      gl: (u, y, v, su, sy, sv, rgb) => { const [px, pz] = P(u, v); glow(px, y, pz, su, sy, sv, rgb, ry); },
+      text: (t, u, y, v, tw, th, rgb) => { const [px, pz] = P(u, v); textSign(t, px, y, pz, tw, th, ry, rgb); },
+    };
   };
 
   return {
@@ -278,6 +311,224 @@ export function kits(H) {
         cable(a, c);
       }
       put(GLOWS.sphere, x, 3, z + D / 2 + .5, 1.2, .5, .4, 0, 0, SODIUM.map(v => v * .5));
+    },
+
+    // ---------- small-lot kits: each turns its frontage to the street ----------
+
+    // Corner bodega: two or three floors over a lit shop window, a striped awning and blade signs stacked up the corner.
+
+    bodega(x, z, s, st, b, r) {
+      const T = front(x, z, s), bu = Math.min(T.U - .6, 14), bv = Math.min(T.V - 1.8, 14), fv = bv / 2, c = pick(r, STORE);
+      const floors = 2 + Math.floor(r() * 2), h = floors * 3.3 * Math.min(Math.max(b, .85), 1.3);
+      T.vol(0, 0, bu, bv, h, st, r, { lit: .25 + .3 * r() });
+
+      T.gl(0, 1.45, fv + .06, bu * .82, 2.3, .1, dim(c, .26));
+      for (let k = -1; k <= 1; k++) T.box(k * bu * .27, 1.45, fv + .14, .14, 2.3, .06, [.03, .03, .03]);
+      T.box(0, 3.1, fv + .2, bu, .6, .4, [.04, .035, .03]);
+      T.gl(0, 3.1, fv + .42, bu * .96, .2, .06, dim(c, 1.1));
+      T.box(0, 3.55, fv + .95, bu * .96, .08, 1.6, pick(r, CLOTH), 'box', .25);
+      stringLights(T.at(-bu * .45, 3.25, fv + 1.7), T.at(bu * .45, 3.25, fv + 1.7), .12, 6, r() < .7 ? WARM : c);
+      T.text(pick(r, WORDS.bodega), 0, 4.45, fv + .08, Math.min(bu * .75, 7), Math.min(bu * .14, 1.3), dim(c, 1.4));
+      for (let k = 2 + Math.floor(r() * 3); k > 0; k--) T.box((r() - .5) * bu * .8, .35, fv + .45, .9, .7, .6, pick(r, CRATE));
+      pool(...T.P(0, fv + 3), Math.max(3, bu * .4), dim(c, .07));
+
+      // Blade signs stacked up one corner, one per upper floor.
+
+      const cu = (r() < .5 ? -1 : 1) * (bu / 2 - .4);
+      for (let y = 4.9; y < h - .8; y += 2.3) {
+        T.box(cu, y, fv + .75, .2, 2, 1.5, [.04, .035, .03]);
+        T.gl(cu, y, fv + .75, .3, 1.7, 1.25, dim(pick(r, r() < .5 ? STORE : BDC.signs), .9));
+      }
+      for (let k = 1; k < floors; k++) if (r() < .5) {
+        const u = (r() - .5) * (bu - 3), y = k * 3.3 * Math.min(Math.max(b, .85), 1.3);
+        T.box(u, y + .1, fv + .5, 2.6, .15, 1, METAL);
+        T.box(u, y + .6, fv + .98, 2.6, .9, .06, METAL);
+      }
+      if (r() < .45) { const [px, pz] = T.P((r() - .5) * bu * .4, -bv * .2); tank(px, h, pz, r); }
+    },
+
+    // Walk-up: a narrow four-to-seven-floor block with a stair tower, caged balconies and a tin gable or a roof of tanks.
+
+    walkup(x, z, s, st, b, r) {
+      const T = front(x, z, s), fh = 3.1, floors = 4 + Math.floor(r() * 4 * Math.min(b, 1)), h = floors * fh, sd = r() < .5 ? -1 : 1;
+
+      // A wide lot puts the stair beside the block. A narrow one pushes the block back and puts the stair in front.
+
+      const side = T.U >= 9 && r() < .6, bu = side ? Math.min(T.U - 3.4, 10) : Math.min(T.U - .6, 10);
+      const bv = side ? Math.min(T.V - 2, 12) : Math.min(T.V - 4.4, 12), u0 = side ? -sd * 1.3 : 0, v0 = side ? 0 : -1.4, fv = v0 + bv / 2;
+      const su = side ? u0 + sd * (bu / 2 + 1.3) : sd * (bu / 2 - 1.3), sv = side ? fv - 1.4 : fv + 1.4;
+      const gable = r() < .45;
+      T.vol(u0, v0, bu, bv, h, st, r, { lit: .2 + .3 * r(), roof: !gable });
+      T.vol(su, sv, 2.6, 2.8, h + 2.6, st, r, { lit: .08, skin: SKINS.sparse, roof: false, kibble: false });
+      T.box(su, h + 2.7, sv, 3, .2, 3.2, METAL);
+
+      // Stair landings light up in a zig-zag up the tower's street face.
+
+      const stairLight = r() < .6 ? PALE : SODIUM;
+      for (let k = 0; k < floors; k++) T.gl(su + (k % 2 ? .55 : -.55), k * fh + 2, sv + 1.42, .7, .9, .06, dim(stairLight, .3 + .2 * r()));
+      T.gl(su, 1.1, sv + 1.42, 1, 2.1, .06, dim(stairLight, .45));
+
+      // Balcony cages on the front, kept clear of a front stair.
+
+      const cw = Math.min(bu * .5, 3.2);
+      for (let k = 1; k < floors; k++) if (r() < .55) {
+        const cu = side ? u0 + (r() - .5) * (bu - cw) : -sd * r() * (bu - cw) / 2, y = k * fh;
+        T.box(cu, y + .05, fv + .45, cw, .15, .9, METAL);
+        T.box(cu, y + 2.35, fv + .45, cw, .1, .9, METAL);
+        T.box(cu, y + 1, fv + .88, cw, .06, .06, METAL);
+        for (const e of [-1, 1]) T.box(cu + e * (cw / 2 - .05), y + 1.2, fv + .88, .07, 2.3, .07, METAL);
+        if (r() < .35) T.box(cu, y + .45, fv + .55, cw * .7, .5, .4, [.03, .09, .03]);
+      }
+      if (r() < .4) T.gl(u0, 1.4, fv + .06, Math.min(bu * .6, 4), 2.4, .1, dim(r() < .6 ? WARM : PALE, .5));
+      if (gable) bld(...T.P(u0, v0), bu + .6, 1.8 + r() * 1.4, bv + .6, { ...st, base: pick(r, TIN), lit: 0 }, r, { y0: h, shape: 'gable', ry: T.ry, skin: SKINS.sparse });
+      else { const [px, pz] = T.P(u0, v0 - bv * .2); tank(px, h, pz, r); }
+      if (r() < .5) { const y = fh * (1 + Math.floor(r() * (floors - 1))) + 2.6; laundry(T.at(u0 - bu / 2 + .4, y, fv + .7), T.at(u0 + bu / 2 - .4, y - .3, fv + .7), r); }
+    },
+
+    // Noodle stalls: counters, cookers and steam under tarps in front of a two-floor kitchen house.
+
+    noodles(x, z, s, st, b, r) {
+      const T = front(x, z, s), U = Math.min(T.U, 16), V = Math.min(T.V, 16), bu = U - .6, bv = Math.max(3.5, V * .42), bh = 5.6 + r() * 2.2;
+      const v0 = -V / 2 + bv / 2 + .2, y0 = v0 + bv / 2, yd = V / 2 - .2 - y0, yc = y0 + yd / 2, c = pick(r, STORE);
+      T.vol(0, v0, bu, bv, bh, st, r, { lit: .3 + .3 * r() });
+      T.box(0, .06, yc, bu, .12, yd, [.05, .045, .04]);
+      T.text(pick(r, WORDS.noodles), 0, Math.min(bh - .9, 4.7), y0 + .08, Math.min(bu * .6, 6), 1, dim(c, 1.4));
+      T.gl(0, 1.5, y0 + .05, bu * .7, 2.4, .08, dim(WARM, .35));
+
+      const nt = bu > 9 ? 2 : 1, tw = bu / nt;
+      for (let k = 0; k < nt; k++) {
+        const cu = -bu / 2 + tw * (k + .5), ty = 3.1 + r() * .5;
+        T.box(cu, ty, yc, tw - .2, .08, yd + .3, pick(r, CLOTH), 'box', (r() - .5) * .14);
+        T.gl(cu, ty - .12, yc, (tw - .6) * .8, .04, yd * .6, dim(WARM, .22));
+        for (const e of [-1, 1]) {
+          T.box(cu + e * (tw / 2 - .3), ty / 2, yc + yd / 2 - .1, .1, ty, .1, METAL);
+          if (r() < .7) put(GLOWS.sphere, ...T.at(cu + e * (tw / 2 - .9), ty - .55, yc + yd / 2 - .2), .45, .6, .45, 0, 0, r() < .7 ? [1.8, .2, .1] : GOLD);
+        }
+      }
+      for (let n = Math.max(1, Math.min(3, Math.floor(bu / 3.4))), k = 0; k < n; k++) {
+        const u = -bu / 2 + (k + .5) * bu / n, v = yc - yd * .1;
+        T.box(u, .55, v, 2.2, 1.1, .9, pick(r, PAINT));
+        T.gl(u, 1.13, v, 2, .06, .7, dim(WARM, .7));
+        T.gl(u, .65, v + .47, 1.8, .6, .04, dim(pick(r, STORE), .3));
+        T.gl(u - .5, 1.3, v - .15, .5, .25, .4, [1.8, .5, .1]);
+        puff(...T.at(u - .5, 2.3 + r() * .6, v - .15), .6 + r() * .4, STEAM);
+        for (const e of [-1, 1]) T.box(u + e * .6, .35, v + .95, .35, .7, .35, [.3, .05, .04], 'cyl');
+      }
+      stringLights(T.at(-bu / 2 + .3, 2.9, V / 2 - .3), T.at(bu / 2 - .3, 2.9, V / 2 - .3), .3, 7, r() < .6 ? WARM : [1.3, .4, .6]);
+      pool(...T.P(0, V / 2 + 1.5), Math.max(3, bu * .4), dim(WARM, .08));
+      if (r() < .5) { const [px, pz] = T.P((r() - .5) * bu * .5, v0); tank(px, bh, pz, r); }
+    },
+
+    // Order of Sol chapel: a whitewashed nave under a tile gable, a belfry or bell wall with a lit sun ring, candles on the steps.
+
+    chapel(x, z, s, st, b, r) {
+      const T = front(x, z, s), nu = Math.min(T.U - 2, 9), nv = Math.min(T.V - 3, 15), v0 = -.8, fv = v0 + nv / 2, nh = 5 + r() * 2.5, rh = 1.4 + nu * .16;
+      const cst = { ...st, base: pick(r, LIME).map((c, i) => lerp(c, st.base[i], st.w * .6)), lit: .12 };
+      T.b(0, v0, nu, nv, nh, cst, r, { skin: SKINS.plaster, roof: false, kibble: false });
+      bld(...T.P(0, v0), nv + .6, rh, nu + .8, { ...st, base: pick(r, TILE), lit: 0 }, r, { y0: nh, shape: 'gable', ry: T.ry + Math.PI / 2, skin: SKINS.tile });
+
+      // A corner belfry with a pyramid cap, or a bell wall over the front gable. Either carries the sun ring.
+
+      const sd = r() < .5 ? -1 : 1, tower = r() < .55;
+      const tu = tower ? sd * (nu / 2 - .9) : 0, tv = tower ? fv - .7 : fv - .2, tw = tower ? 2.2 : Math.min(nu * .5, 3.4);
+      const th = tower ? nh + (5 + r() * 5) * Math.min(b, 1.2) : nh + rh + 2.4, tf = tv + (tower ? 1.1 : .3);
+      T.b(tu, tv, tw, tower ? 2.2 : .6, tower ? th : th - nh, cst, r, { y0: tower ? 0 : nh, skin: SKINS.plaster, roof: false, kibble: false });
+      if (tower) bld(...T.P(tu, tv), 2.6, 2.4, 2.6, { ...st, base: pick(r, TILE), lit: 0 }, r, { y0: th, shape: 'pyr' });
+      put(GLOWS.ring, ...T.at(tu, th - 1.3, tf + .05), 1.7, 1.7, 1.7, T.ry, Math.PI / 2, GOLD);
+      put(GLOWS.sphere, ...T.at(tu, th - 1.3, tf + .05), .55, .55, .15, T.ry, 0, GOLD);
+
+      T.gl(0, 1.3, fv + .06, 1.5, 2.6, .1, dim(GOLD, .5));
+      put(GLOWS.sphere, ...T.at(0, 2.6, fv + .06), 1.5, 1.5, .1, T.ry, 0, dim(GOLD, .5));
+      if (nh > 5.8) put(GLOWS.sphere, ...T.at(0, nh - 1.1, fv + .06), 1.1, 1.1, .1, T.ry, 0, [1.4, .45, .3]);
+      T.box(0, .15, fv + .6, 2.8, .3, 1.2, [.12, .11, .1]);
+      for (let k = 8 + Math.floor(r() * 7); k > 0; k--) {
+        const onStep = r() < .5, u = (r() - .5) * (onStep ? 2.6 : Math.min(nu, 6)), v = onStep ? fv + .3 + r() * .9 : fv + 1.3 + r() * .6;
+        T.gl(u, (onStep ? .3 : 0) + .15, v, .1, .3, .1, dim(CANDLE, .6 + .5 * r()));
+      }
+      stringLights(T.at(tu, th - 3, tf), T.at(-sd * (T.U / 2 - .3), 2.6, T.V / 2 - .3), .5, 6, [1.6, .7, .1]);
+      pool(...T.P(0, fv + 2.5), 3.5, dim(GOLD, .08));
+    },
+
+    // Repair shop: a roller door half up over a lit workshop, a car on the apron, drums and tyres, a hoist jib.
+
+    taller(x, z, s, st, b, r) {
+      const T = front(x, z, s), bu = Math.min(T.U - .6, 14), bv = Math.min(T.V - 3, 14), v0 = -1.2, fv = v0 + bv / 2, h = 7 + r() * 2.5;
+      T.vol(0, v0, bu, bv, h, st, r, { lit: .2 + .2 * r() });
+      const du = Math.min(bu * .72, 6.5), d0 = (r() - .5) * (bu - du), work = r() < .5 ? [.6, .8, 1.05] : WARM;
+      T.gl(d0, 1.3, fv + .05, du, 2.6, .1, dim(work, .22));
+      T.gl(d0 + (r() - .5) * du * .5, 2.4, fv + .07, .8, .25, .06, dim(work, 1.2));
+      T.box(d0, 3.1, fv + .15, du + .2, 1, .12, [.16, .16, .15]);
+      for (const y of [2.8, 3.2]) T.box(d0, y, fv + .22, du + .2, .05, .04, [.06, .06, .06]);
+
+      // Dark shapes against the lit bay: a car up on a lift, or a bench under a tool wall.
+
+      const SIL = [.025, .025, .028];
+      if (r() < .55) {
+        for (const e of [-1, 1]) T.box(d0 + e * Math.min(du * .35, 2), 1.2, fv + .14, .15, 2.4, .1, SIL);
+        T.box(d0, 1.75, fv + .16, Math.min(du * .8, 4.2), .8, .1, SIL);
+        T.box(d0 - .3, 2.3, fv + .16, Math.min(du * .4, 2), .45, .1, SIL);
+      } else {
+        T.box(d0, .5, fv + .16, du * .6, 1, .1, SIL);
+        for (let k = 2 + Math.floor(r() * 3); k > 0; k--) T.box(d0 + (r() - .5) * du * .7, 1.6 + r() * .8, fv + .14, .2 + r() * .5, .1 + r() * .6, .08, SIL);
+      }
+      T.box(d0, 4.0, fv + .3, du + .4, .5, .5, METAL);
+      T.text(pick(r, WORDS.taller), d0, 4.9, fv + .08, Math.min(du * .8, 6), 1, r() < .5 ? [1.7, 1.2, .2] : [1.7, .25, .15]);
+      T.box(0, .04, fv + 1.35, bu, .08, 2.6, [.03, .03, .03]);
+      if (r() < .6) for (let k = 2 + Math.floor(r() * 2); k > 0; k--) T.gl(d0 + (r() - .5) * du * .6, .6 + r() * 1.2, fv + .3, .15, .15, .15, [2.2, 2.2, 2.6]);
+      if (r() < .6) {
+        const cu = (r() - .5) * Math.max(0, bu - 4.4), cv = fv + 1.35, cc = pick(r, CAR);
+        T.box(cu, .55, cv, 4, .8, 1.8, cc);
+        T.box(cu - .2, 1.2, cv, 2, .55, 1.6, dim(cc, .5));
+        if (r() < .5) T.box(cu + 1.4, 1.35, cv, .1, .9, 1.6, cc, 'box', 0);
+      }
+      const eu = (d0 > 0 ? -1 : 1) * (bu / 2 - .6);
+      for (let k = 1 + Math.floor(r() * 3); k > 0; k--) T.box(eu + (r() - .5) * 1.2, .45, fv + .5 + r() * 1.5, .6, .9, .6, pick(r, [[.2, .05, .03], [.04, .08, .15], [.15, .12, .02]]), 'cyl');
+      for (let k = 2 + Math.floor(r() * 3); k > 0; k--) T.box(eu, .12 + k * .25, fv + 2.1, .75, .24, .75, [.02, .02, .02], 'cyl');
+      if (r() < .45) {
+        T.box(d0, 4.55, fv + .9, .25, .3, 1.8, [.2, .15, .03]);
+        T.box(d0, 3.8, fv + 1.7, .05, 1.4, .05, METAL, 'cyl');
+        T.box(d0, 3.05, fv + 1.7, .25, .3, .25, METAL);
+      }
+      pool(...T.P(d0, fv + 2.5), Math.max(3, du * .45), dim(work, .08));
+    },
+
+    // Container homes: shipping boxes stacked crosswise three to six high, a steel stair and gallery on the front, cables to a pole.
+
+    boxhomes(x, z, s, st, b, r) {
+      const T = front(x, z, s), U = Math.min(T.U, 14), V = Math.min(T.V, 14) - 1.4, CH = 2.6, CW = 2.45, vc = -.7;
+      const layers = 3 + Math.floor(r() * 3.99 * Math.min(b, 1)), flip = r() < .5 ? 1 : 0, tops = [];
+      for (let k = 0; k < layers; k++) {
+        const alongU = (k + flip) % 2 === 0, len = alongU ? U : V, across = alongU ? V : U;
+        const L = len >= 12.4 ? 12.2 : Math.min(6.1, len - .2), n = Math.max(1, Math.min(4, Math.floor(across / (CW + .15))) - (k > 2 ? Math.floor(r() * 2) : 0));
+        for (let i = 0; i < n; i++) {
+          if (k && r() < .15) continue;
+          const off = (i - (n - 1) / 2) * (CW + .15), slide = (r() - .5) * Math.max(0, len - L), y = k * CH;
+          const [u, v] = alongU ? [slide, vc + off] : [off, vc + slide];
+          const cst = { ...look(st, r, .12), base: pick(r, CONT).map((c, q) => lerp(c, st.base[q], st.w * .7)) };
+          T.b(u, v, alongU ? L : CW, alongU ? CW : L, CH - .05, cst, r, { y0: y, roof: false, kibble: false, skin: SKINS.bands });
+          if (r() < .5) {
+            const e = r() < .5 ? -1 : 1;
+            alongU ? T.gl(u + e * (L / 2 + .03), y + 1.3, v, .06, 1.1, 1.4, dim(pick(r, WIN), .32)) : T.gl(u, y + 1.3, v + L / 2 + .03, 1.4, 1.1, .06, dim(pick(r, WIN), .32));
+          }
+          tops.push([u, y + CH, v]);
+        }
+      }
+
+      // Front gallery at each level with a flight of steps up to the next.
+
+      const gv = V / 2 + vc + .6, sd = r() < .5 ? -1 : 1;
+      for (let k = 1; k < layers; k++) {
+        T.box(0, k * CH - .05, gv, U * .7, .12, 1.1, METAL);
+        T.gl(0, k * CH + .9, gv + .5, U * .7, .04, .04, dim(SODIUM, .35));
+        const e = k % 2 ? 1 : -1, fu = sd * U * .2;
+        H.beam(T.at(fu - e * 1.5, (k - 1) * CH + .1, gv + .2), T.at(fu + e * 1.5, k * CH - .1, gv + .2), .28, METAL);
+      }
+      const [px, pz] = T.P(-sd * (U / 2 - .3), T.V / 2 - .3);
+      prop('cyl', px, 4.5, pz, .2, 9, .2, [.08, .06, .04]);
+      for (let k = Math.min(tops.length, 2 + Math.floor(r() * 2)); k > 0; k--) { const t = pick(r, tops); cable(T.at(t[0], t[1] - .3, t[2]), [px, 8.8, pz]); }
+      stringLights([px, 8.5, pz], T.at(sd * U * .4, layers * CH - .5, vc), .8, 6, r() < .6 ? WARM : [1.2, .35, .55]);
+      for (let k = 0; k < 2 && tops.length > 1; k++) { const t = pick(r, tops), [qx, qz] = T.P(t[0], t[2]); clutter(qx, qz, 2.4, 2.4, t[1], st, r, 1); }
+      if (tops.length > 2) { const a = pick(r, tops), c = pick(r, tops); if (a !== c) laundry(T.at(a[0], a[1] - .4, a[2]), T.at(c[0], c[1] - .9, c[2]), r); }
     },
   };
 }
