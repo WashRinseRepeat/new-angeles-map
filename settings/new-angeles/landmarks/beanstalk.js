@@ -502,7 +502,8 @@ export function build(H, group) {
   place(MOVING, DOCK + 12, true, 1); place(MOVING + 1, DOCK + 12, false, 1);
 
   // The audio tour drives one extra climber up the +z face. It stays hidden until the tour places it. While it
-  // rides, the other up climbers leave the ribbon, and they return when the tour lets the pod go.
+  // rides, the other up climbers leave the ribbon, and they return when the tour lets the pod go. Only the tour
+  // pod grows with height, so the ride camera keeps it in frame. The other climbers keep their true size.
 
   place(TOUR, 0, true, 0);
   let solo = false;
@@ -524,7 +525,7 @@ export function build(H, group) {
 
         const y = BASE + (TOP - BASE) * e ** 2;
         const grow = Math.min(1, (c.up ? u : 1 - u) * 60);
-        place(i, y, c.up, solo && c.up ? 0 : grow * grown(y));
+        place(i, y, c.up, solo && c.up ? 0 : grow);
       });
       climBody.instanceMatrix.needsUpdate = climLit.instanceMatrix.needsUpdate = true;
       const blink = (Math.sin(t * 2.6) > .55) ? 1 : .06;
