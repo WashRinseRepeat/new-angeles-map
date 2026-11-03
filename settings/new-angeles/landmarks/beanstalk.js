@@ -395,7 +395,7 @@ export function build(H, group) {
     vertexShader: `attribute float aEdge; varying vec3 vW, vN, vL; varying float vE;
       void main(){ vec4 w = modelMatrix * vec4(position, 1.); vW = w.xyz; vL = position; vN = normalize(mat3(modelMatrix) * normal); vE = aEdge;
         gl_Position = projectionMatrix * viewMatrix * w; }`,
-    fragmentShader: `uniform float uTime; varying vec3 vW, vN, vL; varying float vE; ${H.FOG_GLSL}
+    fragmentShader: `varying vec3 vW, vN, vL; varying float vE; ${H.FOG_GLSL}
       void main(){
         if (vW.y > uClipTop) discard;
         float h = vW.y;
@@ -404,13 +404,12 @@ export function build(H, group) {
         float weave = .86 + .14 * step(.5, fract(vL.x * .8 + step(.5, fract(h * .25)) * .5));
         vec3 c = vec3(.085, .095, .11) * lam * mix(weave, 1.25, step(.75, vE));
 
-        // Segment collars every 60 m, node rings every 480 m, pulses running up the edge cables.
+        // Segment collars every 60 m, node rings every 480 m, a faint glow on the edge cables.
 
         float s = fract(h / 60.), node = fract(h / 480.);
         vec3 e = vec3(.35, .75, 1.2) * (1. - smoothstep(.006, .016, s)) * .9;
         e += vec3(1.4, 1.1, .7) * (1. - smoothstep(.002, .006, node)) * 2.5;
-        float p = fract((h - uTime * 260.) / 1100.), q = fract((h + uTime * 190.) / 1700.);
-        e += step(.75, vE) * (vec3(.06, .14, .24) + vec3(.6, 1.3, 2.2) * (pow(p, 40.) + .6 * pow(q, 60.)));
+        e += step(.75, vE) * vec3(.06, .14, .24);
         e += step(.25, vE) * (1. - step(.75, vE)) * vec3(.05, .09, .14);
 
         // Keep the line legible through the fog: the surface fades, the lights only dim.
