@@ -404,15 +404,15 @@
   },
   {
    "t": 115.91,
-   "cue": "pan \"New Angeles Stock Exchange\" t=28.4 az=290 el=.3 r=320 tilt=10"
+   "cue": "pan \"New Angeles Stock Exchange\" t=28.4 az=0 el=.35 r=320 tilt=10"
   },
   {
    "t": 144.3,
-   "cue": "dolly \"Broadcasters' Corporate Park\" t=17 az=40 el=.25 r=400 rise=140"
+   "cue": "dolly \"Broadcasters' Corporate Park\" t=17 az=270 el=.35 r=420 rise=140"
   },
   {
    "t": 161.35,
-   "cue": "pan \"Rutherford Flight Control Tower\" t=36 az=120 el=.1 r=650 tilt=24"
+   "cue": "pan \"Rutherford Flight Control Tower\" t=36 az=330 el=.15 r=650 tilt=24"
   },
   {
    "t": 197.29,
@@ -428,7 +428,7 @@
   },
   {
    "t": 312.11,
-   "cue": "dolly \"Humanity Labor Main Offices\" t=47.7 az=16 el=.75 r=330 push=-160 rise=120"
+   "cue": "dolly \"Humanity Labor Main Offices\" t=47.7 az=60 el=.6 r=380 push=-160 rise=120"
   },
   {
    "t": 359.78,
@@ -462,5 +462,6 @@
    "t": 498.65,
    "cue": "view \"NBN Headquarters\" t=10"
   }
- ]
+ ],
+ "fx": []
 }
