@@ -39,10 +39,10 @@ export function moves(E) {
       T.copy(ROOT()).setY(350);
     } }),
 
-    // Out over the west coast, facing the open Pacific.
+    // Out over the west coast, facing the open Pacific. The camera stays above the coast towers.
 
     ocean: () => ({ blend: 4, pose(e, C, T) {
-      C.set(mix(-1150, -1300, e), 360, -100);
+      C.set(mix(-1250, -1400, e), mix(520, 480, e), -100);
       T.set(-4600, 0, mix(-200, -900, e));
     } }),
 

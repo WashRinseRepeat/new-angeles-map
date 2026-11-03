@@ -450,11 +450,11 @@
   },
   {
    "t": 296.78,
-   "cue": "dolly \"Oldtown Hotel Row\" t=31.5 az=-48 el=.45 rise=-80 push=60"
+   "cue": "dolly \"Oldtown Hotel Row\" t=31.5 az=100 el=.45 rise=-80 push=60"
   },
   {
    "t": 328.28,
-   "cue": "gaze \"Oldtown Hotel Row\" t=30"
+   "cue": "gaze \"Oldtown Hotel Row\" t=30 up=200"
   },
   {
    "t": 364.56,
