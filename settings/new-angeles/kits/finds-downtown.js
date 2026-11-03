@@ -45,12 +45,61 @@ export function landmarks(H) {
     H.decor.add(m);
     return m;
   };
-  const RADAR = [];
+
+  // A radar panel: a curved slab 36 m wide and 16 m high, tilted 20° up on a yoke. Its face is a steel frame
+  // with notched corners round an amber grid. A canvas draws the face, and its clear margin cuts the outline.
+
+  const radarFace = () => {
+    const W = 512, Hh = 228, c = 30, [cv, glowCv, silCv] = [0, 0, 0].map(() => document.createElement('canvas'));
+    for (const t of [cv, glowCv, silCv]) { t.width = W; t.height = Hh; }
+    const outline = (g, i) => {
+      const n = W * .38, m = W * .62, k = Hh * .12;
+      g.beginPath();
+      for (const [px, py] of [[c, 0], [W - c, 0], [W, c], [W, Hh - c], [W - c, Hh], [m + i, Hh], [m - k + i, Hh - k], [n + k - i, Hh - k], [n - i, Hh], [c, Hh], [0, Hh - c], [0, c]])
+        g.lineTo(px + Math.sign(W / 2 - px) * i, py + Math.sign(Hh / 2 - py) * i);
+      g.closePath();
+    };
+    const g = cv.getContext('2d'), e = glowCv.getContext('2d');
+    const sil = silCv.getContext('2d');
+    outline(sil, 0); sil.fillStyle = '#fff'; sil.fill();
+    outline(g, 0); g.fillStyle = '#7d8796'; g.fill();
+    outline(g, 16); g.fillStyle = '#2a2116'; g.fill();
+    e.fillStyle = '#000'; e.fillRect(0, 0, W, Hh);
+    for (const ctx of [g, e]) {
+      ctx.save(); outline(ctx, 16); ctx.clip();
+      ctx.strokeStyle = ctx === g ? '#b98a4a' : '#5a3a14'; ctx.lineWidth = 2;
+      for (let v = 0; v < W; v += 12) { ctx.beginPath(); ctx.moveTo(v, 0); ctx.lineTo(v, Hh); ctx.stroke(); }
+      for (let v = 0; v < Hh; v += 12) { ctx.beginPath(); ctx.moveTo(0, v); ctx.lineTo(W, v); ctx.stroke(); }
+      ctx.restore();
+    }
+    const tex = t => { const x = new H.THREE.CanvasTexture(t); x.colorSpace = H.THREE.SRGBColorSpace; x.anisotropy = 4; return x; };
+    return [tex(cv), tex(glowCv), tex(silCv)];
+  };
+
+  const radar = (x, y, z) => {
+    const { THREE } = H, g = new THREE.Group(), tilt = .35, R = 30, span = 36 / R, [map, glowMap, alphaMap] = radarFace();
+
+    // A cylinder segment behind the pivot, so its concave inside faces forward.
+
+    const panel = new THREE.CylinderGeometry(R, R, 16, 24, 1, true, Math.PI - span / 2, span).translate(0, 0, R - 2).rotateX(-tilt);
+    const face = new THREE.MeshStandardMaterial({ map, emissiveMap: glowMap, emissive: 0xffffff, roughness: .6, metalness: .3, alphaTest: .5, transparent: false, side: THREE.BackSide });
+    const back = new THREE.MeshStandardMaterial({ alphaMap, color: new THREE.Color(.55, .58, .62), roughness: .5, metalness: .3, alphaTest: .5, side: THREE.FrontSide });
+    const steel = new THREE.MeshStandardMaterial({ color: new THREE.Color(.4, .43, .47), roughness: .5, metalness: .3 });
+    const sensor = new THREE.Mesh(new THREE.BoxGeometry(2.4, 3.2, 2.4).translate(0, -5.6, .6).rotateX(-tilt), steel);
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(.7, 8, 6).translate(0, -5, 1.9).rotateX(-tilt), new THREE.MeshBasicMaterial({ color: new THREE.Color(...dim(CYAN, .9)) }));
+    g.add(new THREE.Mesh(panel, face), new THREE.Mesh(panel, back), sensor, eye,
+      new THREE.Mesh(new THREE.BoxGeometry(5, 6, 5).translate(0, -3.5, -4), steel));
+    g.position.set(x, y, z); g.userData.noTile = true;
+    g.traverse(o => { o.frustumCulled = false; });
+    H.decor.add(g);
+    return g;
+  };
+  const RADAR = [], STROBES = [];
 
   return {
 
-    // Rutherford Flight Control Tower: a lit needle with a wide disc cab, red strobes up the shaft,
-    // and cyan beams fanning out from the cab toward the hopper lanes.
+    // Rutherford Flight Control Tower: a lit needle with a wide disc cab, red strobes that climb the shaft,
+    // and a turning radar dish on the cab roof.
 
     fd_tower: { at: [505, 565], label: 'Rutherford Flight Control Tower', labelY: 432, minSide: 36, reach: 450, build(x, z, w, d, st, r) {
       const T = front(w, d), s = Math.min(w, d);
@@ -69,35 +118,36 @@ export function landmarks(H) {
       prop('cyl', x, 373, z, 54, 6, 54, [.07, .08, .09]);
       put(GLOWS.ring, x, 376.5, z, 54.4, 30, 54.4, 0, 0, dim(CYAN, .7));
       prop('cyl', x, 380, z, 34, 8, 34, [.06, .07, .08]);
-      prop('cyl', x, 400, z, 2, 36, 2, [.2, .2, .22]);
-      prop('cyl', x, 414, z, .8, 12, .8, [.3, .3, .32]);
-      beacon(x, 420.6, z, r);
       for (const [cx, cz] of FACES) beacon(x + cx * 31.5, 371, z + cz * 31.5, r);
 
-      // Radar arm on the cab roof. It turns once every six seconds.
+      // Radar dish on a pedestal. It turns once every six seconds.
 
-      prop('cyl', x, 385, z, 4, 2, 4, [.1, .11, .12]);
-      RADAR.push(spinner(PROPS.box, x, 387, z, [[0, 0, 0, 26, 1.4, 1.2, [.16, .17, .19]], [0, 1.4, -.6, 24, 1.6, .3, [.12, .13, .15]]]));
-      RADAR.push(spinner(GLOWS.sphere, x, 387, z, [[13.3, 0, 0, .9, .9, .9, CYAN], [-13.3, 0, 0, .9, .9, .9, CYAN]]));
+      prop('cyl', x, 388, z, 5, 8, 5, [.1, .11, .12]);
+      RADAR.push(radar(x, 398, z));
 
-      // Strobes up the shaft on alternate faces.
+      // Strobe rings up the shaft, one on each face.
 
-      for (let y = 40, k = 0; y < 350; y += 34, k++) {
-        const [fx, fz] = FACES[k % 4], rad = y < 218 ? 9.3 : 6.3;
-        beacon(x + fx * rad, y, z + fz * rad, r);
+      const rings = [];
+      for (let y = 40; y < 350; y += 25) {
+        const rad = y < 218 ? 10.4 : 7.4;
+        for (const [fx, fz] of FACES) rings.push([fx * rad, y, fz * rad, 2.6, 2.6, 2.6, dim(RED, .03)]);
       }
-
-      // Lane beams from the cab rim.
-
-      const a0 = r() * Math.PI;
-      for (let k = 0; k < 7; k++) {
-        const a = a0 + k * Math.PI * 2 / 7, sx = Math.sin(a), sz = Math.cos(a), L = 260 + r() * 160;
-        beam([x + sx * 32, 366, z + sz * 32], [x + sx * L, 300 - r() * 80, z + sz * L], .35, dim(CYAN, .55), 'glow');
-      }
+      STROBES.push(spinner(GLOWS.sphere, x, 0, z, rings));
       pool(x, z, s * .7, [.1, .16, .16]);
       return { face: T.fwd };
     }, update(t) {
       for (const m of RADAR) m.rotation.y = t * 1.05;
+
+      // A flash climbs the shaft one ring at a time, with a dim trail, then pauses before the next.
+
+      for (const m of STROBES) {
+        const n = m.count / 4, head = Math.floor((t * 7) % (n + 6)), c = m.instanceColor.array;
+        for (let i = 0; i < m.count; i++) {
+          const lv = i >> 2, k = lv === head ? 1.6 : lv === head - 1 ? .5 : lv === head - 2 ? .15 : .03;
+          c[i * 3] = RED[0] * k; c[i * 3 + 1] = RED[1] * k; c[i * 3 + 2] = RED[2] * k;
+        }
+        m.instanceColor.needsUpdate = true;
+      }
     } },
 
     // Humanity Labor Main Offices: a plain stone-grey slab with warm windows, a clasped-hands banner,
