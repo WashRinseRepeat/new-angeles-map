@@ -1,4 +1,4 @@
-// The Rabotgorod Hyper-Fusion Plant: the reactor that powers New Angeles. A concrete drum holds a glass sphere with
+// The New Angeles Hyper-Fusion Plant: the reactor that powers New Angeles. A concrete drum holds a glass sphere with
 // the stellarator torus inside. Three hyperboloid cooling towers steam behind it, a turbine hall and a
 // transformer yard stand beside it, and two high-voltage lines march off toward the city.
 
@@ -75,7 +75,7 @@ function plant(H) {
   // Hyperboloid cooling tower on a ring of crossed legs, with hazard lights at the rim and the throat.
 
   const tower = (x, z, rb, h, mat, r) => {
-    const lift = 9, hs = h - lift, n = 30;
+    const lift = 6, hs = h - lift, n = 40;
     const m = new THREE.Mesh(A.shellGeo, mat);
     m.position.set(x, lift, z); m.scale.set(rb, hs, rb);
     H.decor.add(m);
@@ -84,8 +84,13 @@ function plant(H) {
       beam([x + c(a) * ro, 0, z + s(a) * ro], [x + c(b) * rb, lift + .4, z + s(b) * rb], .7, CONC);
       beam([x + c(b) * ro, 0, z + s(b) * ro], [x + c(a) * rb, lift + .4, z + s(a) * rb], .7, CONC);
     }
-    prop('cyl', x, .3, z, rb * 2.1, .6, rb * 2.1, DARK);
-    glow(x, .7, z, rb * 1.7, .1, rb * 1.7, [.05, .06, .08]);
+
+    // The legs stand in a water basin with a concrete curb. A dark fill block inside shades the air inlet, so
+    // the gap under the shell reads as a deep interior.
+
+    prop('cyl', x, .5, z, rb * 2.3, 1, rb * 2.3, CONC);
+    prop('cyl', x, .55, z, rb * 2.15, 1, rb * 2.15, [.012, .018, .024]);
+    prop('cyl', x, lift / 2 + .5, z, rb * 1.75, lift, rb * 1.75, [.015, .015, .017]);
     const rt = shellR(1) * rb, rth = RT * rb;
     put(GLOWS.ring, x, h - .3, z, rt * 2 + .6, 30, rt * 2 + .6, 0, 0, dim(AMBER, .35));
     for (let k = 0; k < 10; k++) {
@@ -116,9 +121,10 @@ function plant(H) {
   };
 
   return {
-    // A free site in the forest off Rabotgorod's east edge. The turn sends the power lines west into the city.
+    // A free site in the forest where Quinde, La Costa and Guayaquil meet. The turn sends the power lines south-east
+    // into Guayaquil.
 
-    at: [778.9, 1001.1], free: [140, 140, Math.PI / 2], label: 'Rabotgorod Hyper-Fusion Plant', labelY: 200,
+    at: [852.2, 1117.8], free: [140, 140, -2.5], label: 'New Angeles Hyper-Fusion Plant', labelY: 200,
     build(x, z, w, d, st, r) {
       _o = new THREE.Object3D(); A.c = new THREE.Color(); A.towers = [];
       const cst = { ...st, base: CONC, win: [1.3, .75, .3], lit: .12 };
@@ -192,8 +198,8 @@ function plant(H) {
       for (const s of [-1, 1]) prop('lattice', hx + hw / 2 + 6, 13, hz + s * 14, 2.4, 26, 2.4);
       prop('box', hx + hw / 2 + 6, 26.5, hz, 2, 2, 32, [.3, .2, .05]);
       glow(hx + hw / 2 + 6, 25.3, hz, .5, .5, .5, AMBER);
-      textSign('RABOTGOROD HYPER-FUSION 1', hx - hw / 2 - .4, hh - 4, hz, 26, 3, -Math.PI / 2, dim(AMBER, .6));
-      textSign('RABOTGOROD HYPER-FUSION 1', hx + hw / 2 + 1.8, hh - 4, hz, 26, 3, Math.PI / 2, dim(AMBER, .6));
+      textSign('NA HYPER-FUSION 1', hx - hw / 2 - .4, hh - 4, hz, 26, 3, -Math.PI / 2, dim(AMBER, .6));
+      textSign('NA HYPER-FUSION 1', hx + hw / 2 + 1.8, hh - 4, hz, 26, 3, Math.PI / 2, dim(AMBER, .6));
 
       // Pipes: drum to hall, hall to the header, and a drop to each tower.
 
