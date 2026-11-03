@@ -286,6 +286,13 @@ composer.addPass(clouds);
 export const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), ...LOOK.bloom);
 composer.addPass(bloom);
 
+// Bloom's blur spreads one NaN or Inf pixel into a black box, so its bright-pass turns any such pixel to 0.
+// The test is written so a NaN fails it.
+
+bloom.materialHighPassFilter.fragmentShader = bloom.materialHighPassFilter.fragmentShader.replace(
+  'vec4 texel = texture2D( tDiffuse, vUv );',
+  'vec4 texel = texture2D( tDiffuse, vUv ); if (!(abs(texel.r) + abs(texel.g) + abs(texel.b) + abs(texel.a) < 6e4)) texel = vec4(0.);');
+
 // The output pass adds the bloom and lays the clouds over the frame before tone mapping, so neither needs a
 // full-screen pass of its own. Bloom's own additive blend is switched off, and the output adds the same
 // rgb × alpha. Clouds stay under the bloom threshold, so bloom loses nothing by skipping them. Each of the

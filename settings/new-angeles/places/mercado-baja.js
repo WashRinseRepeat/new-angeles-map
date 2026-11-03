@@ -33,10 +33,12 @@ function batch(THREE) {
 }
 
 // The pit draws first. The mask then writes depth over the hole, so the ground fails its depth test there and the pit shows through.
+// Street surfaces lie 4 cm below the mask, so a polygon offset pulls the mask toward the camera. Without it they
+// win in strips from far away.
 
 function cutaway(THREE, decor, x0, z0, x1, z1) {
   const m = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, z1 - z0).rotateX(-Math.PI / 2), new THREE.ShaderMaterial({
-    colorWrite: false,
+    colorWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4,
     vertexShader: 'void main(){ gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }',
     fragmentShader: 'void main(){}',
   }));
