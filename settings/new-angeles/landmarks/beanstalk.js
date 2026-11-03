@@ -486,20 +486,16 @@ export function build(H, group) {
   for (const [k, list] of Object.entries(bins)) group.add(new THREE.Mesh(mergeGeometries(list), mats[k]));
   const cBodyGeo = mergeGeometries(cBody.map(g => { g.deleteAttribute('uv'); return g; }));
   const cLitGeo = mergeGeometries(cLit);
-  const MOVING = 14, DOCKED = 2, TOUR = MOVING + DOCKED, N = TOUR + 1;
+  const MOVING = 14, TOUR = MOVING, N = TOUR + 1;
   const climBody = new THREE.InstancedMesh(cBodyGeo, steelMat, N);
   const climLit = new THREE.InstancedMesh(cLitGeo, new THREE.MeshBasicMaterial({ vertexColors: true, fog: false }), N);
   for (const m of [climBody, climLit]) { m.frustumCulled = false; group.add(m); }
   const climbers = Array.from({ length: MOVING }, (_, k) => ({ up: k % 2 === 0, u0: (k >> 1) / (MOVING / 2) + (k % 2) * .037 }));
-  const BASE = DOCK + 30, TOP = 9600, ACCEL = 24, TRIP = Math.sqrt(2 * (TOP - BASE) / ACCEL), M = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = V3(0, 0, 0), SC = V3(1, 1, 1), Y = V3(0, 1, 0);
+  const BASE = CROWN - 40, TOP = 9600, ACCEL = 48, TRIP = Math.sqrt(2 * (TOP - BASE) / ACCEL), M = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = V3(0, 0, 0), SC = V3(1, 1, 1), Y = V3(0, 1, 0);
   const place = (i, y, up, s) => {
     Q.setFromAxisAngle(Y, up ? 0 : Math.PI); P.set(0, y, 0); SC.setScalar(s);
     M.compose(P, Q, SC); climBody.setMatrixAt(i, M); climLit.setMatrixAt(i, M);
   };
-
-  // Docked climbers sit inside the collar, loading from the gantry arms.
-
-  place(MOVING, DOCK + 12, true, 1); place(MOVING + 1, DOCK + 12, false, 1);
 
   // The audio tour drives one extra climber up the +z face. It stays hidden until the tour places it. While it
   // rides, the other up climbers leave the ribbon, and they return when the tour lets the pod go. Only the tour
@@ -520,12 +516,10 @@ export function build(H, group) {
       climbers.forEach((c, i) => {
         const u = ((t / TRIP + c.u0) % 1 + 1) % 1, e = c.up ? u : 1 - u;
 
-        // Climbers accelerate at ACCEL m/s² from the Root, so a trip takes TRIP seconds (about 28 s). Down
-        // climbers run the same curve backwards and brake to a stop at the collar.
+        // Climbers start and end inside the Root's body, out of sight. They accelerate at ACCEL m/s², so a
+        // trip takes TRIP seconds (about 20 s). Down climbers run the same curve backwards.
 
-        const y = BASE + (TOP - BASE) * e ** 2;
-        const grow = Math.min(1, (c.up ? u : 1 - u) * 60);
-        place(i, y, c.up, solo && c.up ? 0 : grow);
+        place(i, BASE + (TOP - BASE) * e ** 2, c.up, solo && c.up ? 0 : 1);
       });
       climBody.instanceMatrix.needsUpdate = climLit.instanceMatrix.needsUpdate = true;
       const blink = (Math.sin(t * 2.6) > .55) ? 1 : .06;
