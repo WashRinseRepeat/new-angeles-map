@@ -71,7 +71,7 @@ export const FRAMES = CITY.lots.map(lotFrame);
 // the pack's cityTune rows. skew bends small-lot heights toward low, so tall ones grow rarer. small scales each
 // style's smallShare.
 
-export const CITYTUNE = { skew: 1.4, small: 1, needles: 0, ...Object.fromEntries(SETTING.kits.cityTune.map(([k, , , , , def]) => [k, def])) };
+export const CITYTUNE = { skew: 1.4, small: 1, needles: 0, needleTop: 350, ...Object.fromEntries(SETTING.kits.cityTune.map(([k, , , , , def]) => [k, def])) };
 
 // Mega-housing fills a whole city block. A pack's block zones can use it as a builder.
 // A ring stacks four slabs round a courtyard with sky bridges. A stepped block climbs in setbacks.
@@ -403,12 +403,12 @@ function buildLot(f, g, blend, k = 1, bare = false, slab = 0) {
     return;
   }
 
-  // A needle is a slim tower of 120 to 380 m on any lot, whatever the district's heights. Its own seed keeps every
-  // other lot's draws the same.
+  // A needle is a slim tower on any lot, whatever the district's heights. It stands 35% to 100% of needleTop metres,
+  // and only the needle dials set its height. Its own seed keeps every other lot's draws the same.
 
   const nr = rng(hash(Math.round(f.cx * 10) + 7, Math.round(f.cz * 10) + 3));
   if (size >= 10 && nr() < CITYTUNE.needles) {
-    buildTall(g.cx, g.cz, Math.min(g.w - 2, 16 + 10 * nr()), Math.min(g.d - 2, 16 + 10 * nr()), (120 + 260 * nr() ** 2) * boost, st, nr, false);
+    buildTall(g.cx, g.cz, Math.min(g.w - 2, 16 + 10 * nr()), Math.min(g.d - 2, 16 + 10 * nr()), CITYTUNE.needleTop * (.35 + .65 * nr() ** 2), st, nr, false);
     S.FRAME = null;
     return;
   }
