@@ -44,9 +44,10 @@ if (LOOK_MODE) for (const [k, v] of Object.entries(S.look.modes[LOOK_MODE])) {
   S.look[k] = v && typeof v === 'object' && !Array.isArray(v) && S.look[k] ? { ...S.look[k], ...v } : v;
 }
 
-// ?streets=<variant> loads city-<variant>.json, a street layout that gen.ts writes next to city.json.
+// ?streets=<variant> loads city-<variant>.json, a street layout that gen.ts writes next to city.json. The pack's
+// data.streets names the default variant, and ?streets=grid loads city.json itself.
 
-const streets = new URLSearchParams(location.search).get('streets');
-if (/^\w+$/.test(streets ?? '')) S.data.city = S.data.city.replace(/\.json$/, `-${streets}.json`);
+const streets = new URLSearchParams(location.search).get('streets') ?? S.data.streets;
+if (/^\w+$/.test(streets ?? '') && streets !== 'grid') S.data.city = S.data.city.replace(/\.json$/, `-${streets}.json`);
 export const inPack = path => new URL(path, PACK).href;
 export const atRoot = path => new URL(path, ROOT).href;

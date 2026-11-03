@@ -14,7 +14,7 @@ export default {
   // Saved choices (tuning, quality, the welcome card, audio positions) use this prefix in localStorage.
 
   storage: 'na',
-  data: { city: 'city.json', seats: 'places.json', summaries: 'districts.json' },
+  data: { city: 'city.json', streets: 'blend', seats: 'places.json', summaries: 'districts.json' },
   map: MAP,
 
   // ---------- the central landmark, the Beanstalk, rising from the Root in Chakana ----------

@@ -45,7 +45,7 @@ An engine change for a new pack must leave New Angeles as it was. `node spikes/m
 |---|---|
 | `id`, `name` | folder name and display name |
 | `storage` | localStorage prefix for saved choices (tuning, quality, welcome card, audio positions, edit mode) |
-| `data` | `city`, `seats` (edit-mode seats, `places.json`), `summaries` (one-line district texts for the atlas), relative to the map root |
+| `data` | `city`, `streets` (optional default street layout, as `?streets=` takes it; `grid` is `city` itself), `seats` (edit-mode seats, `places.json`), `summaries` (one-line district texts for the atlas), relative to the map root |
 | `map` | `{ cx, cy, scale }`: a map pixel `[u, v]` lands at `((u - cx) * scale, (v - cy) * scale)` metres. `gen/gen.ts` imports New Angeles' `map.js`, so the city file agrees |
 | `centre` | optional. The central landmark. `district` (its blocks take the ring zone), `radius` (plaza kept clear), `top` and `pinLift` (pin), `boost` (towers rise near it), `highwayReach`, `glow` (plaza ring colour), `module` (optional landmark module), `lore` (its key in the landmark cards), `fade` (box an audio-tour gaze thins out), `place` (its card) |
 | `terrain` | optional module that replaces the flat ground, the slab and the sea. `'../../engine/hills.js'` gives rolling hills with woods, tuned in `look.land` |

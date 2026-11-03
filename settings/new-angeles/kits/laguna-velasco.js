@@ -221,7 +221,7 @@ function lib(H) {
     dock(x, z, W, D, r);
   };
 
-  // Levy campus: brick halls round a quad, vine patches, a white lab box, prefab huts and sometimes a student high-rise.
+  // Levy campus: brick halls round a quad, vine patches, a white lab box, a glass reading pavilion and sometimes a student high-rise.
 
   const campusAt = (x, z, W, D, st, r, fv, tower) => {
     const A = axesOf(x, z, W, D, fv), { L, S } = A, box = boxIn(A), gl = glowIn(A);
@@ -255,9 +255,14 @@ function lib(H) {
       const [px, pz] = A.at((r() - .5) * (L - 2 * side - 8), t / 2 + (r() - .5) * (S - t - 10));
       tree(px, .3, pz, 7 + r() * 6, r, 'broad');
     }
-    for (let k = Math.floor(r() * 3); k > 0; k--) {
-      const [px, pz] = A.at(-lab * (L / 2 - side - 8 - k * 7), S / 2 - 5), [w, d] = A.sz(6, 4);
-      bld(px, pz, w, d, 3.2, { ...st, base: [.11, .11, .1], lit: .25 }, r, { roof: false, skin: SKINS.sparse });
+
+    // A lit glass reading pavilion under a white roof slab on the open side of the quad.
+
+    if (L - 2 * side > 24) {
+      const [px, pz] = A.at(-lab * (L / 2 - side - 9), S / 2 - 6), [w, d] = A.sz(10, 5);
+      bld(px, pz, w, d, 3.6, { ...st, base: [.06, .07, .08], win: WARM, lit: 1, grime: 0 }, r, { roof: false, kibble: false, skin: SKINS.curtain, glow: .5 });
+      prop('box', px, 3.8, pz, w + 2, .4, d + 2, dim(WHITE, 1.4));
+      pool(px, pz, 7, [.1, .065, .03]);
     }
     if (tower) {
       const [px, pz] = A.at(lab * (L / 2 - side / 2 - 1), S / 2 - 8), th = st.h1 * (1 + .6 * r());
@@ -1046,6 +1051,164 @@ function lib(H) {
     dock(x, z, W, D, r);
   };
 
+  // ---------- luxury mid-rises: stacked boxes, twist, ribbon, sliced prism, sky garden, infinity pool ----------
+
+  // Mid-rise base: a garden lot behind a hedge with a lit gate, palms on wide lots, and a tower footprint fw × fd at v0.
+  // Dark glass with warm rooms, white render, five to ten floors of 3.4 m, and one accent colour for edge lines.
+
+  const luxeBase = (x, z, W, D, st, r, fv) => {
+    const A = axesOf(x, z, W, D, fv), { L, S } = A, box = boxIn(A);
+    lawn(x, z, W, D, 0, GARDEN);
+    for (const sd of [-1, 1]) {
+      box('box', sd * (L / 4 + 1.2), S / 2 - .6, L / 2 - 3.4, 1, 0, 1, HEDGE);
+      const [lx, lz] = A.at(sd * 2.2, S / 2 - .6);
+      prop('cyl', lx, 1, lz, .3, 2, .3, dim(IVORY, .8));
+      put(GLOWS.sphere, lx, 2.2, lz, .6, .6, .6, 0, 0, dim(WARM, 1.1));
+      if (L > 15) tree(...p3(A, sd * (L / 2 - 1.8), .3, S / 2 - 2.4), 7 + r() * 3, r, 'palm');
+    }
+    return { A, L, S, box, gl: glowIn(A), fw: Math.min(L * .7, 24), fd: Math.min(S * .52, 18), v0: -S * .1, n: 5 + Math.floor(r() * 6), FH: 3.4,
+      gs: { ...st, base: dim([.05, .06, .075], .9 + .3 * r()), win: WARM, lit: .62, grime: 0, neon: 0 },
+      ws: { ...homeOf(st, r, .75), base: dim(pick(r, [WHITE, IVORY, RENDER]), 1.1 + .2 * r()) },
+      ac: pick(r, [GOLD, GOLD, TEAL, ROSE]) };
+  };
+  const SOLID = { roof: false, kibble: false };
+
+  // Thin glow lines round a rectangle at height y.
+
+  const rim = (gl, u, v, lu, lv, y, rgb) => {
+    for (const s of [-1, 1]) { gl(u, v + s * lv / 2, lu + .2, .14, y, .12, rgb); gl(u + s * lu / 2, v, .14, lv + .2, y, .12, rgb); }
+  };
+
+  // Stacked boxes: two-floor volumes that turn ninety degrees and slide off the one below. Each overhang glows
+  // in the accent colour underneath. A roof terrace under string lights tops the stack.
+
+  const stackAt = (x, z, W, D, st, r, fv) => {
+    const { A, L, S, box, gl, fw, fd, v0, n, FH, gs, ws, ac } = luxeBase(x, z, W, D, st, r, fv);
+    let y = 0, u = 0, v = v0, lu = fw, lv = fd;
+    for (let k = 0, m = Math.ceil(n / 2); k < m; k++) {
+      const turn = k % 2, h = FH * 2;
+      lu = Math.min(turn ? fd * 1.2 : fw, L - 2); lv = Math.min(turn ? fw * .6 : fd * .75, S * .6);
+      const cu = Math.max(0, (L - lu) / 2 - 1), v1 = -S / 2 + 1 + lv / 2, v2 = Math.max(v1, S * .22 - lv / 2);
+      if (k) { u = Math.max(-cu, Math.min(cu, u + (r() < .5 ? -1 : 1) * (2 + fw * .2 * r()))); v = Math.max(v1, Math.min(v2, v + (r() - .5) * 4)); }
+      homeBld(A, u, v, lu, lv, y, h - .3, turn ? ws : gs, r, turn ? SKINS.bands : SKINS.curtain, .3);
+      if (k) gl(u, v, lu - .4, lv - .4, y - .14, .12, dim(ac, .8));
+      box('box', u, v, lu + .3, lv + .3, y + h - .3, .3, dim(WHITE, 1.3));
+      y += h;
+    }
+    box('box', u, v, lu * .7, lv * .6, y, .35, PLANT);
+    rim(gl, u, v, lu + .3, lv + .3, y - .05, dim(ac, .6));
+    for (const s of [-1, 1]) box('cyl', u + s * lu * .4, v - s * lv * .3, .15, .15, y, 2.6, DARKWOOD);
+    stringLights(p3(A, u - lu * .4, y + 2.5, v + lv * .3), p3(A, u + lu * .4, y + 2.5, v - lv * .3), .3, 6, dim(WARM, 1.1));
+    tree(...p3(A, u + lu * .25, y + .35, v + lv * .1), 2 + r(), r, 'shrub');
+  };
+
+  // Twisted tower: floor plates turn a little more each floor round a dark core. Each white slab has a gold line
+  // under its edge. A glass penthouse under a floating roof and an accent ring crown the twist.
+
+  const twistAt = (x, z, W, D, st, r, fv) => {
+    const { A, L, S, fw, fd, v0, n, FH, gs, ac } = luxeBase(x, z, W, D, st, r, fv);
+    const e = Math.min(L / 2, S * .4) - 1, lu = Math.min(e * 1.7, fw), lv = Math.min(e * 1.05, fd), turn = (r() < .5 ? -1 : 1) * (.8 + .5 * r()) / n;
+    const [cx, cz] = A.at(0, v0), slab = dim(WHITE, 1.5);
+    bld(cx, cz, lv * .45, lv * .45, n * FH + 3, { ...gs, base: [.03, .03, .035], lit: .2 }, r, { ...SOLID, shape: 'oct', skin: SKINS.sparse });
+    for (let k = 0; k <= n; k++) {
+      const a = A.ry + k * turn, y = k * FH;
+      prop('box', cx, y + .2, cz, lu + 1.2, .4, lv + 1.2, slab, a);
+      if (k) glow(cx, y - .03, cz, lu + 1.1, .1, lv + 1.1, dim(GOLD, .6), a);
+      if (k < n) bld(cx, cz, lu, lv, FH - .4, gs, r, { ...SOLID, y0: y + .4, ry: a, skin: SKINS.curtain, glow: .35 });
+    }
+    const a = A.ry + n * turn, y = n * FH + .4;
+    bld(cx, cz, lu * .55, lv * .7, 3, { ...gs, lit: 1 }, r, { ...SOLID, y0: y, ry: a, skin: SKINS.curtain, glow: .6 });
+    prop('box', cx, y + 3.2, cz, lu * .75, .3, lv * .9, slab, a);
+    put(GLOWS.ring, cx, y + .1, cz, lu * 1.15, 1, lv * 1.4, a, 0, dim(ac, .7));
+  };
+
+  // Ribbon tower: oval glass floors between white curved slabs. The stack sways sideways, swells and pinches,
+  // and every slab carries a soft accent ring. An oval roof garden with a glass lantern on top.
+
+  const ribbonAt = (x, z, W, D, st, r, fv) => {
+    const { A, L, S, fw, fd, v0, n, FH, gs, ws, ac } = luxeBase(x, z, W, D, st, r, fv);
+    const lu = Math.min(fw, L - 6), lv = Math.min(fd, S * .5), amp = Math.max(0, Math.min(3, (L - lu * 1.12 - 1.6) / 2 - .5)), ph = r() * 6.3, oval = { ...SOLID, shape: 'cyl' };
+    const at = k => { const t = k / n, sc = 1 + .12 * Math.sin(ph + t * 4.4); return [...A.at(amp * Math.sin(ph + t * 3.1), v0), ...A.sz(lu * sc, lv * sc)]; };
+    for (let k = 0; k <= n; k++) {
+      const [px, pz, w, d] = at(k), y = k * FH;
+      bld(px, pz, w + 1.6, d + 1.6, .5, { ...ws, lit: 0 }, r, { ...oval, y0: y, skin: SKINS.plaster });
+      put(GLOWS.ring, px, y + .02, pz, w + 1.7, 1, d + 1.7, 0, 0, dim(ac, .55));
+      if (k < n) bld(px, pz, w, d, FH - .5, gs, r, { ...oval, y0: y + .5, skin: SKINS.curtain, glow: .35 });
+    }
+    const [px, pz, w, d] = at(n), y = n * FH + .5;
+    bld(px, pz, w * .85, d * .85, .3, { ...st, base: PLANT, lit: 0 }, r, { ...oval, y0: y });
+    bld(px, pz, w * .4, d * .4, 2.8, { ...gs, lit: 1 }, r, { ...oval, y0: y, skin: SKINS.curtain, glow: .7 });
+    put(GLOWS.ring, px, y + 3, pz, w * .45, 1, d * .45, 0, 0, dim(WARM, .8));
+  };
+
+  // Sliced prism: two dark glass halves split by a lit crack. Each half cuts down toward its outer side in steps,
+  // an accent line on every step edge, like a crystal sheared across the top. A reflecting pool lies in front.
+
+  const prismAt = (x, z, W, D, st, r, fv) => {
+    const { A, S, gl, fw, fd, v0, n, FH, gs, ac } = luxeBase(x, z, W, D, st, r, fv);
+    const gap = 1, half = (fw - gap) / 2, cut = Math.max(2, Math.floor(n * (.35 + .2 * r()))), hs = { ...gs, base: dim(gs.base, 1.4) };
+    for (const sd of [-1, 1]) {
+      const m = sd > 0 ? n : Math.max(cut + 1, n - 2), s = sd > 0 ? gs : hs;
+      homeBld(A, sd * (gap + half) / 2, v0, half, fd, 0, cut * FH, s, r, SKINS.curtain, .3);
+      gl(sd * (gap / 2 + half), v0, .14, fd + .1, cut * FH - .06, .12, dim(ac, .7));
+      for (let k = cut; k < m; k++) {
+        const l = half * (1 - .75 * (k - cut + 1) / (m - cut + 1));
+        homeBld(A, sd * (gap + l) / 2, v0, l, fd, k * FH, FH, s, r, SKINS.curtain, .3);
+        gl(sd * (gap / 2 + l), v0, .14, fd + .1, (k + 1) * FH - .06, .12, dim(ac, .7));
+      }
+    }
+    gl(0, v0, gap * .6, fd * .9, .5, n * FH - 1, dim(ac, 1.1));
+    const fv0 = v0 + fd / 2, room = S / 2 - fv0 - 2;
+    if (room > 4) reflect(A, 0, fv0 + room / 2, fw * .8, Math.min(4, room * .45));
+  };
+
+  // Sky garden tower: white slabs carry deep planted balconies that swap corners each floor, with shrubs and small
+  // trees on them and warm light under every lip. A roof garden with a tree and a glass lantern on top.
+
+  const skygardenAt = (x, z, W, D, st, r, fv) => {
+    const { A, box, gl, fw, fd, v0, n, FH, gs, ac } = luxeBase(x, z, W, D, st, r, fv);
+    const cu = fw * .72, cv = fd * .72, slab = dim(WHITE, 1.4);
+    for (let k = 0; k < n; k++) {
+      const y = k * FH, sd = k % 2 ? 1 : -1;
+      box('box', 0, v0, fw, fd, y, .4, slab);
+      if (k) gl(0, v0, fw - .3, fd - .3, y - .1, .1, dim(WARM, .7));
+      homeBld(A, sd * (fw - cu) / 2, v0 + sd * (fd - cv) / 2, cu, cv, y + .4, FH - .4, gs, r, SKINS.curtain, .35);
+      for (const s of [-1, 1]) {
+        box('box', 0, v0 + s * (fd / 2 - .35), fw, .7, y + .4, .7, PLANT);
+        box('box', s * (fw / 2 - .35), v0, .7, fd - 1.4, y + .4, .7, PLANT);
+      }
+      tree(...p3(A, -sd * fw * .33, y + .4, v0 - sd * fd * .3), k % 2 ? 3 + r() * 1.5 : 1.8 + r(), r, k % 2 ? 'broad' : 'shrub');
+    }
+    const y = n * FH;
+    box('box', 0, v0, fw, fd, y, .4, slab);
+    box('box', 0, v0, fw * .85, fd * .85, y + .4, .3, PLANT);
+    rim(gl, 0, v0, fw, fd, y + .35, dim(ac, .5));
+    tree(...p3(A, fw * .2, y + .7, v0), 4 + r() * 2, r, 'broad');
+    homeBld(A, -fw * .2, v0, fw * .3, fd * .4, y + .7, 2.8, { ...gs, lit: 1 }, r, SKINS.curtain, .7);
+  };
+
+  // Infinity penthouse: a white bar with ribbon balconies, warm light under each. The roof deck juts toward the street,
+  // its pool runs to the open edge and spills a teal glow down the face. A glass penthouse sits under a floating roof.
+
+  const infinityAt = (x, z, W, D, st, r, fv) => {
+    const { A, S, box, gl, fw, fd, v0, n, FH, gs, ws } = luxeBase(x, z, W, D, st, r, fv);
+    const lu = fw, lv = fd * .8, H0 = n * FH, ov = Math.min(4, S * .12), dv = v0 + ov / 2, dl = lv + ov, slab = dim(WHITE, 1.5);
+    homeBld(A, 0, v0, lu, lv, 0, H0, ws, r, SKINS.bands, .2);
+    for (let k = 1; k < n; k++) {
+      box('box', 0, v0 + lv / 2 + .6, lu + .4, 1.2, k * FH, .25, slab);
+      gl(0, v0 + lv / 2 + 1.1, lu, .1, k * FH - .1, .1, dim(WARM, .6));
+    }
+    box('box', 0, dv, lu + 1, dl, H0, .6, slab);
+    gl(0, dv, lu + .8, dl - .2, H0 - .1, .1, dim(TEAL, .4));
+    const pl = lu * .8, pd = Math.min(3.2, dl * .35), [sx, sz] = A.at(0, dv + dl / 2 - pd / 2 - .3), [sw, sd] = A.sz(pl, pd);
+    swim(sx, H0 + .6, sz, sw, sd);
+    gl(0, dv + dl / 2 + .06, pl, .1, H0 - .5, 1.1, dim(POOLW, 1.2));
+    homeBld(A, -lu * .15, dv - dl * .2, lu * .5, dl * .45, H0 + .6, 3, { ...gs, lit: 1 }, r, SKINS.curtain, .6);
+    box('box', -lu * .05, dv - dl * .15, lu * .8, dl * .6, H0 + 3.8, .3, slab);
+    gl(-lu * .05, dv - dl * .15 + dl * .3, lu * .8, .1, H0 + 3.72, .1, dim(GOLD, .7));
+    tree(...p3(A, lu * .38, H0 + .6, dv - dl * .3), 2 + r(), r, 'shrub');
+  };
+
   // A house kit on any lot. A lot narrower than the house needs (minL along the street, minS deep) gets a modern villa.
   // Past 40 m a lot becomes grounds: the house takes a plot at the back, a lamp-lit gravel drive runs to it
   // between stone gate piers, and woods fill the rest.
@@ -1213,6 +1376,30 @@ function lib(H) {
 
     lv_towerhouse: homeKit(towerAt, 10, 10),
 
+    // Two-floor boxes stacked crosswise, each shoved off the one below, accent light under every overhang.
+
+    lv_stackbox: homeKit(stackAt, 12, 12),
+
+    // Floor plates that turn round a dark core, gold lines under white slabs, a ringed glass penthouse.
+
+    lv_twist: homeKit(twistAt, 12, 12),
+
+    // Oval floors between curved white slabs that sway and swell, accent rings on every slab.
+
+    lv_ribbon: homeKit(ribbonAt, 14, 12),
+
+    // Dark glass prism split by a lit crack, both halves sheared down in steps.
+
+    lv_prism: homeKit(prismAt, 12, 12),
+
+    // Planted balconies that swap corners each floor, trees on the terraces, warm light under the lips.
+
+    lv_skygarden: homeKit(skygardenAt, 12, 12),
+
+    // White bar with ribbon balconies and a cantilevered roof deck with an infinity pool and a glass penthouse.
+
+    lv_infinity: homeKit(infinityAt, 12, 14),
+
     // Stepped green-terraced residence, three to six steps.
 
     lv_terrace(x, z, s, st, b, r) {
@@ -1332,11 +1519,12 @@ function lib(H) {
   // Lots on the park field become gardens. The showcase has no frame and builds every kit as named.
 
   const SIZE = s => s < 16 ? 0 : s < 30 ? 1 : 2;
+  const LUXE = ['lv_stackbox', 'lv_twist', 'lv_ribbon', 'lv_prism', 'lv_skygarden', 'lv_infinity'];
   const ALLOW = {
     Downtown: [
       ['lv_terrace', 'lv_terrace', 'lv_villa', 'lv_towerhouse', 'lv_deco', 'lv_colonial', 'lv_garden', 'lv_skyres'],
-      ['lv_skyres', 'lv_apartments', 'lv_apartments', 'lv_terrace', 'lv_villa', 'lv_towerhouse', 'lv_brutal', 'lv_pavilion', 'lv_garden', 'lv_sailtower'],
-      ['lv_govarc', 'lv_sailtower', 'lv_gardenring', 'lv_ziggurat', 'lv_lawnplaza', 'lv_terrace', 'lv_skyres'],
+      [...LUXE, 'lv_skyres', 'lv_apartments', 'lv_terrace', 'lv_garden'],
+      [...LUXE, 'lv_govarc', 'lv_sailtower', 'lv_gardenring', 'lv_ziggurat', 'lv_skyres'],
     ],
     Lakeside: [
       ['lv_villa', 'lv_villa', 'lv_colonial', 'lv_colonial', 'lv_deco', 'lv_cascade', 'lv_towerhouse', 'lv_pavilion', 'lv_terrace'],
@@ -1344,9 +1532,9 @@ function lib(H) {
       ['lv_estate', 'lv_estate', 'lv_mansion', 'lv_mansion', 'lv_lodge', 'lv_marina', 'lv_colonial', 'lv_pavilion', 'lv_brutal'],
     ],
     'Levy University': [
-      ['lv_campus', 'lv_campus', 'lv_campus', 'lv_villa'],
-      ['lv_campus', 'lv_campus', 'lv_terrace'],
-      ['lv_campus', 'lv_campus', 'lv_lawnplaza', 'lv_terrace'],
+      [...LUXE, 'lv_villa', 'lv_towerhouse', 'lv_campus', 'lv_campus'],
+      [...LUXE, 'lv_terrace', 'lv_skyres', 'lv_campus', 'lv_campus'],
+      [...LUXE, 'lv_lawnplaza', 'lv_skyres', 'lv_campus', 'lv_campus'],
     ],
   };
   const route = (name, x, z, s, r) => {
@@ -1359,7 +1547,7 @@ function lib(H) {
   for (const name of Object.keys(K)) kits[name] = (x, z, s, st, b, r) => route(name, x, z, s, r)(x, z, s, st, b, r);
 
   LIB = { kits, area, axesOf, boxIn, glowIn, p3, lawn, lamp, tree, boat, reflect, glassOf, mansionAt, villaAt, campusAt, roofKit, front, pick, dim, fvRy,
-    colonialAt, decoAt, towerAt, cascadeAt,
+    colonialAt, decoAt, towerAt, cascadeAt, luxe: [stackAt, twistAt, ribbonAt, prismAt, skygardenAt, infinityAt],
     terraceAt, skyresAt, gardenAt, estateAt, apartmentsAt, iconAt, fitRect, fringe, shore,
     C: { GARDEN, LAWN, HEDGE, WATER, DECK, STONE, WOOD, TILE, CREAM, BRICK, GRANITE, SILVER, WHITE, WARM, ORANGE, TEAL, GOLD, ROSE, COLD, POLICE } };
   return LIB;
@@ -1381,7 +1569,7 @@ export const tiers = {
 export function blocks(H) {
   const { SKINS, bld, glow, prop, pool, beam, grammarTowerBody } = H;
   const L = lib(H), { C, axesOf, boxIn, glowIn, p3, lawn, lamp, tree, boat, reflect, glassOf, mansionAt, villaAt, campusAt, terraceAt, skyresAt, gardenAt, estateAt, apartmentsAt, iconAt, fitRect, fringe, shore, front, dim, pick,
-    colonialAt, decoAt, towerAt, cascadeAt } = L;
+    colonialAt, decoAt, towerAt, cascadeAt, luxe } = L;
 
   const B = {
     // Civic arcology campus: twin white towers joined by skybridges, a long reflecting pool, allées and a raised jogging loop.
@@ -1420,7 +1608,7 @@ export function blocks(H) {
       gl(0, S / 2 - 1, 16, .3, .2, 1.2, dim(C.GOLD, .3));
     },
 
-    // Channel estate: two channels cut the block into islands of mansions and villas, with bridges, jetties and boats.
+    // Channel estate: two channels cut the block into islands of mansions, villas and mid-rises, with bridges, jetties and boats.
 
     lv_channels(x, z, w, d, st, r) {
       const fv = front(), A = axesOf(x, z, w, d, fv), { L: Lu, S } = A, box = boxIn(A), gl = glowIn(A);
@@ -1432,9 +1620,12 @@ export function blocks(H) {
       for (const [su, sv] of isl) {
         const u0 = su < 0 ? -Lu / 2 : cu + cw / 2, u1 = su < 0 ? cu - cw / 2 : Lu / 2, v0 = sv < 0 ? -S / 2 : cv + cw / 2, v1 = sv < 0 ? cv - cw / 2 : S / 2;
         const lu = u1 - u0 - 2, lv = v1 - v0 - 2;
-        if (lu < 16 || lv < 16) { const [px, pz] = A.at((u0 + u1) / 2, (v0 + v1) / 2), [iw, id] = A.sz(Math.max(lu, 2), Math.max(lv, 2)); lawn(px, pz, iw, id); continue; }
-        const [px, pz] = A.at((u0 + u1) / 2, (v0 + v1) / 2), [iw, id] = A.sz(lu, lv), ifv = [fv[0] * sv, fv[1] * sv];
-        pick(r, [mansionAt, mansionAt, mansionAt, villaAt, colonialAt])(px, pz, iw, id, st, r, ifv);
+        const [px, pz] = A.at((u0 + u1) / 2, (v0 + v1) / 2), [iw, id] = A.sz(Math.max(lu, 2), Math.max(lv, 2)), ifv = [fv[0] * sv, fv[1] * sv];
+
+        // Islands too small for a mansion take a luxury mid-rise. Slivers stay lawn.
+
+        if (Math.min(lu, lv) < 10) { lawn(px, pz, iw, id); continue; }
+        pick(r, lu < 16 || lv < 16 ? luxe : [mansionAt, mansionAt, mansionAt, villaAt, colonialAt])(px, pz, iw, id, st, r, ifv);
 
         // A jetty and a boat on the main channel.
 
@@ -1496,6 +1687,17 @@ export function blocks(H) {
       apartmentsAt(x, z, w, d, st, r, front());
     },
 
+    // Luxury row: the block splits into one to three parcels along the street, and deep blocks into a front and a back row.
+    // Each parcel takes a luxury mid-rise. Back parcels face the far street.
+
+    lv_luxe(x, z, w, d, st, r) {
+      const fv = front(), A = axesOf(x, z, w, d, fv), { L: Lu, S } = A, nu = Math.max(1, Math.min(3, Math.floor(Lu / 20))), nv = S > 44 ? 2 : 1;
+      for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) {
+        const sv = nv > 1 && !j ? -1 : 1, [px, pz] = A.at((i + .5) * Lu / nu - Lu / 2, (j + .5) * S / nv - S / 2), [pw, pd] = A.sz(Lu / nu - .5, S / nv - .5);
+        pick(r, luxe)(px, pz, pw, pd, st, r, [fv[0] * sv, fv[1] * sv]);
+      }
+    },
+
     // Rare modernist tower. The router hands it out; named directly it picks a random form.
 
     lv_icon(x, z, w, d, st, r, form) {
@@ -1514,14 +1716,14 @@ export function blocks(H) {
     },
   };
 
-  // Blocks follow the sub-area. Estates dominate Lakeside, apartments and civic courts Downtown, the quad at Levy.
+  // Blocks follow the sub-area. Estates dominate Lakeside, apartments and civic courts Downtown, the quad and luxury rows at Levy.
   // Every builder gets the largest rectangle that fits inside the block polygon, so nothing spills onto streets.
   // Up to seven icon towers, at least 320 m apart, one form each in turn. Downtown and reservoir-edge blocks are likely picks; other Lakeside blocks are rare ones.
 
   const ROUTE = {
-    Downtown: ['lv_civic', 'lv_residence', 'lv_apartments', 'lv_apartments', 'lv_apartments', 'lv_estate', 'lv_estate', 'lv_park'],
-    Lakeside: ['lv_estate', 'lv_estate', 'lv_estate', 'lv_estate', 'lv_estate', 'lv_apartments', 'lv_apartments', 'lv_channels', 'lv_park'],
-    'Levy University': ['lv_quad', 'lv_quad', 'lv_apartments', 'lv_estate', 'lv_park'],
+    Downtown: ['lv_civic', 'lv_residence', 'lv_apartments', 'lv_apartments', 'lv_apartments', 'lv_estate', 'lv_estate', 'lv_park', 'lv_luxe'],
+    Lakeside: ['lv_estate', 'lv_estate', 'lv_estate', 'lv_estate', 'lv_estate', 'lv_apartments', 'lv_apartments', 'lv_channels', 'lv_luxe', 'lv_park'],
+    'Levy University': ['lv_quad', 'lv_luxe', 'lv_luxe', 'lv_apartments', 'lv_estate', 'lv_park'],
   };
 
   // ponytail: icon picks live in this closure and assume blocks build in a stable order; a regenerate reuses them by position.
@@ -1544,15 +1746,18 @@ export function blocks(H) {
     fringe(x, z, w, d, R, r);
     if (Math.min(fw, fd) < 24) {
       const m = Math.min(fw, fd), k = r();
-      if (m >= 14 && k < .4) pick(r, [villaAt, colonialAt, decoAt, towerAt, cascadeAt])(fx, fz, fw, fd, st, r, front());
+      if (m >= 14 && k < .4) pick(r, [villaAt, colonialAt, decoAt, towerAt, cascadeAt, ...luxe])(fx, fz, fw, fd, st, r, front());
       else if (m >= 14 && k < .6) terraceAt(fx, fz, fw, fd, st, r, front(), 3);
       else if (m > 8) gardenAt(fx, fz, fw, fd, r, front());
       return;
     }
     const form = icon(fx, fz, fw, fd, r);
     if (form) { B.lv_icon(fx, fz, fw, fd, st, r, form); return; }
-    const list = ROUTE[L.area(x, z)];
-    B[list ? pick(r, list) : name](fx, fz, fw, fd, st, r);
+
+    // Channels need a block of 70 m, or the islands come out too small to build on.
+
+    const list = ROUTE[L.area(x, z)], k = list ? pick(r, list) : name;
+    B[k === 'lv_channels' && Math.min(fw, fd) < 70 ? 'lv_luxe' : k](fx, fz, fw, fd, st, r);
   } }]));
 }
 

@@ -11,26 +11,83 @@ import { _c, glow, prop, yawAt } from './instances.js';
 
 // ---------- elevated highways: they clear a canyon and carry streams of light ----------
 
-export const HIGHWAYS = (CITY.highways ?? []).map(h => {
+// The traced highways come in pieces. A road that runs within 70 m of a longer one for most of its length is a
+// double and drops out. Two ends within 70 m that face each other join into one road, best-aligned pair first,
+// so a star of ends becomes through roads. A road shorter than 500 m with no end on another road drops out.
+// Roads that cross take decks at least 10 m apart, longest road first.
+
+const segDist = ([px, pz], [ax, az], [bx, bz]) => {
+  const ex = bx - ax, ez = bz - az, t = Math.max(0, Math.min(1, ((px - ax) * ex + (pz - az) * ez) / (ex * ex + ez * ez || 1)));
+  return Math.hypot(px - ax - ex * t, pz - az - ez * t);
+};
+const lineDist = (p, pts) => { let d = Infinity; for (let i = 1; i < pts.length; i++) d = Math.min(d, segDist(p, pts[i - 1], pts[i])); return d; };
+const lenOf = pts => pts.reduce((s, p, i) => s + (i ? Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]) : 0), 0);
+const endOf = (pts, e) => e ? pts[pts.length - 1] : pts[0];
+const outOf = (pts, e) => {
+  const [a, b] = e ? [pts[pts.length - 2], pts[pts.length - 1]] : [pts[1], pts[0]], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+  return [(b[0] - a[0]) / l, (b[1] - a[1]) / l];
+};
+const crossAt = (a, b, c, d) => {
+  const rx = b[0] - a[0], rz = b[1] - a[1], sx = d[0] - c[0], sz = d[1] - c[1], den = rx * sz - rz * sx;
+  if (!den) return null;
+  const t = ((c[0] - a[0]) * sz - (c[1] - a[1]) * sx) / den, u = ((c[0] - a[0]) * rz - (c[1] - a[1]) * rx) / den;
+  return t >= 0 && t <= 1 && u >= 0 && u <= 1 ? [a[0] + t * rx, a[1] + t * rz] : null;
+};
+
+let roads = (CITY.highways ?? []).map(h => ({ y: h.y, pts: h.pts.map(p => [...p]) }));
+const halves = pts => pts.flatMap((p, i) => i ? [[(p[0] + pts[i - 1][0]) / 2, (p[1] + pts[i - 1][1]) / 2], p] : [p]);
+roads = roads.filter(r => {
+  const s = halves(r.pts), L = lenOf(r.pts);
+  return !roads.some(o => o !== r && lenOf(o.pts) > L && s.filter(p => lineDist(p, o.pts) < 70).length > s.length * .7);
+});
+for (let best; ; ) {
+  best = null;
+  for (let i = 0; i < roads.length; i++) for (let j = i + 1; j < roads.length; j++) for (const ei of [0, 1]) for (const ej of [0, 1]) {
+    const A = roads[i].pts, B = roads[j].pts, a = endOf(A, ei), b = endOf(B, ej), oa = outOf(A, ei), ob = outOf(B, ej);
+    const dot = oa[0] * ob[0] + oa[1] * ob[1];
+    if (Math.hypot(a[0] - b[0], a[1] - b[1]) < 70 && dot < -.3 && (!best || dot < best.dot)) best = { i, j, ei, ej, dot };
+  }
+  if (!best) break;
+  const { i, j, ei, ej } = best, A = ei ? roads[i].pts : [...roads[i].pts].reverse(), B = ej ? [...roads[j].pts].reverse() : roads[j].pts;
+  roads[i] = { y: Math.max(roads[i].y, roads[j].y), pts: [...A, ...B.slice(1)] };
+  roads.splice(j, 1);
+}
+const onOther = (r, p) => roads.some(o => o !== r && lineDist(p, o.pts) < 40);
+roads = roads.filter(r => lenOf(r.pts) >= 500 || onOther(r, r.pts[0]) || onOther(r, r.pts[r.pts.length - 1]));
+roads.sort((a, b) => lenOf(b.pts) - lenOf(a.pts));
+const nearEnd = (p, pts) => [pts[0], pts[pts.length - 1]].some(q => Math.hypot(q[0] - p[0], q[1] - p[1]) < 80);
+roads.forEach((r, k) => {
+  const above = [];
+  for (const o of roads.slice(0, k)) for (let a = 1; a < r.pts.length; a++) for (let b = 1; b < o.pts.length; b++) {
+    const x = crossAt(r.pts[a - 1], r.pts[a], o.pts[b - 1], o.pts[b]);
+    if (x && !nearEnd(x, r.pts) && !nearEnd(x, o.pts)) above.push(o.y);
+  }
+  r.y = [r.y, 26, 38, 50, 62].find(y => above.every(o => Math.abs(o - y) >= 10));
+});
+
+export const HIGHWAYS = roads.map(h => {
   const path = new THREE.CatmullRomCurve3(h.pts.map(([x, z]) => new THREE.Vector3(x, h.y, z))).getSpacedPoints(500);
   return { ...h, path, side: sides(path, false) };
 });
 
-// Open ends ramp down to street level over 180 m. Ends that meet another highway, or that reach the centre's
-// road terminals, stay up.
+// Open ends ramp down to street level over 180 m. An end that meets another highway eases to that highway's
+// deck over 150 m. Ends that reach the centre's road terminals stay up.
 
 for (const h of HIGHWAYS) {
   const P = h.path, cum = [0];
   for (let i = 1; i < P.length; i++) cum.push(cum[i - 1] + P[i].distanceTo(P[i - 1]));
   const total = cum[cum.length - 1];
   const reach = SETTING.centre.highwayReach;
-  const meets = p => Math.hypot(p.x - CENTRE.x, p.z - CENTRE.y) < reach || HIGHWAYS.some(o => o !== h && o.path.some(q => Math.hypot(q.x - p.x, q.z - p.z) < 40));
-  const r0 = meets(P[0]) ? 0 : 180, r1 = meets(P[P.length - 1]) ? 0 : 180;
+  const meets = p => HIGHWAYS.find(o => o !== h && o.path.some(q => Math.hypot(q.x - p.x, q.z - p.z) < 40));
+  const atCentre = p => Math.hypot(p.x - CENTRE.x, p.z - CENTRE.y) < reach;
+  const ends = [P[0], P[P.length - 1]].map(p => ({ centre: atCentre(p), joins: meets(p) }));
   P.forEach((p, i) => {
-    let k = 1;
-    if (r0) k = Math.min(k, smooth(0, 1, cum[i] / r0));
-    if (r1) k = Math.min(k, smooth(0, 1, (total - cum[i]) / r1));
-    p.y = h.y * k + .3;
+    let y = h.y;
+    for (const [e, d] of [[ends[0], cum[i]], [ends[1], total - cum[i]]]) {
+      if (e.joins) y = lerp(e.joins.y, y, smooth(0, 150, d));
+      else if (!e.centre) y *= smooth(0, 180, d);
+    }
+    p.y = y + .3;
   });
 }
 // ---------- maglev: guideway height follows the style weight ----------
