@@ -15,7 +15,7 @@ from scipy.ndimage import distance_transform_edt, gaussian_filter, map_coordinat
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TRACE = json.load(open(os.path.join(HERE, '..', 'design', 'map-trace.json')))
-OUT = os.path.join(HERE, '..', 'landmarks', 'terrain.png')
+OUT = os.path.join(HERE, '..', 'settings', 'new-angeles', 'landmarks', 'terrain.png')
 
 PX0, M = np.array([680.0, 390.0]), 3.6
 CX, CZ, EXT, SIZE = -158.0, 1476.0, 13000.0, 1600
@@ -139,7 +139,29 @@ land_fix = np.maximum(real, np.minimum(2 + 15 * d_land, 60))
 sea_fix = np.minimum(real, -5 - 40 * np.minimum(d_sea, 10))
 elev = real * (1 - w) + np.where(sea, sea_fix, land_fix) * w
 
-v = np.clip(np.round(elev + 11000), 0, 65535).astype(np.uint32)
+# ---------- Guayas estuary: the Waterways run south into the gulf, between low mangrove flats ----------
+
+GUAYAS = np.array([[1062, 1560], [1048, 1640], [1015, 1710], [965, 1790]], float)
+pxy = PXY.reshape(SIZE, SIZE, 2)
+dist, along = np.full((SIZE, SIZE), np.inf), np.zeros((SIZE, SIZE))
+total, run = np.linalg.norm(np.diff(GUAYAS, axis=0), axis=1).sum(), 0.0
+for a, b in zip(GUAYAS[:-1], GUAYAS[1:]):
+    ab = b - a
+    L = np.linalg.norm(ab)
+    t = np.clip((pxy - a) @ ab / L ** 2, 0, 1)
+    dd = np.linalg.norm(pxy - a - t[..., None] * ab, axis=-1)
+    near = dd < dist
+    dist[near], along[near] = dd[near], (run + t * L)[near] / total
+    run += L
+
+# The channel widens from 96 to 170 px. The flats stay 3 m high for 30 px, then rise and meet the old ground
+# within 100 px.
+
+bank = dist - (48 + 37 * along)
+elev = np.where(bank < 0, np.minimum(elev, -4 + np.maximum(bank, -20) * .4), elev)
+elev = np.where(bank >= 0, np.minimum(elev, 3 + np.maximum(bank - 30, 0) * .8 + np.maximum(bank - 100, 0) * 60), elev)
+
+v =np.clip(np.round(elev + 11000), 0, 65535).astype(np.uint32)
 rgb = np.stack([v >> 8, v & 255, np.zeros_like(v)], -1).astype(np.uint8)
 Image.fromarray(rgb).save(OUT, optimize=True)
 print('  wrote', OUT, 'elev', round(elev.min()), round(elev.max()))

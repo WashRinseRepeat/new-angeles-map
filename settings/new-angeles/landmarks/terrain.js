@@ -305,15 +305,17 @@ function jungle(H, land) {
     if (tooClose(x, z, d, 15) || r() > Math.exp(-d / 380) || land.real(x, z) < 2) continue;
     const y = land.height(x, z, d);
 
-    // A clump of four to eight crowns.
+    // A clump of four to eight crowns. On the low flats by the water they are mangroves, wide, flat and olive.
 
     for (let k = 4 + Math.floor(r() * 5); k > 0 && nc < crowns.instanceMatrix.count; k--) {
-      const tx = x + (r() - .5) * 26, tz = z + (r() - .5) * 26, s = 4 + r() * 5;
-      if (tooClose(tx, tz, land.cityDist(tx, tz), 12) || land.real(tx, tz) < 2) continue;
-      o.position.set(tx, land.height(tx, tz) + s * .6, tz); o.rotation.set(0, r() * 6, 0);
-      o.scale.set(s * (.8 + r() * .5), s * (.55 + r() * .4), s * (.8 + r() * .5));
+      const tx = x + (r() - .5) * 26, tz = z + (r() - .5) * 26, s = 4 + r() * 5, e = land.real(tx, tz);
+      if (tooClose(tx, tz, land.cityDist(tx, tz), 12) || e < 2) continue;
+      const m = e < 12, w = m ? 1.4 : 1, tall = m ? .4 : 1;
+      o.position.set(tx, land.height(tx, tz) + s * .6 * tall, tz); o.rotation.set(0, r() * 6, 0);
+      o.scale.set(s * w * (.8 + r() * .5), s * tall * (.55 + r() * .4), s * w * (.8 + r() * .5));
       o.updateMatrix(); crowns.setMatrixAt(nc, o.matrix);
-      crowns.setColorAt(nc++, c.setRGB(.022 + r() * .02, .045 + r() * .035, .025 + r() * .015));
+      crowns.setColorAt(nc++, m ? c.setRGB(.03 + r() * .015, .04 + r() * .02, .018 + r() * .01)
+        : c.setRGB(.022 + r() * .02, .045 + r() * .035, .025 + r() * .015));
     }
     if (d < 260 && nh < huts.instanceMatrix.count && r() < .12) {
       const w = 3 + r() * 4, h = 2.5 + r() * 2;
