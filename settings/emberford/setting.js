@@ -82,11 +82,10 @@ export default {
   kits: {
     families: ['town'], districts: [], finds: [], ownTiers: ['castle-ward', 'market-ward', 'craft-ward'],
     blockZones: Z => Z.districts.map(Z.districtZone),
-    cityStart: { height: 1, fill: 1, lights: 1 },
     cityTune: [
-      ['height', 'Building height', .4, 2, .05, 1],
-      ['fill', 'Built lots', .3, 1.15, .01, 1],
-      ['lights', 'Street light density', .3, 3, .05, 1],
+      ['height', 'Building height', .4, 2, .05, 1, 'Scales every building height. It lifts the whole city evenly and adds no contrast.', 'Skyline'],
+      ['fill', 'Built lots', .3, 1.15, .01, 1, 'Share of lots that get a building. The rest become yards.'],
+      ['lights', 'Street light density', .3, 3, .05, 1, 'How close the street lamps stand. Higher puts them closer together.'],
     ],
   },
 

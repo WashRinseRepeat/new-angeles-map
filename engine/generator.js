@@ -67,9 +67,11 @@ export function lotFrame(poly) {
 }
 export const FRAMES = CITY.lots.map(lotFrame);
 
-// City dials scale heights, built lots, street lights and each block zone's cap. The pack sets the first build's values.
+// City dials scale heights, built lots, street lights and each block zone's cap. The first build uses the defaults of
+// the pack's cityTune rows. skew bends small-lot heights toward low, so tall ones grow rarer. small scales each
+// style's smallShare.
 
-export const CITYTUNE = { ...SETTING.kits.cityStart };
+export const CITYTUNE = { skew: 1.4, small: 1, ...Object.fromEntries(SETTING.kits.cityTune.map(([k, , , , , def]) => [k, def])) };
 
 // Mega-housing fills a whole city block. A pack's block zones can use it as a builder.
 // A ring stacks four slabs round a courtyard with sky bridges. A stepped block climbs in setbacks.
@@ -406,10 +408,10 @@ function buildLot(f, g, blend, k = 1, bare = false, slab = 0) {
   // Small lots mostly get small district kits: the pack's small-lot kits in their style, tier 0 in a district family.
 
   const own = STYLES[st.id], smallKits = own === SETTING.kits.smallLots?.style ? SMALL_LOTS : OWN_TIERS.has(st.id) ? own.tiers[0] : null;
-  const small = smallKits?.length && r() < (STYLES[st.id].smallShare ?? .8);
+  const small = smallKits?.length && r() < (STYLES[st.id].smallShare ?? .8) * CITYTUNE.small;
   if (size < SC.smallLot && small) KITS[smallKits[Math.floor(kitPick * smallKits.length)]]?.(g.cx, g.cz, size, st, boost, r);
   else if (size < SC.smallLot) {
-    const h = lerp(st.h0, st.h1, r() ** 1.4) * boost * (.5 + .6 * r());
+    const h = lerp(st.h0, st.h1, r() ** CITYTUNE.skew) * boost * (.5 + .6 * r());
     if (h > SC.tallInfill) buildTall(g.cx, g.cz, g.w - 2, g.d - 2, h, st, r, false);
     else if (r() < .5) {
       prism(scalePoly(g.poly, .92), 0, h, st, r, { skin: SKINS[pick('skin', st.w, r)] });

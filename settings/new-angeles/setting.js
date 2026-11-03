@@ -118,17 +118,16 @@ export default {
         test: (b, blend) => Z.allows(b, 'housing', blend), rank: b => Z.vnoise(b.cx / 350 + 41, b.cz / 350 + 17) },
     ],
 
-    // City dials. start is what the first build uses. The tuning panel's City rows start from their own defaults
-    // and rebuild the city only when a saved value differs.
+    // City dials. The first build uses each row's default. A row is [key, name, min, max, step, default, info, group],
+    // and group is a tuning panel tab, Lots unless named.
 
-    cityStart: { height: 1.5, fill: 1.15, mega: 3, industry: 1, chakana: 1, lights: 1.1 },
     cityTune: [
-      ['height', 'Building height', .4, 2, .05, 1.35],
-      ['fill', 'Built lots', .3, 1.15, .01, 1.15],
-      ['mega', 'Mega-housing blocks', 0, 3, .1, 3],
-      ['industry', 'Industry blocks', 0, 3, .1, 1],
-      ['chakana', 'Chakana Root blocks', 0, 3, .1, 1.4],
-      ['lights', 'Street light density', .3, 3, .05, 0.9],
+      ['height', 'Building height', .4, 2, .05, 1.5, 'Scales every building height. It lifts the whole city evenly and adds no contrast.', 'Skyline'],
+      ['fill', 'Built lots', .3, 1.15, .01, 1.15, 'Share of lots that get a building. The rest become yards.'],
+      ['mega', 'Mega-housing blocks', 0, 3, .1, 3, 'How many whole-block mega-housing complexes Base de Cayambe and Chakana get.', 'Skyline'],
+      ['industry', 'Industry blocks', 0, 3, .1, 1, 'How many whole blocks the industry zone takes.'],
+      ['chakana', 'Chakana Root blocks', 0, 3, .1, 1, 'How many Chakana Root block kits ring the centre.'],
+      ['lights', 'Street light density', .3, 3, .05, 1.1, 'How close the street lamps stand. Higher puts them closer together.'],
     ],
   },
 

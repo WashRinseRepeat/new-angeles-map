@@ -69,16 +69,18 @@ export const QUARTERS = (CITY.quarters ?? []).filter(q => QUARTER_STYLES[q.id]).
 export const quarterAt = (x, z) => QUARTERS.find(q => sdPoly(x, z, q.poly) > 0) ?? null;
 
 // Density decides height. Smooth noise gives the low carpet, cores give the skyline clusters.
+// DENSITY.cores scales every core's peak. DENSITY.grain widens the 70 m noise, so tall and low lots mix
+// more closely, and keeps its mean.
 
-export const CORES = SETTING.styles.cores;
+export const CORES = SETTING.styles.cores, DENSITY = { cores: 1, grain: 1 };
 export function vnoise(x, z) {
   const xi = Math.floor(x), zi = Math.floor(z), u = smooth(0, 1, x - xi), v = smooth(0, 1, z - zi);
   const h = (a, b) => hash(a, b) / 4294967296;
   return lerp(lerp(h(xi, zi), h(xi + 1, zi), u), lerp(h(xi, zi + 1), h(xi + 1, zi + 1), u), v);
 }
 export function density(x, z) {
-  let n = .5 * vnoise(x / 420, z / 420) + .3 * vnoise(x / 180 + 7, z / 180 + 3) + .2 * vnoise(x / 70, z / 70);
-  for (const c of CORES) n += c.s * Math.exp(-((x - c.x) ** 2 + (z - c.z) ** 2) / (2 * c.r * c.r));
+  let n = .5 * vnoise(x / 420, z / 420) + .3 * vnoise(x / 180 + 7, z / 180 + 3) + .2 * (.5 + DENSITY.grain * (vnoise(x / 70, z / 70) - .5));
+  for (const c of CORES) n += c.s * DENSITY.cores * Math.exp(-((x - c.x) ** 2 + (z - c.z) ** 2) / (2 * c.r * c.r));
   return n - .2;
 }
 

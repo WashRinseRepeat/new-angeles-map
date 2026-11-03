@@ -114,12 +114,22 @@ body.busy, body.busy * { cursor: progress !important; }
 .layers button.on { background: var(--button-on); color: var(--accent); border-color: var(--line-on); }
 #tune { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
 #tune > summary { cursor: pointer; color: var(--accent); font-weight: 600; }
-#tune label { display: grid; grid-template-columns: 1fr auto; gap: 0 8px; margin-top: 6px; font-size: 12px; }
-#tune label input { grid-column: 1 / -1; }
-#tune .tabs { display: flex; gap: 4px; margin-top: 8px; }
-#tune .tabs button { flex: 1; padding: 4px 0; font-size: 11px; }
+#tune .slider { display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: 0 6px; margin-top: 8px; font-size: 12px; }
+#tune .slider input { grid-column: 1 / -1; margin: 2px 0 0; }
+#tune .slider .i, #tune .slider .undo { flex: none; width: 16px; height: 16px; min-height: 0; padding: 0; border-radius: 50%; font: italic 600 10px/14px Georgia, serif; color: var(--muted); }
+#tune .slider .i:hover, #tune .slider .i:focus-visible { color: var(--accent); border-color: var(--line-on); }
+#tune .slider .undo { visibility: hidden; font: 12px/14px var(--font); color: var(--warm); }
+#tune .slider.changed .undo { visibility: visible; }
+#tune .slider.changed > span { color: var(--warm); }
+#tfind { width: 100%; box-sizing: border-box; margin-top: 8px; padding: 4px 8px; background: var(--input); color: var(--input-text); border: 1px solid var(--line-2); border-radius: 6px; font: 12px var(--font); }
+#tune .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+#tune .tabs button { flex: 1 0 auto; padding: 4px 6px; font-size: 11px; }
 #tune .tabs button.on { background: var(--tab-on); color: var(--accent); }
+#tune .tabs button:not([data-n="0"])[data-n]::after { content: ' ' attr(data-n); color: var(--warm); }
 #tune .group { max-height: 52vh; overflow: hidden auto; }
+#tune .group h4 { margin: 10px 0 0; font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: .06em; }
+#sliders:not(.finding) .group h4 { display: none; }
+#tinfo { position: fixed; z-index: 20; max-width: 240px; padding: 8px 10px; background: var(--card); color: var(--text-2); border: 1px solid var(--line-on); border-radius: 8px; font-size: 12px; line-height: 1.4; box-shadow: 0 6px 24px rgba(0,0,0,.5); pointer-events: none; }
 #tune .note { font-size: 11px; color: var(--note); margin-top: 6px; }
 #tune output { color: var(--accent); font-variant-numeric: tabular-nums; }
 #tune .row { display: flex; gap: 8px; margin-top: 10px; }

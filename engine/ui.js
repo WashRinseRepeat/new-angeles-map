@@ -4,14 +4,14 @@ import * as THREE from 'three';
 import { updateFireworks } from './fireworks.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { S, H } from './state.js';
-import { CENTRE, CENTRE_PLACE, CENTRE_R, CITY, PLACES, SITE, STANDALONE, STYLES, centroidOf, density, lerp, styleAt } from './core.js';
+import { CENTRE, CENTRE_PLACE, CENTRE_R, CITY, CORES, DENSITY, PLACES, SITE, STANDALONE, STYLES, centroidOf, density, lerp, styleAt } from './core.js';
 import { SETTING, inPack } from './setting.js';
 import { FOG, FOG_BASE, LOCK, QUALITY, SURFACE, U, applyQuality, bloom, camera, composer, controls, fadeTwin, flatGeo, hemi, label, labelRoot, labels, lockCamera, moon, renderer, scene } from './render.js';
 import { SHAPES, TILE, TILES, glows, pools, put, signs, yawAt } from './instances.js';
-import { ARCHETYPES, MERGED_MAT, TALLY, decor, insidePoly, merged } from './grammar.js';
+import { ARCHETYPES, ARCH_WEIGHTS, MERGED_MAT, TALLY, decor, insidePoly, merged } from './grammar.js';
 import { rideFocus, rideTick, riding } from './ride.js';
 import { TRAFFIC, centre, hwCars, hwTraffic, moveCars, nearHighway, track, uploadUsed } from './transport.js';
-import { BLOCK_MAX, CITYTUNE, FRAMES, QUERY, SITES, frontOf, generate } from './generator.js';
+import { BLOCK_MAX, CITYTUNE, FRAMES, QUERY, SC, SITES, frontOf, generate } from './generator.js';
 import { LANDMARKS, LANDMARK_LABELS } from './api.js';
 import { initNav } from './nav.js';
 
@@ -300,43 +300,63 @@ blendInput.oninput = () => {
 
 // ---------- tuning panel (temporary) ----------
 
-// Groups show as tabs. City values rebuild the city when a slider is released.
+// A row is [key, name, min, max, step, default, info, apply, rebuild]. Groups show as tabs. A row with rebuild set
+// rebuilds the city when its slider is released. The i pill shows the row's info, and the search box finds rows
+// in every group.
 
-const T = SETTING.look.tune;
+const T = SETTING.look.tune, BOOST = SETTING.centre.boost, ARCH0 = structuredClone(ARCH_WEIGHTS);
 export const TUNE = {
   Light: [
-    ['exposure', 'Exposure', .3, 2.5, .05, T.exposure, v => { renderer.toneMappingExposure = v; }],
-    ['sky', 'Sky light', 0, 4, .1, T.sky, v => { hemi.intensity = v; }],
-    ['moon', 'Moonlight', 0, 3, .1, T.moon, v => { moon.intensity = v; }],
-    ['windows', 'Window light', 0, 3, .05, T.windows, v => { U.uWin.value = v; }],
-    ['edges', 'Tower edge glow', 0, 3, .05, T.edges, v => { U.uEdge.value = v; }],
-    ['neon', 'Neon signs', 0, 3, .05, T.neon, v => { signs.material.color.setScalar(v); }],
-    ['glows', 'Street and roof lights', 0, 3, .05, T.glows, v => { glows.material.color.setScalar(v); }],
-    ['pools', 'Light pools on the ground', 0, 3, .05, T.pools, v => { pools.material.color.setScalar(v); }],
-    ['bloomStrength', 'Bloom strength', 0, 2, .05, T.bloomStrength, v => { bloom.strength = v; }],
-    ['bloomThreshold', 'Bloom threshold', .2, 2, .05, T.bloomThreshold, v => { bloom.threshold = v; }],
-    ['bloomRadius', 'Bloom radius', 0, 1, .05, T.bloomRadius, v => { bloom.radius = v; }],
+    ['exposure', 'Exposure', .3, 2.5, .05, T.exposure, 'Brightness of the whole image.', v => { renderer.toneMappingExposure = v; }],
+    ['sky', 'Sky light', 0, 4, .1, T.sky, 'Soft light from the sky on every surface.', v => { hemi.intensity = v; }],
+    ['moon', 'Moonlight', 0, 3, .1, T.moon, 'Light from one direction. It shades the sides of buildings.', v => { moon.intensity = v; }],
+    ['windows', 'Window light', 0, 3, .05, T.windows, 'Brightness of lit windows.', v => { U.uWin.value = v; }],
+    ['edges', 'Tower edge glow', 0, 3, .05, T.edges, 'Glow along tower edges and roof lines.', v => { U.uEdge.value = v; }],
+    ['neon', 'Neon signs', 0, 3, .05, T.neon, 'Brightness of neon signs.', v => { signs.material.color.setScalar(v); }],
+    ['glows', 'Street and roof lights', 0, 3, .05, T.glows, 'Brightness of street lamps and roof lights.', v => { glows.material.color.setScalar(v); }],
+    ['pools', 'Light pools on the ground', 0, 3, .05, T.pools, 'Brightness of the light that lamps throw on the ground.', v => { pools.material.color.setScalar(v); }],
+    ['bloomStrength', 'Bloom strength', 0, 2, .05, T.bloomStrength, 'How strongly bright lights bleed into a glow.', v => { bloom.strength = v; }],
+    ['bloomThreshold', 'Bloom threshold', .2, 2, .05, T.bloomThreshold, 'How bright a pixel must be before it glows. Lower makes more of the city glow.', v => { bloom.threshold = v; }],
+    ['bloomRadius', 'Bloom radius', 0, 1, .05, T.bloomRadius, 'How far the glow spreads.', v => { bloom.radius = v; }],
   ],
   Air: [
-    ['fogNear', 'Fog start (m)', 0, 3000, 50, T.fogNear, v => { FOG_BASE.near = v; }],
-    ['fogFar', 'Fog end (m)', 500, 9000, 100, T.fogFar, v => { FOG_BASE.far = v; }],
-    ['mist', 'Street mist', 0, 1.5, .02, T.mist, v => { U.uMist.value = v; }],
-    ['mistBase', 'Mist height (m)', -20, 60, 1, T.mistBase, v => { U.uMistBase.value = v; }],
+    ['fogNear', 'Fog start (m)', 0, 3000, 50, T.fogNear, 'Distance from the camera where the fog begins.', v => { FOG_BASE.near = v; }],
+    ['fogFar', 'Fog end (m)', 500, 9000, 100, T.fogFar, 'Distance where the fog hides everything.', v => { FOG_BASE.far = v; }],
+    ['mist', 'Street mist', 0, 1.5, .02, T.mist, 'Thickness of the mist that lies in the streets.', v => { U.uMist.value = v; }],
+    ['mistBase', 'Mist height (m)', -20, 60, 1, T.mistBase, 'Height of the top of the street mist.', v => { U.uMistBase.value = v; }],
   ],
 
   // A traffic slider shows only when the setting has that traffic. The pack's tune may set cars and speed.
 
   Traffic: [
-    ['cars', 'Street cars', 0, 1, .02, T.cars ?? 1, v => { TRAFFIC.ground = v; }],
-    SETTING.transport.hover && ['hover', 'Hovercars', 0, 1, .02, 1, v => { TRAFFIC.hover = v; }],
-    CITY.highways?.length && ['highway', 'Highway traffic', 0, 1, .02, 1, v => { TRAFFIC.highway = v; }],
-    ['speed', 'Traffic speed', 0, 3, .05, T.speed ?? 0.3, v => { TRAFFIC.speed = v; }],
+    ['cars', 'Street cars', 0, 1, .02, T.cars ?? 1, 'Share of street car slots that have a car.', v => { TRAFFIC.ground = v; }],
+    SETTING.transport.hover && ['hover', 'Hovercars', 0, 1, .02, 1, 'Share of hovercar slots that have a car.', v => { TRAFFIC.hover = v; }],
+    CITY.highways?.length && ['highway', 'Highway traffic', 0, 1, .02, 1, 'Share of highway slots that have a car.', v => { TRAFFIC.highway = v; }],
+    ['speed', 'Traffic speed', 0, 3, .05, T.speed ?? 0.3, 'Speed of all traffic.', v => { TRAFFIC.speed = v; }],
   ].filter(Boolean),
 
-  // The pack lists the city dials. Each sets CITYTUNE[key] and rebuilds the city on release.
+  // Skyline and Lots rows change how the city builds.
 
-  City: SETTING.kits.cityTune.map(([key, ...row]) => [key, ...row, v => { CITYTUNE[key] = v; }, true]),
+  Skyline: [
+    CORES.length && ['cores', 'Skyline clusters', 0, 2.5, .05, 1, 'Scales the peaks of the density cores. Higher grows taller, denser clusters with low ground between them. At 0 only the noise remains.', v => { DENSITY.cores = v; }, true],
+    ['grain', 'Tall next to low', 0, 4, .1, 1, 'Widens the fine 70 m noise in the density field. Higher puts tall and low lots side by side more often.', v => { DENSITY.grain = v; }, true],
+    ['skew', 'Height skew', .6, 3, .05, 1.4, 'Shapes the heights of one-building lots. Higher keeps most of them low and makes the tall ones rarer. Lower evens them out.', v => { CITYTUNE.skew = v; }, true],
+    ['tallInfill', 'Needle towers from (m)', 15, 80, 1, SC.tallInfill, 'A one-building lot taller than this grows into a slim tower. Lower gives more needles among the small buildings.', v => { SC.tallInfill = v; }, true],
+    ['shapes', 'Odd tower shapes', 0, 5, .1, 1, 'Scales the odds of the special tower shapes (ziggurat, split, launch, kowloon and screens) against the plain stacked tower.',
+      v => { for (const k in ARCH0) if (k !== 'grammar') ARCH_WEIGHTS[k] = ARCH0[k].map(w => w * v); }, true],
+    BOOST.k && ['boost', 'Lift near the centre', 0, 3, .05, BOOST.k, 'Raises towers close to the centre. The lift fades with distance.', v => { BOOST.k = v; }, true],
+  ].filter(Boolean),
+  Lots: [
+    ['smallLot', 'Small lot width (m)', 8, 30, 1, SC.smallLot, 'Lots narrower than this take a small kit or one building. Wider lots take a full kit from the district tiers.', v => { SC.smallLot = v; }, true],
+    ['small', 'Small kit share', 0, 1.5, .05, 1, 'Scales the share of small lots that take their district\'s small kits. The rest get one plain building.', v => { CITYTUNE.small = v; }, true],
+  ],
 };
+
+// The pack's city dials go first in their group, Lots unless the row names another. Each sets CITYTUNE[key].
+
+for (const [key, name, min, max, step, def, info = '', group = 'Lots'] of [...SETTING.kits.cityTune].reverse()) {
+  (TUNE[group] ??= []).unshift([key, name, min, max, step, def, info, v => { CITYTUNE[key] = v; }, true]);
+}
 export const TUNE_KEY = `${SETTING.storage}-map-tune`;
 export let saved = {};
 try { saved = JSON.parse(localStorage.getItem(TUNE_KEY)) || {}; } catch {}
@@ -344,22 +364,73 @@ export const tuned = {};
 export const sliders = document.getElementById('sliders'), tabs = document.getElementById('ttabs');
 export const resets = [];
 export const rebuild = () => generate(U.uBlend.value);
+
+// Only changed values are stored, so a new default reaches every browser.
+
+const DEFS = {};
+const store = () => {
+  const changed = Object.fromEntries(Object.entries(tuned).filter(([k, v]) => v !== DEFS[k]));
+  try { localStorage.setItem(TUNE_KEY, JSON.stringify(changed)); } catch {}
+};
+
+// The search box sits above the tabs. The info bubble floats over the page next to its pill.
+
+const find = Object.assign(document.createElement('input'), { type: 'search', id: 'tfind', placeholder: 'Find a setting' });
+const bubble = Object.assign(document.createElement('div'), { id: 'tinfo', role: 'tooltip', hidden: true });
+tabs.before(find);
+document.body.appendChild(bubble);
+const showInfo = (pill, text) => {
+  bubble.textContent = text;
+  bubble.hidden = false;
+  const b = pill.getBoundingClientRect(), h = bubble.offsetHeight;
+  bubble.style.left = `${Math.max(8, Math.min(b.left - 12, innerWidth - bubble.offsetWidth - 8))}px`;
+  bubble.style.top = `${b.bottom + 6 + h < innerHeight ? b.bottom + 6 : b.top - 6 - h}px`;
+};
+addEventListener('pointerdown', e => { if (!e.target.closest?.('#tune .i')) bubble.hidden = true; });
+
+let open;
+const show = box => {
+  open = box;
+  for (const b of tabs.children) b.classList.toggle('on', b.box === box);
+  for (const g of sliders.children) g.hidden = g !== box;
+};
+find.oninput = () => {
+  const q = find.value.trim().toLowerCase();
+  sliders.classList.toggle('finding', !!q);
+  for (const el of sliders.querySelectorAll('.slider')) el.hidden = !!q && !el.dataset.find.includes(q);
+  if (!q) return show(open);
+  for (const g of sliders.children) g.hidden = !g.querySelector('.slider:not([hidden])');
+};
+
 for (const [group, rows] of Object.entries(TUNE)) {
-  const box = document.createElement('div');
+  const box = document.createElement('div'), tab = document.createElement('button');
   box.className = 'group';
-  const tab = document.createElement('button');
+  box.innerHTML = `<h4>${group}</h4>`;
   tab.textContent = group;
+  tab.box = box;
   tab.onclick = () => {
-    for (const b of tabs.children) b.classList.toggle('on', b === tab);
-    for (const g of sliders.children) g.hidden = g !== box;
+    if (find.value) { find.value = ''; find.oninput(); }
+    show(box);
   };
   tabs.appendChild(tab);
   sliders.appendChild(box);
-  for (const [key, name, min, max, step, def, apply, regen] of rows) {
-    const el = document.createElement('label');
-    el.innerHTML = `<span>${name} <small class="def">(${def})</small></span><output></output><input type="range" min="${min}" max="${max}" step="${step}">`;
-    const input = el.querySelector('input'), out = el.querySelector('output');
-    const set = v => { tuned[key] = v; input.value = v; out.textContent = v; apply(v); };
+
+  // A changed row shows a reset arrow, and its tab counts the changed rows.
+
+  const count = () => { tab.dataset.n = box.querySelectorAll('.changed').length; };
+  for (const [key, name, min, max, step, def, info, apply, regen] of rows) {
+    const el = document.createElement('div');
+    el.className = 'slider';
+    el.dataset.find = `${name} ${info}`.toLowerCase();
+    el.innerHTML = `<span>${name}</span><button class="i" aria-label="About ${name}">i</button><button class="undo" title="Back to ${def}">↺</button>`
+      + `<output></output><input type="range" min="${min}" max="${max}" step="${step}" aria-label="${name}">`;
+    const input = el.querySelector('input'), out = el.querySelector('output'), pill = el.querySelector('.i');
+    const text = `${info} Range ${min} to ${max}, default ${def}.${regen ? ' The city rebuilds when you release the slider.' : ''}`;
+    const set = v => {
+      tuned[key] = v; input.value = v; out.textContent = v; apply(v);
+      el.classList.toggle('changed', v !== def);
+      count();
+    };
     input.oninput = () => {
       if (regen) out.textContent = input.value;
       else set(+input.value);
@@ -367,22 +438,33 @@ for (const [group, rows] of Object.entries(TUNE)) {
     input.onchange = () => {
       set(+input.value);
       if (regen) rebuild();
-      try { localStorage.setItem(TUNE_KEY, JSON.stringify(tuned)); } catch {}
+      store();
     };
+    el.querySelector('.undo').onclick = () => {
+      set(def);
+      if (regen) rebuild();
+      store();
+    };
+    pill.onpointerenter = () => showInfo(pill, text);
+    pill.onpointerleave = e => { if (e.pointerType === 'mouse') bubble.hidden = true; };
+    pill.onclick = () => showInfo(pill, text);
+    DEFS[key] = def;
     resets.push(() => set(def));
     set(saved[key] ?? def);
     box.appendChild(el);
   }
   if (group === 'Air') {
     const fogInput = document.createElement('label');
+    fogInput.className = 'slider';
+    fogInput.dataset.find = 'fog and sky colour';
     fogInput.innerHTML = '<span>Fog and sky colour</span><input type="color" value="#' + FOG.getHexString() + '">';
     fogInput.querySelector('input').oninput = e => { FOG.set(e.target.value); scene.fog.color.copy(FOG); };
     box.appendChild(fogInput);
   }
-  if (group === 'City') box.insertAdjacentHTML('beforeend', '<div class="note">The city rebuilds when you release a slider.</div>');
+  if (rows.some(row => row[8])) box.insertAdjacentHTML('beforeend', '<div class="note">The city rebuilds when you release a slider.</div>');
 }
 tabs.firstChild.click();
-if (TUNE.City.some(([k, , , , , def]) => (saved[k] ?? def) !== def)) rebuild();
+if (Object.values(TUNE).flat().some(([k, , , , , def, , , regen]) => regen && (saved[k] ?? def) !== def)) rebuild();
 document.getElementById('treset').onclick = () => {
   resets.forEach(f => f());
   rebuild();
