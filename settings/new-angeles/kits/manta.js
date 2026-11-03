@@ -123,12 +123,13 @@ export function kits(H) {
     return { top, accent };
   };
 
-  // Lasers from a roof fanning up and out toward the sea.
+  // Lasers from a roof fanning up and out toward the sea. Each one sweeps slowly on its own beat.
 
   const lasers = (x, y, z, s, n, st, r) => {
     for (let k = 0; k < n; k++) {
-      const a = Math.atan2(s.u, s.v) + (r() - .5) * 1.6, L = 30 + r() * 40, e = .5 + r() * .6;
-      beam([x, y, z], [x + Math.sin(a) * L * Math.cos(e), y + L * Math.sin(e), z + Math.cos(a) * L * Math.cos(e)], .12, dim(pick(r, pal(st)), .55), 'glow');
+      const a = Math.atan2(s.u, s.v) + (r() - .5) * 1.6, L = 140 + r() * 140, e = .25 + r() * .5;
+      H.laser([x, y, z], [x + Math.sin(a) * L * Math.cos(e), y + L * Math.sin(e), z + Math.cos(a) * L * Math.cos(e)], .1, pick(r, pal(st)),
+        { sweep: [.3 + r() * .35, .1 + r() * .15, .25 + r() * .5, r() * 6.3] });
     }
   };
 

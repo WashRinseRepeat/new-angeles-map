@@ -266,7 +266,7 @@ export function landmarks(H) {
 
   // The moving parts own their meshes, because shared instances are frozen into tiles after the build.
 
-  const FX = { ring: null, laser: null, mx: 0, mz: 0 }, RIP = 3, HOLO = 4, LASERS = 8, HOLO_Y = 40, RIM = 19.5, RIM_Y = 19.8;
+  const FX = { ring: null, mx: 0, mz: 0 }, RIP = 3, HOLO = 4, LASERS = 8, HOLO_Y = 40, RIM = 19.5, RIM_Y = 19.8;
   const _o = new THREE.Object3D(), _c = new THREE.Color();
   _o.rotation.order = 'YXZ';
 
@@ -339,13 +339,19 @@ export function landmarks(H) {
     for (const t of [.35, .7]) boat(x + ux * (c.d + (off - c.d) * t) + uz * 8, z + uz * (c.d + (off - c.d) * t) - ux * 8, ry, 10, WARM);
     boat(mx - ux * 38, mz - uz * 38, ry + Math.PI / 2, 12, MAG);
 
-    // Ripple and holo rings share one mesh, the lasers take another.
+    // Ripple and holo rings share one mesh.
 
     const mk = (geo, mat, n) => { const m = new THREE.InstancedMesh(geo, mat, n); m.userData.noTile = true; m.frustumCulled = false; H.decor.add(m); return m; };
     FX.ring = mk(GLOWS.ring.geometry, GLOWS.ring.material, RIP + HOLO);
-    FX.laser = mk(PROPS.box.geometry, GLOWS.sphere.material, LASERS);
     for (let i = 0; i < HOLO; i++) FX.ring.setColorAt(RIP + i, _c.setRGB(...dim(i % 2 ? CYAN : VIOLET, 1.3)));
-    for (let i = 0; i < LASERS; i++) FX.laser.setColorAt(i, _c.setRGB(...[MAG, CYAN, LIME][i % 3].map(v => v * 1.4)));
+
+    // Lasers leave the canopy rim and sweep side to side, dipping toward the water and lifting to the sky.
+
+    for (let i = 0; i < LASERS; i++) {
+      const a = i / LASERS * Math.PI * 2, o = [mx + Math.sin(a) * RIM, RIM_Y, mz + Math.cos(a) * RIM], p = .06, L = 140;
+      H.laser(o, [o[0] + Math.sin(a) * Math.cos(p) * L, RIM_Y - Math.sin(p) * L, o[2] + Math.cos(a) * Math.cos(p) * L], .12,
+        [MAG, CYAN, LIME][i % 3].map(v => v * 1.4), { sweep: [.7, .14, .8, i * 1.3], blink: i % 2 ? .6 : 0 });
+    }
     FX.mx = mx; FX.mz = mz;
     clubFx(0);
 
@@ -355,7 +361,7 @@ export function landmarks(H) {
   };
 
   const clubFx = t => {
-    const { ring, laser, mx, mz } = FX;
+    const { ring, mx, mz } = FX;
     if (!ring) return;
 
     // Ripples grow and fade out.
@@ -376,17 +382,7 @@ export function landmarks(H) {
       _o.scale.set(s, s, s); _o.updateMatrix();
       ring.setMatrixAt(RIP + i, _o.matrix);
     }
-
-    // Lasers leave the canopy rim and sweep side to side, dipping toward the water and lifting to the sky.
-
-    for (let i = 0; i < LASERS; i++) {
-      const a = i / LASERS * Math.PI * 2, yaw = a + .7 * Math.sin(t * .8 + i * 1.3), p = .06 + .14 * Math.sin(t * .5 + i), L = 140;
-      const cp = Math.cos(p), dx = Math.sin(yaw) * cp, dy = -Math.sin(p), dz = Math.cos(yaw) * cp;
-      _o.position.set(mx + Math.sin(a) * RIM + dx * L / 2, RIM_Y + dy * L / 2, mz + Math.cos(a) * RIM + dz * L / 2);
-      _o.rotation.set(p, yaw, 0); _o.scale.set(.25, .25, L); _o.updateMatrix();
-      laser.setMatrixAt(i, _o.matrix);
-    }
-    ring.instanceMatrix.needsUpdate = ring.instanceColor.needsUpdate = laser.instanceMatrix.needsUpdate = true;
+    ring.instanceMatrix.needsUpdate = ring.instanceColor.needsUpdate = true;
   };
 
   // G-mod Vineyard: terraced rows climbing the block from the Agricultural Plots side, each row a thin line

@@ -514,7 +514,7 @@ export function landmarks(H) {
   const _o = new THREE.Object3D(), _v = new THREE.Vector3(), _c = new THREE.Color(), _y = new THREE.Vector3(0, 1, 0);
   const mover = (geo, mat, n) => { const m = new THREE.InstancedMesh(geo, mat, n); m.userData.noTile = true; m.frustumCulled = false; H.decor.add(m); return m; };
   const additive = (rgb, map = null) => new THREE.MeshBasicMaterial({ color: new THREE.Color(...rgb), map, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
-  const SWEEP = { lights: [] }, EVENT = { beams: [] };
+  const SWEEP = { lights: [] };
 
   // Frame along the sea: u points to the nearest coast, v runs along it. P(a, b, y) is a local point.
 
@@ -579,29 +579,15 @@ export function landmarks(H) {
           textSign('BLUE SUN', x + Math.cos(a) * (R + .6), 12, z + Math.sin(a) * (R + .6), 34, 8.5, Math.atan2(Math.cos(a), Math.sin(a)), [.5, 1.2, 2.4]);
         }
 
-        // Projectors and event beams on the rim, holo shows above them.
-
-        // The event beams lean out and cross slowly over the dome. update() swings them.
+        // Projectors on the rim with holo shows above them. Their event beams lean out and cross slowly over the dome.
 
         for (let k = 0; k < 6; k++) {
           const a = k * Math.PI / 3 + .2, px = x + Math.cos(a) * R * .96, pz = z + Math.sin(a) * R * .96;
           prop('box', px, wall + 2, pz, 3, 4, 3, DARK);
-          EVENT.beams.push([px, wall + 4, pz, a, r() * 6.3]);
+          H.laser([px, wall + 4, pz], [px + Math.cos(a) * 50, 420, pz + Math.sin(a) * 50], .3, dim(BLUE, .9), { sweep: [.35, .08, .09, r() * 6.3] });
         }
-        EVENT.mesh = mover(H.PROPS.box.geometry, GLOWS.sphere.material, 6);
-        for (let k = 0; k < 6; k++) EVENT.mesh.setColorAt(k, _c.setRGB(...dim(BLUE, .65)));
         for (const k of [0, 1]) holo(x, z, R * .9, R * .9, wall + dh + 20, r, k * 2, 30);
         for (let k = 0; k < 20; k++) { const a = k * Math.PI / 10; lamp(x + Math.cos(a) * (R + 12), z + Math.sin(a) * (R + 12), 8, [.6, .85, 1.3]); }
-      },
-      update(t) {
-        if (!EVENT.mesh) return;
-        EVENT.beams.forEach(([px, py, pz, a, ph], i) => {
-          const out = 50 + 30 * Math.sin(t * .13 + ph), side = 140 * Math.sin(t * .09 + ph * 1.7), c = Math.cos(a), s = Math.sin(a);
-          const dx = c * out - s * side, dy = 420 - py, dz = s * out + c * side, L = Math.hypot(dx, dy, dz);
-          _o.position.set(px + dx / 2, py + dy / 2, pz + dz / 2); _o.lookAt(px + dx, py + dy, pz + dz);
-          _o.scale.set(.7, .7, L); _o.updateMatrix(); EVENT.mesh.setMatrixAt(i, _o.matrix);
-        });
-        EVENT.mesh.instanceMatrix.needsUpdate = true;
       },
     },
 

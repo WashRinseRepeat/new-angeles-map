@@ -480,6 +480,80 @@ export function beam(a, b, t, rgb, kind = 'box') {
     Math.atan2(dx, dz), -Math.asin(dy / L), rgb);
 }
 
+// ---------- lasers: thin additive beams with a hot core, a soft halo and a fade along their length ----------
+// laser(a, b, w, rgb, o) fires from a toward b. The GPU sweeps each beam round its base direction, so nothing
+// moves on the CPU. o.sweep is [yaw swing, pitch swing, speed, phase] in radians and rad/s. o.blink strobes it.
+// A beam never draws thinner than about a pixel. It widens with distance and dims to keep the same light.
+
+const LASER_GEO = new THREE.CylinderGeometry(1, 1, 1, 8, 6, true).rotateX(Math.PI / 2).translate(0, 0, .5);
+const aSweep = new THREE.InstancedBufferAttribute(new Float32Array(4096 * 4), 4);
+const aBeam = new THREE.InstancedBufferAttribute(new Float32Array(4096 * 4), 4);
+LASER_GEO.setAttribute('aSweep', aSweep);
+LASER_GEO.setAttribute('aBeam', aBeam);
+const uPx = { value: .001 };
+export const lasers = new THREE.InstancedMesh(LASER_GEO, new THREE.ShaderMaterial({
+  uniforms: { ...U, uPx },
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+  vertexShader: `
+    uniform float uTime, uPx; attribute vec4 aSweep, aBeam;
+    varying vec3 vW, vN, vC; varying float vS, vK;
+    void main(){
+      float yaw = aSweep.x * sin(uTime * aSweep.z + aSweep.w), pit = aSweep.y * sin(uTime * aSweep.z * .71 + aSweep.w * 1.9);
+      mat3 rx = mat3(1., 0., 0., 0., cos(pit), sin(pit), 0., -sin(pit), cos(pit));
+      mat3 ry = mat3(cos(yaw), 0., -sin(yaw), 0., 1., 0., sin(yaw), 0., cos(yaw));
+      mat4 m = modelMatrix * instanceMatrix;
+      vec3 o = (m * vec4(0., 0., 0., 1.)).xyz;
+      float k = max(1., distance(cameraPosition, o + (m * vec4(0., 0., position.z * aBeam.y, 0.)).xyz) * uPx * 1.4 / aBeam.x);
+      vec3 p = ry * rx * vec3(position.xy * aBeam.x * k, position.z * aBeam.y);
+      vec4 w = m * vec4(p, 1.);
+      vW = w.xyz; vN = normalize(mat3(m) * (ry * rx * vec3(position.xy, 0.)));
+      vS = position.z; vK = 1. / k; vC = instanceColor * (1. - aBeam.z + aBeam.z * step(.5, fract(uTime * 7.3 + aSweep.w)));
+      gl_Position = projectionMatrix * viewMatrix * w;
+    }`,
+  fragmentShader: `
+    uniform float uTime; varying vec3 vW, vN, vC; varying float vS, vK;
+    ${FOG_GLSL}
+    void main(){
+      if (vW.y > uClipTop) discard;
+      vec3 v = normalize(cameraPosition - vW);
+      float c = abs(dot(normalize(vN), v)), core = pow(c, 14.), halo = pow(c, 2.5);
+
+      // Bright at the source, fading out toward the far end. Haze drifts along the beam.
+
+      float along = smoothstep(0., .015, vS) * (1. - smoothstep(.55, 1., vS)) * mix(1., .45, vS);
+      float haze = .93 + .07 * sin(vS * 25. - uTime * 2.);
+      float f = clamp(smoothstep(uFogNear, uFogFar, distance(cameraPosition, vW)), 0., 1.);
+      vec3 col = (vC * (halo * .45 + core * 1.3) + vec3(core * .7)) * along * haze * vK * (1. - .6 * f);
+      gl_FragColor = vec4(col, 1.);
+    }`,
+}), 4096);
+lasers.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(4096 * 3), 3);
+lasers.userData.noTile = true; lasers.frustumCulled = false; lasers.count = 0; lasers.renderOrder = 3;
+lasers.onBeforeRender = (r, s, cam) => { uPx.value = 2 * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2) / r.getDrawingBufferSize(_v2).y; };
+const _v2 = new THREE.Vector2(), _a = new THREE.Vector3(), _b = new THREE.Vector3();
+scene.add(lasers); INSTANCED.push(lasers);
+
+export function laser(a, b, w, rgb, { sweep = [0, 0, 0, 0], blink = 0 } = {}) {
+  if (lasers.count >= lasers.instanceMatrix.count) return -1;
+  for (const [p, v] of [[_a, a], [_b, b]]) {
+    let [x, y, z] = v;
+    if (S.FRAME) {
+      const dx = x - S.FRAME.cx, dz = z - S.FRAME.cz, tx = S.FRAME.tx ?? S.FRAME.cx, tz = S.FRAME.tz ?? S.FRAME.cz;
+      x = tx + dx * S.FRAME.c + dz * S.FRAME.s; z = tz - dx * S.FRAME.s + dz * S.FRAME.c;
+      if (S.FRAME.sy) y *= S.FRAME.sy;
+    }
+    p.set(x, y, z);
+  }
+  const L = _a.distanceTo(_b);
+  if (L < .01) return -1;
+  const i = lasers.count++;
+  _o.position.copy(_a); _o.scale.set(1, 1, 1); _o.lookAt(_b); _o.updateMatrix();
+  lasers.setMatrixAt(i, _o.matrix); lasers.setColorAt(i, _c.setRGB(...rgb));
+  aSweep.setXYZW(i, ...sweep); aBeam.setXYZW(i, w, L, blink, 0);
+  lasers.instanceMatrix.needsUpdate = lasers.instanceColor.needsUpdate = aSweep.needsUpdate = aBeam.needsUpdate = true;
+  return i;
+}
+
 // Soft see-through volumes. Alpha fades to zero at the silhouette and near the camera, so smoke and steam
 // show no hard rims where they cut through roofs or fill the view.
 

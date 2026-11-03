@@ -6,7 +6,7 @@ import { S, H } from './state.js';
 import { AXIS_HI, AXIS_LO, BLOCK, CENTRE, CENTRE_PLACE, CENTRE_R, CITY, PLACES, STANDALONE, STYLES, hash, lerp, loadMsg, mapToWorld, mixStyle, rng, sdPoly, smooth, styleAt } from './core.js';
 import { SETTING, atRoot, inPack } from './setting.js';
 import { FOG_GLSL, SURFACE, U, WATER_GLSL, addHole, holed, label, outerGround, slab, surface, water } from './render.js';
-import { FACES, GLOWS, INSTANCED, PROPS, SKINS, beacon, beam, bld, glow, glows, grey, helipad, holo, kibble, neon, pool, prop, puff, put, soften, roof, sign, textSign } from './instances.js';
+import { FACES, GLOWS, INSTANCED, PROPS, SKINS, beacon, beam, bld, laser, glow, glows, grey, helipad, holo, kibble, neon, pool, prop, puff, put, soften, roof, sign, textSign } from './instances.js';
 import { KITS, crownOf, decor, grammarTowerBody, neonTexture, panel, plate, stringLights } from './grammar.js';
 import { fillGreens } from './greens.js';
 import { packClouds } from './clouds.js';
@@ -31,7 +31,7 @@ Object.defineProperties(H, Object.getOwnPropertyDescriptors({
   ...SETTING.styles.helpers, get decor() { return S.DECOR; },
   mapToWorld,
   mixStyle, rng, hash, lerp, smooth, grey,
-  put, prop, glow, pool, beam, puff, soften, textSign, beacon, bld, roof, kibble, sign, neon, holo, helipad, crownOf, grammarTowerBody,
+  put, prop, glow, pool, beam, laser, puff, soften, textSign, beacon, bld, roof, kibble, sign, neon, holo, helipad, crownOf, grammarTowerBody,
   panel, neonTexture, stringLights, plate, canvasTexture,
   frame: () => S.FRAME,
 
