@@ -485,10 +485,9 @@ export function landmarks(H) {
       if (FALLS.mesh) FALLS.mesh.position.y = -((t * 13) % FALLS.sp);
     } },
 
-    // Mama Qucha: nightclub floating far off the Nihongai coast, screens hiding the city, reached by a lit underwater
-    // slidewalk. It sits up the coast from the La Costa Floating Nightclub.
+    // Mama Qucha: nightclub floating far offshore, screens hiding the city, reached by a lit underwater slidewalk.
 
-    lc_mamaqucha: { at: [280, 700], label: 'Mama Qucha', labelY: 60, minSide: 30, reach: 500, build(x, z, w, d, st, r) {
+    lc_mamaqucha: { at: [598, 1392], label: 'Mama Qucha', labelY: 60, minSide: 30, reach: 500, build(x, z, w, d, st, r) {
       const [wx, wz] = K.toWorld(x, z), c = coast(wx, wz);
       const [ux, uz] = K.toLocalDir(c.nx, c.nz), off = c.d + 620;
       const mx = x + ux * off, mz = z + uz * off, ry = Math.atan2(ux, uz);

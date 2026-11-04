@@ -259,9 +259,10 @@ export function landmarks(H) {
     return { face: T.dir(0, 1) };
   };
 
-  // ---------- La Costa ----------
+  // ---------- Manta coast ----------
 
-  // Floating Nightclub: a shuttle hub on the shore, and offshore a round raft with two glass decks under a canopy.
+  // Undertow: a floating nightclub off north Manta. A shuttle hub stands on the shore.
+  // Offshore a round raft carries two glass decks under a canopy.
   // A hologram turns over the canopy, lasers sweep the water and rings of light spread out from the raft.
 
   // The moving parts own their meshes, because shared instances are frozen into tiles after the build.
@@ -286,7 +287,7 @@ export function landmarks(H) {
 
     const qx = x + ux * q, qz = z + uz * q;
     bld(qx, qz, 14, 14, 5, { ...st, base: [.12, .1, .14], win: MAG }, r, { lit: .5, roof: false, shape: 'cyl', skin: SKINS.curtain });
-    textSign('FLOATING CLUB · SHUTTLE', qx - ux * 7.4, 6.4, qz - uz * 7.4, 10, 1.8, land, dim(MAG, 1.1));
+    textSign('UNDERTOW · SHUTTLE', qx - ux * 7.4, 6.4, qz - uz * 7.4, 10, 1.8, land, dim(MAG, 1.1));
     const pe = Math.min(c.d + 10, Math.min(w, d) / 2 + 20);
     beam([qx, .6, qz], [x + ux * pe, .6, z + uz * pe], 3, [.1, .1, .11]);
     for (let t = c.d + 20; t < off - 36; t += 14) glow(x + ux * t, -1.6, z + uz * t, .5, .5, .5, (t / 14) % 2 < 1 ? MAG : CYAN);
@@ -301,7 +302,7 @@ export function landmarks(H) {
     // Lower deck: the dance floor in a magenta glass drum, capped by a terrace with warm lamps.
 
     bld(mx, mz, 40, 40, 7, { ...st, base: [.1, .08, .13], win: MAG }, r, { y0: 1.5, lit: .7, roof: false, shape: 'cyl', skin: SKINS.curtain });
-    textSign('FLOATING CLUB', mx - ux * 20.6, 5, mz - uz * 20.6, 16, 2.4, land, dim(MAG, 1.2));
+    textSign('UNDERTOW', mx - ux * 20.6, 5, mz - uz * 20.6, 16, 2.4, land, dim(MAG, 1.2));
     prop('cyl', mx, 8.8, mz, 46, .6, 46, [.1, .1, .11]);
     put(GLOWS.ring, mx, 9.2, mz, 46.4, 1, 46.4, 0, 0, dim(WARM, 1));
     for (let k = 0; k < 12; k++) { const a = k / 12 * 6.3; glow(mx + Math.cos(a) * 21, 9.7, mz + Math.sin(a) * 21, .3, .3, .3, WARM); }
@@ -423,7 +424,7 @@ export function landmarks(H) {
     fso_chone: { at: [598, 1087], label: 'Green Valley Boulevard', labelY: 44, minSide: 40, reach: 400, build: chone },
     fso_arms: { at: [748, 1385], label: 'Arms and Hammers', labelY: 22, minSide: 30, reach: 400, build: arms },
     fso_chop: { at: [790, 1430], label: 'Golem Grove Chop Shops', labelY: 26, minSide: 46, reach: 400, build: chop },
-    fso_club: { at: [575, 1335], label: 'La Costa Floating Nightclub', labelY: 56, minSide: 30, reach: 600, build: club, update: clubFx },
+    fso_club: { at: [360, 900], label: 'Undertow', labelY: 56, minSide: 30, reach: 600, build: club, update: clubFx },
     fso_vine: { at: [655, 1215], label: 'G-mod Vineyard', labelY: 24, minSide: 40, reach: 600, build: vine },
   };
 }

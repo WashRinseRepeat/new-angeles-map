@@ -31,20 +31,20 @@
       "None of the shops has a licence, and none of the parts has a serial number. Some parts fall off factory trucks. Some come from bioroids who did not choose to sell them. Hand-made signs name what each stall does. Welding sparks light the alley all night, and the corporation next door looks the other way."
     ]
   },
-  "La Costa Floating Nightclub": {
-    "kicker": "The best party in La Costa is offshore",
-    "category": "food",
-    "text": [
-      "The floating club sits on a round raft just off the La Costa shore. Shuttle boats run guests out from a small hub on the beach all night, along a line of lit buoys. The dance floor fills a magenta glass drum, and the sea moves under your feet. A cyan bar deck sits on top under a wide canopy. A hologram turns above the canopy, lasers sweep the water, and rings of light spread across the black sea around the raft.",
-      "Risties book the upper deck for the view back to the farmland lights and the city beyond. The bar serves g-modded seafood from the nearby fish farms. The club is one of several water-borne nightspots on this coast, and it is the closest one to the shore. Nobody leaves before the last boat."
-    ]
-  },
   "G-mod Vineyard": {
     "kicker": "Grapes that grow in a week",
     "category": "food",
     "text": [
       "The g-mod vineyard climbs a terraced slope at the edge of La Costa's Agricultural Plots. Its vines are tuned to fruit fast and grow sweet in the coastal heat. After dark, a thin line of violet or gold grow-light runs along every row. From far away the slope looks like a striped, glowing hillside among the dark fields.",
       "A low winery hall stands at the top of the slope, with warm windows and a tasting terrace under string lights. Tourists come by the busload to taste the wine, and risties from the city buy whole cases. The guidebooks list it next to the waterfalls and beach resorts. The owners never say which corporation made the vines."
+    ]
+  },
+  "Undertow": {
+    "kicker": "The club that drifts off the Manta shore",
+    "category": "food",
+    "text": [
+      "Undertow sits on a round raft off the north Manta shore, where the city lights still reach the water. Shuttle boats run guests out from a glass hub on the beach all night, along a line of lit buoys. The dance floor fills a magenta glass drum, and the sea moves under your feet. A cyan bar deck sits on top under a wide canopy. A hologram turns above the canopy, lasers sweep the water, and rings of light spread across the black sea.",
+      "Manta's dockworkers and its tourists share the floor, and corp kids come down from the towers to slum it. The bar serves g-modded seafood straight off the fishing boats. People call it the poor cousin of Mama Qucha, but Undertow is closer, cheaper and louder. The name is a warning, and regulars say it pulls you back every weekend. Nobody leaves before the last boat."
     ]
   }
 }
