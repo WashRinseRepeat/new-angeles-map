@@ -20,6 +20,27 @@ export function sea(H, land, SEA) {
   const CLEAR = [[-1044, -630, 520], [-2050, 250, 520], [-1300, 1836, 350], [-1050, 2390, 420], [-850, 3650, 900]];
   const clear = (x, z, m = 0) => CLEAR.every(([cx, cz, cr]) => Math.hypot(x - cx, z - cz) > cr + m);
 
+  // Every ship's patch, farm and anchorage claims a disc of water. Nothing new may touch a claimed disc. Anchored
+  // ships and farms keep their whole disc off the lanes, and circling boats keep their centre 150 m off.
+
+  const taken = [], lanes = [];
+  const laneGap = (x, z) => Math.min(Infinity, ...lanes.map(l => Math.abs((x - l.cx) * l.sx + (z - l.cz) * l.sz)));
+  const room = (x, z, rad, lane = rad) => clear(x, z, rad) && laneGap(x, z) > lane + 150 && taken.every(([tx, tz, tr]) => Math.hypot(x - tx, z - tz) > rad + tr)
+    && [[0, 0], [rad, 0], [-rad, 0], [0, rad], [0, -rad]].every(([a, b]) => wet(x + a, z + b, 5));
+  const claim = (x, z, rad) => { taken.push([x, z, rad]); return [x, z]; };
+
+  // Spots off the coast are drawn by length along the shore, so densely traced stretches get no extra traffic.
+
+  const runs = [0];
+  for (let i = 1; i < coast.length; i++) runs.push(runs[i - 1] + Math.hypot(coast[i][0] - coast[i - 1][0], coast[i][1] - coast[i - 1][1]));
+  const shoreAt = u => {
+    const L = u * runs.at(-1);
+    let i = 1;
+    while (i < runs.length - 1 && runs[i] < L) i++;
+    const t = (L - runs[i - 1]) / (runs[i] - runs[i - 1] || 1);
+    return [coast[i - 1][0] + (coast[i][0] - coast[i - 1][0]) * t, coast[i - 1][1] + (coast[i][1] - coast[i - 1][1]) * t];
+  };
+
   // ---------- parts: [shape, sx, sy, sz, x, y, z, rgb, lit], z toward the bow, y up from the waterline ----------
 
   const GEO = { box: new THREE.BoxGeometry(1, 1, 1), cyl: new THREE.CylinderGeometry(.5, .5, 1, 12), ball: new THREE.SphereGeometry(.5, 12, 8) };
@@ -119,6 +140,34 @@ export function sea(H, land, SEA) {
       ['box', B - 2.6, .9, .2, 0, 6, 12.1, [.9, 1.1, 1.2], 1], ['box', B + .2, .5, 1.2, 0, 1.5, 20, [.9, .3, .1]], ...nav(B, L, 16)];
   };
 
+  // Squid jigger: a dark hull under two lines of bright green lamps that draw the squid up at night.
+
+  const jigger = () => {
+    const L = 46, B = 9, P = [['box', B, 4, L, 0, 0, 0, [.12, .13, .14]], ['box', B - 2, 5, 9, 0, 4.5, -14, [.6, .6, .58]],
+      ['box', .3, 7, .3, 0, 5.5, 14, [.2, .2, .2]], ['box', .3, 7, .3, 0, 5.5, -6, [.2, .2, .2]], ['box', .15, .15, 20, 0, 8.8, 4, [.2, .2, .2]],
+      ...windows(3, B / 2 - .9, 5, -16, 2.4, WARM, [.2, .8, 1.4]), ...nav(B, L, 10)];
+    for (let k = 0; k < 10; k++) for (const sd of [-1.4, 1.4]) P.push(['box', .9, .7, .9, sd, 8, -6 + k * 2.2, [1, 1.9, 1.1], 1]);
+    return P;
+  };
+
+  // Seabed-mining rig: a deck on four legs, a derrick, a crane, a helipad, a lit quarters block and a gas flare.
+
+  const rig = () => {
+    const D = 70, Y = 28, ST = [.3, .3, .32], P = [];
+    for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) P.push(['cyl', 9, Y + 8, 9, a * 26, Y / 2 - 4, b * 26, [.35, .33, .3]], ['box', 1, 1, 1, a * 26, 1.5, b * 26, [1.8, .9, .1], 1]);
+    P.push(['box', D, 5, D, 0, Y, 0, [.22, .22, .24]]);
+    for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) P.push(['box', a ? .4 : D, .4, b ? .4 : D, a * (D / 2 + .2), Y + 2.4, b * (D / 2 + .2), [1.2, .8, .3], 1]);
+    for (let k = 0; k < 6; k++) { const h = 8 + k * 9, w = 14 - k * 2; for (const [a, b] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) P.push(['box', a ? .6 : w, .6, b ? .6 : w, a * w / 2 + 10, Y + h, b * w / 2 - 10, ST]); }
+    for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) P.push(['box', .8, 54, .8, 10 + a * 6, Y + 29, -10 + b * 6, ST]);
+    P.push(['box', 1.2, 1.2, 1.2, 10, Y + 57, -10, RED, 1], ['box', 22, 16, 18, -18, Y + 10, 18, [.6, .58, .52]],
+      ...windows(5, -6.9, Y + 6, 12, 3, WARM, [.2, 1, 1.8]), ...windows(5, -6.9, Y + 11, 12, 3, WARM, [.2, 1, 1.8]),
+      ['cyl', 20, 1, 20, -18, Y + 18.5, 18, [.3, .32, .3]], ['box', 14, .2, 1, -18, Y + 19.1, 18, [1.4, 1.3, .4], 1],
+      ['box', 2, 2, 40, 22, Y + 14, 20, [.75, .5, .1]], ['box', 1.6, 18, 1.6, 22, Y + 10, 6, [.75, .5, .1]],
+      ['box', 1.2, 1.2, 38, 0, Y + 8, -D / 2 - 18, ST], ['ball', 5, 8, 5, 0, Y + 11, -D / 2 - 37, [2.4, 1, .2], 1], ['ball', 2.6, 5, 2.6, 0, Y + 11, -D / 2 - 37, [2.6, 2.2, 1.2], 1]);
+    for (let k = 0; k < 8; k++) P.push(['box', .8, .6, .8, -30 + (k % 4) * 20, Y + 4, k < 4 ? -33 : 33, [1.7, 1.6, 1.4], 1]);
+    return P;
+  };
+
   // ---------- routes ----------
 
   // The coast lanes run along the coast's long axis, out on the sea side. A lane keeps only stretches that stay in
@@ -133,7 +182,9 @@ export function sea(H, land, SEA) {
     let lo = 0, hi = 0;
     while (lo > -half && wet(cx + ux * (lo - 60), cz + uz * (lo - 60), 5)) lo -= 60;
     while (hi < half && wet(cx + ux * (hi + 60), cz + uz * (hi + 60), 5)) hi += 60;
-    return { cx, cz, lo, hi };
+    const ln = { cx, cz, lo, hi, sx, sz };
+    lanes.push(ln);
+    return ln;
   };
 
   const ships = [];
@@ -142,45 +193,60 @@ export function sea(H, land, SEA) {
     if (ln.hi - ln.lo < 2000) return;
     ships.push({ kind, ln, speed, dir, ph: r() * (ln.hi - ln.lo), L, sway: (r() - .5) * 120 });
   };
-  for (let k = 0; k < 6; k++) sail('freighter' + (k % 3), 210, 1500 + k * 450, 9000, 6 + r() * 3, k % 2 ? 1 : -1);
-  for (let k = 0; k < 3; k++) sail('tanker', 230, 2300 + k * 700, 9000, 5 + r() * 2, k % 2 ? -1 : 1);
-  for (let k = 0; k < 4; k++) sail('drone', 120, 1300 + k * 600, 9000, 8 + r() * 3, k % 2 ? 1 : -1);
-  for (let k = 0; k < 4; k++) sail('ferry', 34, 450 + k * 160, 5000, 16 + r() * 4, k % 2 ? 1 : -1);
+  for (let k = 0; k < 4; k++) sail('freighter' + (k % 3), 210, 1500 + k * 600, 9000, 6 + r() * 3, k % 2 ? 1 : -1);
+  for (let k = 0; k < 2; k++) sail('tanker', 230, 2100 + k * 1200, 9000, 5 + r() * 2, k % 2 ? -1 : 1);
+  for (let k = 0; k < 3; k++) sail('drone', 120, 1800 + k * 1200, 9000, 8 + r() * 3, k % 2 ? 1 : -1);
+  for (let k = 0; k < 2; k++) sail('ferry', 34, 500 + k * 250, 5000, 16 + r() * 4, k % 2 ? 1 : -1);
 
   // Trawlers, cruising yachts and cutters circle slowly over their own patch of water.
 
-  const pick = (lo, hi, pad) => {
+  const pick = (lo, hi, rad, lane = rad) => {
     for (let t = 0; t < 400; t++) {
-      const i = Math.floor(r() * (coast.length - 1)), [px, pz] = coast[i], d = lo + r() * (hi - lo);
-      const x = px + sx * d + ux * (r() - .5) * 300, z = pz + sz * d + uz * (r() - .5) * 300;
-      if (wet(x, z, 5) && clear(x, z, pad) && [0, 1, 2, 3].every(q => wet(x + Math.cos(q * 1.57) * pad, z + Math.sin(q * 1.57) * pad, 5))) return [x, z];
+      const [px, pz] = shoreAt(r()), d = lo + r() * (hi - lo), x = px + sx * d, z = pz + sz * d;
+      if (room(x, z, rad, lane)) return claim(x, z, rad);
     }
     return null;
   };
   const circle = (kind, L, lo, hi, rad, speed) => {
-    const p = pick(lo, hi, rad + 40);
+    const p = pick(lo, hi, rad + L, 0);
     if (p) ships.push({ kind, c: p, rad, speed: speed / rad * (r() < .5 ? 1 : -1), ph: r() * 6.3, L });
   };
-  for (let k = 0; k < 10; k++) circle('trawler', 36, 500, 2600, 120 + r() * 200, 2 + r() * 2);
-  for (let k = 0; k < 6; k++) circle('yacht', 52, 300, 1400, 150 + r() * 150, 3 + r() * 2);
-  for (let k = 0; k < 3; k++) circle('cutter', 60, 600, 2000, 300 + r() * 300, 7 + r() * 2);
+  for (let k = 0; k < 6; k++) circle('trawler', 36, 500, 2600, 120 + r() * 200, 2 + r() * 2);
+  for (let k = 0; k < 4; k++) circle('yacht', 52, 300, 1400, 150 + r() * 150, 3 + r() * 2);
+  for (let k = 0; k < 3; k++) circle('cutter', 60, 600, 2000, 200 + r() * 150, 7 + r() * 2);
 
-  // Anchored yachts ride in groups off the beaches, and a few freighters wait for a berth in Manta.
+  // Anchored yachts ride in short rows off the beaches, 70 m apart, all swung the same way.
 
   const moored = [];
-  for (let k = 0; k < 7; k++) {
-    const p = pick(250, 800, 60);
-    if (!p) continue;
-    for (let j = 1 + Math.floor(r() * 3); j > 0; j--) moored.push({ kind: 'yacht', x: p[0] + (r() - .5) * 120, z: p[1] + (r() - .5) * 120, a: r() * 6.3 });
-  }
-  const [hx, hz] = H.mapToWorld([330, 1080]);
   for (let k = 0; k < 4; k++) {
-    const x = hx + sx * (1600 + r() * 900) + ux * (r() - .5) * 1600, z = hz + sz * (1600 + r() * 900) + uz * (r() - .5) * 1600;
-    if (wet(x, z, 5) && clear(x, z, 150)) moored.push({ kind: 'freighter' + k % 3, x, z, a: Math.atan2(ux, uz) + (r() - .5) * .6 });
+    const n = 1 + Math.floor(r() * 3), p = pick(250, 800, 40 + n * 35);
+    if (!p) continue;
+    const a = Math.atan2(ux, uz) + (r() - .5) * .3;
+    for (let j = 0; j < n; j++) { const o = (j - (n - 1) / 2) * 70; moored.push({ kind: 'yacht', x: p[0] + ux * o, z: p[1] + uz * o, a }); }
   }
 
+  // Ships at anchor stand off from a centre point, each on its own disc. Freighters wait off Manta for a berth.
+
+  const anchor = (kinds, cx, cz, spread, n, rad, a0) => {
+    for (let k = 0, t = 0; k < n && t < 200; t++) {
+      const x = cx + (r() - .5) * spread, z = cz + (r() - .5) * spread;
+      if (!room(x, z, rad)) continue;
+      claim(x, z, rad);
+      moored.push({ kind: kinds[k % kinds.length], x, z, a: a0 + (r() - .5) * .5 });
+      k++;
+    }
+  };
+  const along = Math.atan2(ux, uz);
+  anchor(['freighter0', 'freighter1', 'freighter2'], ...H.mapToWorld([250, 1080]), 1400, 3, 170, along);
+
+  // The south: an anchorage off the Guayaquil gulf, a squid fleet under green lamps, and a Weyland seabed-mining rig.
+
+  anchor(['freighter1', 'tanker', 'freighter2', 'freighter0'], 600, 5700, 1600, 5, 170, along + .3);
+  anchor(['jigger'], -1100, 5300, 1100, 7, 60, along);
+  anchor(['rig'], -1700, 4700, 600, 1, 140, .4);
+
   const KINDS = { freighter0: freighter(0), freighter1: freighter(1), freighter2: freighter(2), tanker: tanker(), drone: drone(), trawler: trawler(),
-    yacht: yacht(), ferry: ferry(), cutter: cutter() };
+    yacht: yacht(), ferry: ferry(), cutter: cutter(), jigger: jigger(), rig: rig() };
   const count = {};
   for (const s of [...ships, ...moored]) count[s.kind] = (count[s.kind] ?? 0) + 1;
   const MESH = Object.fromEntries(Object.entries(count).map(([k, n]) => [k, fleet(KINDS[k], n)]));
@@ -195,6 +261,18 @@ export function sea(H, land, SEA) {
   const wakes = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2).translate(0, 0, -.5),
     new THREE.MeshBasicMaterial({ map: fan, color: new THREE.Color(.07, .085, .095), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }), ships.length);
   wakes.frustumCulled = false; wakes.renderOrder = 2;
+
+  // The squid lamps and the rig throw a pale pool of light on the water round them.
+
+  const glowOn = moored.filter(s => s.kind === 'jigger' || s.kind === 'rig');
+  const pools = new THREE.InstancedMesh(new THREE.CircleGeometry(.5, 24).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({
+    map: H.canvasTexture(64, 64, (g, w) => { const gr = g.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2); gr.addColorStop(0, '#fff'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, w); }),
+    vertexColors: false, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }), Math.max(1, glowOn.length));
+  pools.frustumCulled = false; pools.renderOrder = 2; pools.count = glowOn.length;
+  glowOn.forEach((s, i) => {
+    const big = s.kind === 'rig', m = new THREE.Matrix4().compose(new THREE.Vector3(s.x, SEA + .2, s.z), new THREE.Quaternion(), new THREE.Vector3().setScalar(big ? 260 : 110));
+    pools.setMatrixAt(i, m); pools.setColorAt(i, new THREE.Color(...(big ? [.07, .045, .02] : [.05, .14, .07])));
+  });
 
   const o = new THREE.Object3D(), used = {};
   const place = (kind, x, z, a, s = 1) => {
@@ -228,26 +306,26 @@ export function sea(H, land, SEA) {
   };
   update(0);
 
-  return { meshes: [...Object.values(MESH).flat(), wakes, ...farms(H, wet, clear, coast, sx, sz, ux, uz, r, SEA, part, mergeGeometries)], update };
+  return { meshes: [...Object.values(MESH).flat(), wakes, pools, ...farms(H, wet, room, claim, shoreAt, sx, sz, ux, uz, r, SEA, part, mergeGeometries)], update };
 }
 
 // Fish pens: clusters of round net pens on floating rings, each with a feed barge. Kelp lines: rows of amber floats.
 
-function farms(H, wet, clear, coast, sx, sz, ux, uz, r, SEA, part, mergeGeometries) {
+function farms(H, wet, room, claim, shoreAt, sx, sz, ux, uz, r, SEA, part, mergeGeometries) {
   const { THREE } = H;
   const rings = [], nets = [], feeders = [], barges = [], floats = [];
-  const site = (lo, hi, pad) => {
+  const site = (lo, hi, rad) => {
     for (let t = 0; t < 300; t++) {
-      const [px, pz] = coast[Math.floor(r() * (coast.length - 1))], d = lo + r() * (hi - lo), x = px + sx * d, z = pz + sz * d;
-      if (clear(x, z, pad) && [[0, 0], [pad, 0], [-pad, 0], [0, pad], [0, -pad]].every(([a, b]) => wet(x + a, z + b, 5))) return [x, z];
+      const [px, pz] = shoreAt(r()), d = lo + r() * (hi - lo), x = px + sx * d, z = pz + sz * d;
+      if (room(x, z, rad)) return claim(x, z, rad);
     }
     return null;
   };
 
-  for (let k = 0; k < 9; k++) {
-    const p = site(300, 1600, 160);
+  for (let k = 0; k < 6; k++) {
+    const R = 12 + r() * 8, nu = 2 + Math.floor(r() * 2), nv = 2 + Math.floor(r() * 3), p = site(300, 1600, Math.hypot(nu, nv) * R * 1.3 + 40);
     if (!p) continue;
-    const [x0, z0] = p, a = Math.atan2(ux, uz) + (r() - .5) * .4, c = Math.cos(a), s = Math.sin(a), R = 12 + r() * 8, nu = 2 + Math.floor(r() * 2), nv = 2 + Math.floor(r() * 3);
+    const [x0, z0] = p, a = Math.atan2(ux, uz) + (r() - .5) * .4, c = Math.cos(a), s = Math.sin(a);
     for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) {
       const u = (i - (nu - 1) / 2) * R * 2.6, v = (j - (nv - 1) / 2) * R * 2.6, x = x0 + u * c + v * s, z = z0 - u * s + v * c;
       rings.push([x, z, R]); nets.push([x, z, R * .92]);
@@ -258,8 +336,8 @@ function farms(H, wet, clear, coast, sx, sz, ux, uz, r, SEA, part, mergeGeometri
 
   // Kelp lines run parallel, a float every 4 m.
 
-  for (let k = 0; k < 6; k++) {
-    const p = site(250, 1200, 120);
+  for (let k = 0; k < 4; k++) {
+    const p = site(250, 1200, 110);
     if (!p) continue;
     const a = Math.atan2(ux, uz) + (r() < .5 ? 0 : Math.PI / 2), c = Math.cos(a), s = Math.sin(a), rows = 8 + Math.floor(r() * 8);
     for (let i = 0; i < rows; i++) for (let j = -15; j <= 15; j++) {

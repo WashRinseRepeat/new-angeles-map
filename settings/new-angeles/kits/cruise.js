@@ -1,4 +1,4 @@
-// The NBN Ascension: a 362 m resort ship that NBN parks in the bay off Esmeraldas for Beanstalk launch season.
+// The NBN Ascension: a 362 m resort ship that NBN keeps at anchor in the bay off Esmeraldas.
 // Two tall cabin wings frame an open park canyon. A pool deck, a glass dome and a swept stack crown the bow half,
 // an aqua theatre opens at the stern, and a holo ring turns over the stack. Bow points local +x, starboard is +z.
 
@@ -271,7 +271,7 @@ function ship(H) {
       glow(hullX(1, 1) - 1, D + 2, 0, .8, .8, .8, [2, 2, 1.9]);
       glow(hullX(-1, 1) + .5, D + 3, 0, .8, .8, .8, [2, 2, 1.9]);
 
-      // Searchlights sweep the sky from the wing roofs for the launch-night crowd.
+      // Searchlights sweep the sky from the wing roofs over the party decks.
 
       for (const [x, z, ph] of [[-70, 21, 0], [-70, -21, 2.1], [86, 21, 4.2]])
         laser([x, 67, z], [x + 60, 520, z + Math.sign(z) * 260], .7, [.16, .2, .38], { sweep: [.5, .18, .22, ph] });
