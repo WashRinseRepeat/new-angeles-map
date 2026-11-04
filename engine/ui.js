@@ -6,7 +6,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { S, H } from './state.js';
 import { CENTRE, CENTRE_PLACE, CENTRE_R, CITY, CORES, DENSITY, PLACES, SITE, STANDALONE, STYLES, centroidOf, density, lerp, styleAt } from './core.js';
 import { SETTING, inPack } from './setting.js';
-import { FOG, FOG_BASE, LOCK, QUALITY, SURFACE, U, applyQuality, bloom, camera, composer, controls, fadeTwin, flatGeo, hemi, label, labelRoot, labels, lockCamera, moon, renderer, scene } from './render.js';
+import { FOG, FOG_BASE, LOCK, QUALITY, SURFACE, U, aoPass, applyQuality, bloom, camera, composer, controls, fadeTwin, flatGeo, hemi, label, labelRoot, labels, lockCamera, moon, renderer, scene } from './render.js';
 import { SHAPES, TILE, TILES, glows, pools, put, signs, yawAt } from './instances.js';
 import { ARCHETYPES, ARCH_BASE, ARCH_WEIGHTS, MERGED_MAT, TALLY, decor, insidePoly, merged } from './grammar.js';
 import { rideFocus, rideTick, riding } from './ride.js';
@@ -579,6 +579,15 @@ hq.onclick = () => {
   if (qSel.value === 'auto') applyQuality(START);
   showHq();
 };
+// A pack with ambient occlusion gets a switch for it beside smooth edges. The choice is kept per browser.
+
+if (aoPass) {
+  const ao = hq.insertAdjacentElement('beforebegin', Object.assign(document.createElement('button'), { id: 'ao', textContent: 'Corner shade', title: 'Darkens creases where walls meet the ground. Costs frame rate when zoomed in.' }));
+  const show = () => ao.setAttribute('aria-pressed', aoPass.enabled);
+  try { aoPass.enabled = localStorage.getItem('map-ao') !== 'off'; } catch {}
+  ao.onclick = () => { aoPass.enabled = !aoPass.enabled; show(); try { localStorage.setItem('map-ao', aoPass.enabled ? 'on' : 'off'); } catch {} };
+  show();
+}
 let fpsN = 0, fpsT = 0;
 
 // three draws a transparent double-sided mesh twice, back faces then front, and resolves its program both times.

@@ -291,7 +291,7 @@ class CloudPass extends Pass {
 // reads the scene's depth, so it draws nothing again. At half resolution each pixel rebuilds its position and
 // facing from depth and tests 16 points in the half sphere above it; points behind the depth there count as
 // covered. A 4 × 4 blur that skips pixels at other depths smooths the noise, and the result multiplies into the
-// frame before the clouds and bloom. It fades out towards reach and is off at low quality.
+// frame before the clouds and bloom. It fades out towards reach, skips pixels past it, and is off at low quality.
 // look.ao keys, with their defaults: radius 2.5 (metres), strength .7, reach 500 (metres from the camera).
 
 const AO = LOOK.ao && { radius: 2.5, strength: .7, reach: 500, ...LOOK.ao };
@@ -328,6 +328,7 @@ class AOPass extends Pass {
         vec2 uv = (floor(vUv / uTexel) + .5) * uTexel;
         if (texture2D(tDepth, uv).r >= 1.) { gl_FragColor = vec4(1.); return; }
         vec3 p = viewAt(uv);
+        if (-p.z >= uAO.z) { gl_FragColor = vec4(1.); return; }
         vec3 l = viewAt(uv - vec2(uTexel.x, 0.)), r = viewAt(uv + vec2(uTexel.x, 0.));
         vec3 d = viewAt(uv - vec2(0., uTexel.y)), u = viewAt(uv + vec2(0., uTexel.y));
         vec3 n = normalize(cross(abs(r.z - p.z) < abs(p.z - l.z) ? r - p : p - l, abs(u.z - p.z) < abs(p.z - d.z) ? u - p : p - d));
@@ -350,9 +351,10 @@ class AOPass extends Pass {
       }`);
     this.blur = quad(`
       ${VIEW_GLSL}
-      uniform sampler2D tAO; uniform vec2 uLow; varying vec2 vUv;
+      uniform sampler2D tAO; uniform vec2 uLow; uniform vec3 uAO; varying vec2 vUv;
       void main() {
         float z = viewAt(vUv).z, sum = 0., w = 0.;
+        if (-z >= uAO.z) { gl_FragColor = vec4(1.); return; }
         for (int i = -2; i < 2; i++) for (int j = -2; j < 2; j++) {
           vec2 at = vUv + (vec2(i, j) + .5) / uLow;
           float k = 1. / (1. + abs(viewAt(at).z - z) * 4.);
@@ -375,7 +377,12 @@ class AOPass extends Pass {
     this.u.uLow.value.set(this.raw.width, this.raw.height);
   }
   render(r, writeBuffer, readBuffer) {
-    if (QUALITY.level === 'low') return;
+    // The nearest thing in view is at least as far as the frame's lowest ray takes to fall to 150 m over the target.
+    // When even that is past reach, the pass would only multiply the frame by one, so it skips.
+
+    const rise = camera.position.y - controls.target.y, fall = Math.asin(Math.min(1, rise / camera.position.distanceTo(controls.target)));
+    const nearest = (rise - 150) / Math.sin(Math.min(Math.PI / 2, fall + THREE.MathUtils.degToRad(camera.fov / 2)));
+    if (QUALITY.level === 'low' || nearest > AO.reach) return;
     const U = this.u, clear = r.autoClear;
     U.tDepth.value = readBuffer.depthTexture;
     U.uProj.value.copy(camera.projectionMatrix);
@@ -389,7 +396,8 @@ class AOPass extends Pass {
     r.autoClear = clear;
   }
 }
-if (AO) composer.addPass(new AOPass());
+export const aoPass = AO ? new AOPass() : null;
+if (aoPass) composer.addPass(aoPass);
 const clouds = new CloudPass();
 composer.addPass(clouds);
 export const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), ...LOOK.bloom);

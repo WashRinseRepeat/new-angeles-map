@@ -96,8 +96,10 @@ body.busy, body.busy * { cursor: progress !important; }
 
 /* Smooth edges sits in the bottom-right corner, under cards and players. */
 
-#hq { position: fixed; z-index: 3; right: 12px; bottom: 12px; background: var(--panel-soft); color: var(--muted-2); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; font-size: 11px; cursor: pointer; }
-#hq[aria-pressed=true] { color: var(--accent); border-color: var(--line-on); }
+#hq { right: 12px; }
+#hq, #ao { position: fixed; z-index: 3; bottom: 12px; background: var(--panel-soft); color: var(--muted-2); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; font-size: 11px; cursor: pointer; }
+#ao { right: 112px; }
+#hq[aria-pressed=true], #ao[aria-pressed=true] { color: var(--accent); border-color: var(--line-on); }
 #clock { position: fixed; z-index: 3; right: 12px; bottom: 44px; display: flex; align-items: center; gap: 8px; background: var(--panel-soft); color: var(--muted-2); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; font-size: 11px; }
 #depth { position: fixed; z-index: 3; right: 12px; bottom: 76px; display: flex; gap: 2px; background: var(--panel-soft); border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
 #depth button { border: 0; background: none; color: var(--muted-2); border-radius: 999px; padding: 3px 9px; font-size: 11px; cursor: pointer; min-height: 0; }
@@ -298,7 +300,9 @@ body.focus #clock, body.editing #clock, body.focus #depth, body.editing #depth {
   #atour, #ride { left: 8px; right: 8px; bottom: 8px; width: auto; }
   #atSub { bottom: 168px; max-width: calc(100vw - 32px); font-size: 14px; }
   #minimap { left: 8px; bottom: 8px; width: calc(100vw - 16px); }
-  #hq { right: 8px; bottom: 8px; padding: 8px 12px; }
+  #hq, #ao { bottom: 8px; padding: 8px 12px; }
+  #hq { right: 8px; }
+  #ao { right: 128px; }
   #clock { right: 8px; bottom: 52px; padding: 6px 12px; }
   #depth { right: 8px; bottom: 94px; }
   #minimap svg { height: 46vh; }
