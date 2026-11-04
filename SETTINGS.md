@@ -78,7 +78,7 @@ An engine change for a new pack must leave New Angeles as it was. `node spikes/m
 
 ### Styles
 
-A style holds `h0`, `h1`, `density`, `neon`, `lit`, `grime`, `w` and the colours `base`, `win`, `street`, plus `signs` (a palette), `tiers` (kit names from low to high density) and `zones` (block zones it allows). Optional: `yardKit`, `yardBlocks` (the yard kit also fills every block that holds no lots), `fillKit`, `noFill`, `blockCap`, `blockGap`, `blockMin`, `smallShare`. `w` places the style between the two axis ends. The engine's own buildings read the axis ends for window colours and sign palettes.
+A style holds `h0`, `h1`, `density`, `neon`, `lit`, `grime`, `w` and the colours `base`, `win`, `street`, plus `signs` (a palette), `tiers` (kit names from low to high density) and `zones` (block zones it allows). Optional: `yardKit`, `yardBlocks` (the yard kit also fills every block that holds no lots), `lotMax` (lots wider than this many metres build as a grid of smaller lots), `fillKit`, `noFill`, `blockCap`, `blockGap`, `blockMin`, `smallShare`. `w` places the style between the two axis ends. The engine's own buildings read the axis ends for window colours and sign palettes.
 
 ### Buildings and decoration
 

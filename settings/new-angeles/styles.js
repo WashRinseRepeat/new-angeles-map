@@ -27,7 +27,7 @@ export const STYLES = {
   chakana: BDC,
   'base-de-cayambe': BDC,
   rutherford: RUT,
-  esmeraldas: STYLE({ w: .35, h0: 10, h1: 40, density: .72, neon: .45, lit: .32, grime: .45, base: [.13, .11, .1], win: [1, .76, .45],
+  esmeraldas: STYLE({ w: .35, h0: 10, h1: 40, density: .72, lotMax: 40, neon: .45, lit: .32, grime: .45, base: [.13, .11, .1], win: [1, .76, .45],
     signs: [[.3, .8, 1.8], [1.6, .55, .15], [.4, 1.5, .5], [1.5, .3, .9]], street: [1, .58, .25], zones: ['industry'],
     tiers: [['block', 'tenement', 'park'], ['block', 'stack', 'tenement'], ['tower', 'block', 'stack']] }),
   nihongai: STYLE({ w: .85, h0: 12, h1: 55, density: .68, neon: .35, lit: .17, grime: .08, base: [.08, .085, .08], win: [1, .74, .44],

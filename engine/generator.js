@@ -75,6 +75,23 @@ const within = (f, x, z, pad = 0) => {
   return Math.abs(X * f.c - Z * f.s) < f.w / 2 + pad && Math.abs(X * f.s + Z * f.c) < f.d / 2 + pad;
 };
 
+// A style with lotMax cuts any lot wider than that into a grid of pieces, so kits sized for normal lots fill a
+// lot that covers a whole block. A piece builds only if all its corners sit inside the lot.
+
+function lotPieces(f, max) {
+  if (!max || Math.min(f.w, f.d) <= max) return [f];
+  const nu = Math.ceil(f.w / max), nv = Math.ceil(f.d / max), w = f.w / nu, d = f.d / nv, out = [];
+  const at = (u, v) => [f.cx + u * f.c + v * f.s, f.cz - u * f.s + v * f.c];
+  for (let i = 0; i < nu; i++) for (let j = 0; j < nv; j++) {
+    const u = (i - (nu - 1) / 2) * w, v = (j - (nv - 1) / 2) * d;
+    const poly = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => at(u + a * w / 2, v + b * d / 2));
+    if (poly.some(([x, z]) => sdPoly(x, z, f.poly) < -1)) continue;
+    const [cx, cz] = at(u, v);
+    out.push({ ...f, cx, cz, w, d, poly: [...poly, poly[0]] });
+  }
+  return out;
+}
+
 // Blocks with no lot centre inside them. Lot centres sit in 50 m buckets, so each block checks only its neighbours.
 
 let YARDS = null;
@@ -406,7 +423,9 @@ function buildLot(f, g, blend, k = 1, bare = false, slab = 0) {
     S.FRAME = null;
     return;
   }
-  if (bare || (roll > st.density * CITYTUNE.fill && !Q)) {
+  // A lot rolls bare as a yard by chance. A lot as big as a block site always builds, or it would stand as an empty block.
+
+  if (bare || (roll > st.density * CITYTUNE.fill && !Q && size < SC.siteMin)) {
     const yk = KITS[STYLES[st.id].yardKit];
     if (yk) yk(g.cx, g.cz, size, st, 1, r);
     else yard(g.cx, g.cz, g.w - 2, g.d - 2, st, r);
@@ -728,7 +747,7 @@ export function generate(blend) {
     // Lots thin out toward the frayed edge, so the city ends in scattered buildings.
 
     if (edgeAt(f.cx, f.cz) < .08 + .3 * rng(hash(Math.round(f.cx), Math.round(f.cz) + 41))()) continue;
-    clearOf(f, (g, k, bare, slab) => buildLot(f, g, blend, k, bare, slab));
+    for (const p of lotPieces(f, STYLES[styleAt(f.cx, f.cz, blend).id].lotMax)) clearOf(p, (g, k, bare, slab) => buildLot(p, g, blend, k, bare, slab));
   }
   FILL ??= fillCells();
 
