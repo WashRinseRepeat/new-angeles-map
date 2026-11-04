@@ -626,7 +626,7 @@ export function landmarks(H) {
     // electrified double fence, guard towers with searchlights, a floodlit ball field and sharkbot lights offshore.
 
     esm_prison: {
-      at: [124, 488], label: 'Esmeraldas Prison', minSide: 60, reach: 450, labelY: 70,
+      at: [128, 528], label: 'Esmeraldas Prison', minSide: 60, reach: 450, labelY: 70,
       build(bx, bz, bw, bd, st, r) {
 
         // The prison covers three times the block's area and sits offshore. A causeway runs out to it.

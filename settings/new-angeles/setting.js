@@ -92,7 +92,7 @@ export default {
   kits: {
     families: ['industry', 'nature', 'heavy', 'chakana', 'favela', 'mercado', 'akeidito'],
     districts: ['esmeraldas', 'nihongai', 'manta', 'laguna-velasco', 'rabotgorod', 'la-costa', 'quinde', 'guayaquil'],
-    finds: ['finds-broadcast', 'finds-downtown', 'finds-base', 'finds-spread', 'finds-east', 'finds-south', 'golden-spire', 'fusion', 'finds-story'],
+    finds: ['finds-broadcast', 'finds-downtown', 'finds-base', 'finds-spread', 'finds-east', 'finds-south', 'golden-spire', 'fusion', 'cruise', 'finds-story'],
     private: ['finds-story'],
     smallLots: { style: BDC, kits: ['shacks', 'shacks', 'shophouse', 'shophouse', 'bodega', 'bodega', 'walkup', 'walkup', 'boxhomes', 'boxhomes', 'noodles', 'taller', 'chapel'] },
 
