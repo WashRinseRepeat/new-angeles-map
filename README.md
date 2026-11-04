@@ -76,6 +76,8 @@ Nuremberg adds:
   over the Pegnitz, the Weinstadel with the covered Henkersteg, the Mauthalle, the Nassauer Haus and the Dürer-Haus.
 - The double wall with its roofed walk, dozens of towers, the dry moat and the four great round gate towers.
 - The Pegnitz between stone quays, with islands and five bridges.
+- One fantasy addition, the Lindwurmdom: a soaring Gothic cathedral with openwork spires, flying buttresses and
+  glowing stained glass, and a lindworm coiled round its crossing tower that breathes, flexes its wings and smokes.
 - About 3,700 houses of eight kinds, from five-storey patrician houses with dormer rows and oriels to timber-framed
   craftsmen's houses, brewers' houses with hoists and small back-lane houses, each in its own stone, plaster and
   roof colours.
