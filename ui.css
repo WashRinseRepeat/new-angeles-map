@@ -98,6 +98,9 @@ body.busy, body.busy * { cursor: progress !important; }
 
 #hq { position: fixed; z-index: 3; right: 12px; bottom: 12px; background: var(--panel-soft); color: var(--muted-2); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; font-size: 11px; cursor: pointer; }
 #hq[aria-pressed=true] { color: var(--accent); border-color: var(--line-on); }
+#clock { position: fixed; z-index: 3; right: 12px; bottom: 44px; display: flex; align-items: center; gap: 8px; background: var(--panel-soft); color: var(--muted-2); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; font-size: 11px; }
+#clock output { min-width: 34px; font-variant-numeric: tabular-nums; color: var(--text); }
+#clock input { width: 140px; accent-color: var(--accent); }
 #helpPanel kbd { font: 11px ui-monospace, monospace; border: 1px solid var(--key-line); border-radius: 4px; padding: 0 4px; color: var(--key); }
 #helpPanel h2 { padding-right: 30px; }
 #helpClose { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,.6); color: #fff; border: 0; border-radius: 50%; width: 26px; height: 26px; min-height: 0; padding: 0; font-size: 18px; line-height: 26px; cursor: pointer; }
@@ -290,6 +293,7 @@ body.focus #nav, body.focus #help, body.focus #helpPanel { display: none; }
   #atSub { bottom: 168px; max-width: calc(100vw - 32px); font-size: 14px; }
   #minimap { left: 8px; bottom: 8px; width: calc(100vw - 16px); }
   #hq { right: 8px; bottom: 8px; padding: 8px 12px; }
+  #clock { right: 8px; bottom: 52px; padding: 6px 12px; }
   #minimap svg { height: 46vh; }
   .panel button, #chips button, #results .r, #nav .leaf, details.d > summary { min-height: 40px; }
   #chips button { flex: none; }

@@ -1440,7 +1440,7 @@ function lib(H) {
 
     lv_fill(x, z, s, st, b, r) {
       const [wx, wz] = H.worldOf(x, z), n = vnoise(wx / 90 + 7, wz / 90 + 23);
-      lawn(x, z, s + .5, s + .5, 0, n < .45 ? GARDEN : HEDGE);
+      H.soil(x, z, s + .5, s + .5, n < .45 ? GARDEN : HEDGE);
       if (n >= .45) {
         for (let k = 2 + Math.floor(r() * 2); k > 0; k--) tree(x + (r() - .5) * s * .8, .3, z + (r() - .5) * s * .8, 6 + r() * 7, r, pick(r, ['broad', 'broad', 'palm', 'fern']));
         if (r() < .5) tree(x + (r() - .5) * s, .3, z + (r() - .5) * s, 2 + r() * 2, r, 'shrub');

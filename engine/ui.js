@@ -485,14 +485,25 @@ for (const [group, rows] of Object.entries(TUNE)) {
 }
 tabs.firstChild.click();
 
-// A running clock moves its slider twice a second.
+// A pack with a clock also shows the hour in a slider above Smooth edges. It drives the Time tab's slider, so the
+// two stay in step and the hour is stored like any tuned value. A running clock moves both twice a second.
 
 const hourInput = sliders.querySelector('input[aria-label="Time of day"]');
-if (hourInput) setInterval(() => {
-  if (!DAY.cycle) return;
-  hourInput.value = DAY.hour;
-  hourInput.previousElementSibling.textContent = `${Math.floor(DAY.hour)}:${String(Math.floor(DAY.hour % 1 * 60)).padStart(2, '0')}`;
-}, 500);
+if (hourInput) {
+  document.body.insertAdjacentHTML('beforeend', '<label id="clock" title="Time of day"><output></output>'
+    + '<input type="range" min="0" max="23.75" step=".25" aria-label="Hour"></label>');
+  const clock = document.querySelector('#clock input'), clockText = document.querySelector('#clock output');
+  const show = () => {
+    const text = `${Math.floor(DAY.hour)}:${String(Math.floor(DAY.hour % 1 * 60)).padStart(2, '0')}`;
+    clock.value = hourInput.value = DAY.hour;
+    clockText.textContent = hourInput.previousElementSibling.textContent = text;
+  };
+  clock.oninput = () => { hourInput.value = clock.value; hourInput.oninput(); show(); };
+  clock.onchange = () => hourInput.onchange();
+  hourInput.addEventListener('input', show);
+  show();
+  setInterval(() => { if (DAY.cycle) show(); }, 500);
+}
 if (Object.values(TUNE).flat().some(([k, , , , , def, , , regen]) => regen && (saved[k] ?? def) !== def)) rebuild();
 document.getElementById('treset').onclick = () => {
   resets.forEach(f => f());

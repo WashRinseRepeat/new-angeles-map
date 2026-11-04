@@ -104,7 +104,7 @@ export function kits(H) {
 
   EXTRA.grove = (x, z, s, st, b, r) => {
     const [W, D] = dims(s);
-    ground(x, z, W, D, [.012, .03, .016], .2);
+    H.soil(x, z, W, D, [.012, .03, .016]);
     for (let k = Math.max(1, Math.round(W * D / 32)); k > 0; k--) anyTree(x + (r() - .5) * (W - 2), .2, z + (r() - .5) * (D - 2), 6 + r() * 7, st, r, [.3, .5]);
     for (let k = Math.round(W * D / 120); k > 0; k--) tree('shrub', x + (r() - .5) * W, .2, z + (r() - .5) * D, 1.5 + r() * 2, 2.5 + r() * 2, st, r);
   };

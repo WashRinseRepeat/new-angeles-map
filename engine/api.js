@@ -10,6 +10,7 @@ import { groundAt } from './relief.js';
 import { FACES, GLOWS, INSTANCED, PROPS, SKINS, beacon, beam, bld, laser, glow, glows, grey, helipad, holo, kibble, neon, pool, prop, puff, put, soften, roof, sign, textSign } from './instances.js';
 import { KITS, crownOf, decor, grammarTowerBody, neonTexture, panel, plate, stringLights } from './grammar.js';
 import { fillGreens } from './greens.js';
+import { SOIL, soil } from './soil.js';
 import { packClouds } from './clouds.js';
 import { keep } from './edge.js';
 import { STREETS, buildPylons, centre, corridorIn, traffic } from './transport.js';
@@ -32,7 +33,7 @@ Object.defineProperties(H, Object.getOwnPropertyDescriptors({
   ...SETTING.styles.helpers, get decor() { return S.DECOR; },
   mapToWorld,
   mixStyle, rng, hash, lerp, smooth, grey,
-  put, prop, glow, pool, beam, laser, puff, soften, textSign, beacon, bld, roof, kibble, sign, neon, holo, helipad, crownOf, grammarTowerBody,
+  put, prop, glow, pool, soil, beam, laser, puff, soften, textSign, beacon, bld, roof, kibble, sign, neon, holo, helipad, crownOf, grammarTowerBody,
   panel, neonTexture, stringLights, plate, canvasTexture,
   frame: () => S.FRAME,
 
@@ -448,6 +449,7 @@ for (const lm of LANDMARKS_KITS) {
 }
 if (!SHOWCASE) { mergeBuilds(); LANDMARKS.push(fillGreens(H)); }
 S.BASE = new Map(INSTANCED.map(m => [m, m.count]));
+S.BASE.set(SOIL, SOIL.length);
 loadMsg('Building the city');
 
 // A short pause lets the loading message paint. A timeout also runs in background tabs, where animation frames stop.

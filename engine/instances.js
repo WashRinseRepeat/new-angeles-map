@@ -433,7 +433,8 @@ export function tileAll() {
   for (const t of TILES) { scene.remove(t.mesh); t.mesh.geometry.dispose(); }
   TILES = [];
   const detail = new Set([...Object.values(PROPS), puffs, texts, helipads]);
-  const tiled = [...Object.values(SHAPES), ...Object.values(PROPS), ...Object.values(GLOWS), helipads, signs, glows, billboards, pools, puffs, texts];
+  const tiled = [...Object.values(SHAPES), ...Object.values(PROPS), ...Object.values(GLOWS), helipads, signs, glows, billboards, puffs, texts];
+  if (RELIEF) drapePools(); else tiled.push(pools);
 
   // Kit-owned instanced meshes tile too when they sit in world space and are not animated (userData.noTile).
   // userData.massing keeps one out of the detail range, for cover that must read from afar.
@@ -486,6 +487,48 @@ export function tileAll() {
       TILES.push({ mesh: m, detail: kind === 'd', x: (+kx + .5) * T, z: (+kz + .5) * T, half: T / 2 });
     }
   }
+}
+
+// On a relief a flat pool sinks into the slope on its uphill side, and the cut draws a hard line across the street.
+// There the pools drape over the ground as one mesh: each pool is a disc of rings 2 m apart, and every vertex sits
+// on the ground beneath it. The mesh shares the pools' colour, so the clock dims it with them.
+
+const POOL_RINGS = 8, POOL_SEGS = 24, POOL_VERTS = 1 + POOL_RINGS * POOL_SEGS;
+let draped = null;
+function drapePools() {
+  pools.visible = false;
+  if (draped) { scene.remove(draped); draped.geometry.dispose(); draped.material.dispose(); }
+  const n = pools.count, a = pools.instanceMatrix.array, rgb = pools.instanceColor?.array;
+  const pos = new Float32Array(n * POOL_VERTS * 3), uv = new Float32Array(n * POOL_VERTS * 2), col = new Float32Array(n * POOL_VERTS * 3).fill(1);
+  const index = [];
+  for (let i = 0; i < n; i++) {
+    const o = i * 16, x = a[o + 12], z = a[o + 14], r = Math.hypot(a[o], a[o + 1], a[o + 2]) / 2, v0 = i * POOL_VERTS;
+    for (let v = 0; v < POOL_VERTS; v++) {
+      const t = v ? (Math.floor((v - 1) / POOL_SEGS) + 1) / POOL_RINGS : 0, ang = (v - 1) % POOL_SEGS / POOL_SEGS * Math.PI * 2;
+      const px = x + Math.cos(ang) * r * t, pz = z + Math.sin(ang) * r * t, k = v0 + v;
+      pos.set([px, groundAt(px, pz) + .25, pz], k * 3);
+      uv.set([.5 + Math.cos(ang) * t / 2, .5 + Math.sin(ang) * t / 2], k * 2);
+      if (rgb) col.set(rgb.subarray(i * 3, i * 3 + 3), k * 3);
+    }
+    for (let s = 0; s < POOL_SEGS; s++) {
+      const s1 = (s + 1) % POOL_SEGS;
+      index.push(v0, v0 + 1 + s1, v0 + 1 + s);
+      for (let ring = 0; ring < POOL_RINGS - 1; ring++) {
+        const p = v0 + 1 + ring * POOL_SEGS, q = p + POOL_SEGS;
+        index.push(p + s, p + s1, q + s, p + s1, q + s1, q + s);
+      }
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  g.setIndex(index);
+  const mat = Object.assign(pools.material.clone(), { vertexColors: true });
+  mat.color = pools.material.color;
+  draped = new THREE.Mesh(g, mat);
+  draped.renderOrder = pools.renderOrder;
+  scene.add(draped);
 }
 
 // ---------- shared kit helpers: beams, smoke puffs, text signs ----------

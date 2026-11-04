@@ -1,6 +1,7 @@
 // City build: lot frames, zones, block sites, filler, generate() and the showcase.
 
 import * as THREE from 'three';
+import { SOIL, buildSoil } from './soil.js';
 import { S, H } from './state.js';
 import { AXIS_LO, BLOCK, CENTRE, CENTRE_R, CITY, STYLES, density, hash, lerp, mapToWorld, mixStyle, pickStyle, quarterAt, rng, sdPoly, smooth, styleAt, vnoise } from './core.js';
 import { SETTING, inPack } from './setting.js';
@@ -444,11 +445,12 @@ function buildLot(f, g, blend, k = 1, bare = false, slab = 0) {
 // A build near a corridor runs, then every instance it added is checked against the corridor band.
 // mark() and undo() wrap a build, so a failed try leaves nothing behind.
 
-const mark = () => ({ n: INSTANCED.map(m => m.count), v: M.skin.length, fl: S.flicker.length, dc: S.DECOR.children.length });
+const mark = () => ({ n: INSTANCED.map(m => m.count), v: M.skin.length, fl: S.flicker.length, dc: S.DECOR.children.length, sl: SOIL.length });
 function undo(k) {
   INSTANCED.forEach((m, j) => { m.count = k.n[j] ?? 0; });
   for (const [a, n] of [['pos', 3], ['nrm', 3], ['base', 3], ['win', 3], ['p', 4], ['skin', 1], ['u', 1], ['len', 1]]) M[a].length = k.v * n;
   S.flicker.length = k.fl;
+  SOIL.length = k.sl;
   while (S.DECOR.children.length > k.dc) S.DECOR.remove(S.DECOR.children[S.DECOR.children.length - 1]);
 }
 const _m = new THREE.Matrix4(), _inv = new THREE.Matrix4(), _n = new THREE.Matrix3(), _p = new THREE.Vector3(), _q = new THREE.Vector3(), _bb = new THREE.Box3();
@@ -676,6 +678,7 @@ function clearOf(f, build) {
 S.BASE = new Map();
 export function generate(blend) {
   for (const m of INSTANCED) m.count = S.BASE.get(m) ?? 0;
+  SOIL.length = S.BASE.get(SOIL) ?? 0;
   resetMerged();
   S.flicker = S.flicker.filter(f => f[1] < (S.BASE.get(f[0]) ?? 0));
   if (!FRAMES[0]?.front) for (const f of [...FRAMES, ...ALL_BLOCK_FRAMES]) f.front = frontOf(f);
@@ -778,6 +781,7 @@ export function generate(blend) {
     for (const a of ['aBase', 'aWin', 'aP', 'aSkin', 'aSeed', 'aSlot']) if (m.geometry.attributes[a]) m.geometry.attributes[a].needsUpdate = true;
   }
   flushMerged();
+  buildSoil();
   tileAll();
   const nb = Object.values(SHAPES).reduce((s, m) => s + m.count, 0);
   const np = Object.values(PROPS).reduce((s, m) => s + m.count, 0);

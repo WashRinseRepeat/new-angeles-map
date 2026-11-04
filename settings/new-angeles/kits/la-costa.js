@@ -32,7 +32,7 @@ export function kits(H) {
 
     lc_orchard(x, z, s, st, b, r) {
       const [W, D] = dims(s);
-      prop('box', x, .1, z, W, .2, D, SOIL);
+      H.soil(x, z, W, D, SOIL);
       const gap = 4 + r() * 1.5, vines = r() < .35;
       const nx = Math.min(9, Math.floor(W / gap)), nz = Math.min(9, Math.floor(D / gap));
       if (vines) for (let i = 0; i < nz; i++) {
@@ -51,7 +51,7 @@ export function kits(H) {
 
     lc_greenhouse(x, z, s, st, b, r) {
       const [W, D] = dims(s);
-      prop('box', x, .1, z, W, .2, D, DIRT);
+      H.soil(x, z, W, D, DIRT);
       const n = Math.max(1, Math.min(5, Math.floor(D / 7))), gd = (D - 2) / n, tint = r() < .6 ? [.12, .028, .1] : [.07, .085, .08];
       for (let k = 0; k < n; k++) greenhouse(x - 1.5, z - D / 2 + 1 + gd * (k + .5), W - 5, gd - 1.5, 4 + r() * 2, tint, r);
       bld(x + W / 2 - 1.5, z - D / 2 + 3, 2.5, 4, 3, st, r, { lit: .3, roof: false, skin: SKINS.sparse });
@@ -61,7 +61,7 @@ export function kits(H) {
 
     lc_agroplex(x, z, s, st, b, r) {
       const [W, D] = dims(s);
-      prop('box', x, .1, z, W, .2, D, DIRT);
+      H.soil(x, z, W, D, DIRT);
       agroplex(x, z, Math.min(W, D) * .6, (34 + 46 * r()) * b, st, r);
     },
 
@@ -72,7 +72,7 @@ export function kits(H) {
       const [W, D] = dims(s), R = 7 + r() * 2, n = Math.min(6, Math.floor((W - 9 - R / 2) / R)), rows = D > 2.4 * R + 6 ? 2 : 1;
       if (n < 2) return kits.lc_workhouse(x, z, s, st, b, r);
       const sh = (30 + 14 * r()) * Math.min(1.2, b), x0 = x - W / 2 + 2 + R / 2, CONC = [.3, .29, .26];
-      prop('box', x, .1, z, W, .2, D, DIRT);
+      H.soil(x, z, W, D, DIRT);
       for (let i = 0; i < n; i++) for (let j = 0; j < rows; j++) {
         const sx = x0 + i * R, sz = z + (j - (rows - 1) / 2) * R;
         prop('cyl', sx, sh / 2, sz, R - .4, sh, R - .4, CONC.map(c => c * (.9 + .2 * r())));
@@ -93,7 +93,7 @@ export function kits(H) {
     lc_workhouse(x, z, s, st, b, r) {
       const [W, D] = dims(s), along = W >= D, L = Math.min(along ? W : D, 60) - 4, T = Math.min(along ? D : W, 16) - 2;
       const h = (22 + 18 * r()) * Math.min(1.2, b), w = along ? L : T, d = along ? T : L;
-      prop('box', x, .1, z, W, .2, D, DIRT);
+      H.soil(x, z, W, D, DIRT);
       bld(x, z, w, d, h, { ...st, base: pick(r, PAINT), win: [1, .74, .44] }, r, { lit: .45 + .2 * r(), roof: false, skin: SKINS.grid });
       prop('cyl', x + (along ? w * .3 : 0), h + 2.5, z + (along ? 0 : d * .3), 4, 5, 4, METAL);
       textSign(pick(r, ['DORMITORIO 4', 'BRACEROS 12', 'CASA OBRERA']), x, h - 2, z + d / 2 + .2, Math.min(w - 2, 12), 2.4, 0, dim(SEC, .7));
@@ -106,7 +106,7 @@ export function kits(H) {
 
     lc_cropstack(x, z, s, st, b, r) {
       const [W, D] = dims(s);
-      prop('box', x, .1, z, W, .2, D, DIRT);
+      H.soil(x, z, W, D, DIRT);
       agroplex(x, z, Math.min(W, D) * .45, (80 + 60 * r()) * Math.min(1.2, b), st, r);
       greenhouse(x, z + D / 2 - 6, W - 6, 8, 5, [.12, .028, .1], r);
     },
@@ -116,7 +116,7 @@ export function kits(H) {
 
     lc_fill(x, z, s, st, b, r) {
       const [wx, wz] = toWorld(x, z), n = vnoise(wx / 80 + 17, wz / 80 + 4);
-      prop('box', x, .08, z, s + .5, .16, s + .5, n < .66 ? SOIL : [.016, .03, .016]);
+      H.soil(x, z, s + .5, s + .5, n < .66 ? SOIL : [.016, .03, .016]);
       if (n < .5) {
         const c = FILL_CROPS[Math.min(3, Math.floor(vnoise(wx / 50 + 3, wz / 50 + 8) * 4))];
         for (const o of [-3.2, 0, 3.2]) prop('box', x + o, .5, z, 2.2, .7, s - 1, c);
@@ -163,7 +163,7 @@ export function kits(H) {
 
     lc_wetland(x, z, s, st, b, r) {
       const [W, D] = dims(s);
-      prop('box', x, .08, z, W, .16, D, MARSH);
+      H.soil(x, z, W, D, MARSH);
       for (let k = 0; k < 3; k++) {
         const cz = z + (k - 1) * D * .3 + (r() - .5) * 3, ry = (r() - .5) * .5;
         prop('box', x, .18, cz, W * (.6 + .3 * r()), .04, 2 + r() * 3, WATER, ry);
@@ -180,7 +180,7 @@ export function kits(H) {
 
     lc_village(x, z, s, st, b, r) {
       const [W, D] = dims(s), f = H.frame()?.front ?? { x: 0, z: 1 };
-      prop('box', x, .1, z, W, .2, D, [.035, .04, .025]);
+      H.soil(x, z, W, D, [.035, .04, .025]);
       prop('box', x, .22, z, W, .04, 2.4, [.06, .055, .05]);
       const n = Math.min(8, Math.max(2, Math.floor(W / 7.5)));
       for (let k = 0; k < n; k++) {
@@ -204,7 +204,7 @@ export function kits(H) {
 
     lc_villa(x, z, s, st, b, r) {
       const [W, D] = dims(s);
-      prop('box', x, .1, z, W, .2, D, [.025, .045, .025]);
+      H.soil(x, z, W, D, [.025, .045, .025]);
       const vw = W * .5, vd = D * .35, vx = x - W * .15, vz = z - D * .2;
       bld(vx, vz, vw, vd, 4, { ...st, base: [.42, .41, .38], win: [1, .8, .55] }, r, { lit: .55, roof: false, skin: SKINS.curtain });
       bld(vx + vw * .2, vz, vw * .5, vd * .8, 3.2, { ...st, base: [.4, .39, .36], win: [1, .8, .55] }, r, { y0: 4, lit: .5, roof: false, skin: SKINS.curtain });
@@ -832,7 +832,7 @@ function shared(H) {
   // Crop patchwork in strips along the longer side, with a track and an irrigation line.
 
   const field = (x, z, W, D, r, cheap = false) => {
-    if (!cheap) prop('box', x, .08, z, W, .16, D, SOIL);
+    if (!cheap) H.soil(x, z, W, D, SOIL);
     const along = W >= D, L = along ? W : D, S = along ? D : W;
     const n = Math.max(1, Math.min(4, Math.floor(S / 9))), sw = (S - 2) / n;
     for (let k = 0; k < n; k++) {
