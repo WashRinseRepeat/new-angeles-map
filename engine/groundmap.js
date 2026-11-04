@@ -138,34 +138,39 @@ const GROUND_GLSL = `
     vec4 k = texture2D(uKinds, (w - uGroundBox.xy) * uGroundBox.zw);
     float setts = smoothstep(.3, .7, k.r), rough = smoothstep(.3, .7, k.g) * (1. - setts);
 
-    // One cobble pattern serves every street. Main streets lay large flat setts, minor streets small rough stones.
+    // Grass shows fine blades only near the camera, where they are larger than a pixel.
 
-    float cell = uCell * mix(1., 1.4, setts) * mix(1., .8, rough);
-    vec2 cb = cobble(w / cell);
-    float sharp = 1. - smoothstep(.25, .8, length(fwidth(w / cell)));
-    float joint = smoothstep(.03, .12, cb.y);
-    vec3 stone = uCobble * (.7 + .55 * cb.x);
-    stone = mix(stone, uCobble * vec3(1.14, 1.08, 1.) * (.88 + .22 * cb.x), setts * .75);
-    stone = mix(stone, uCobble * (.8 + .3 * cb.x) * .9, rough * .6);
-    stone = mix(stone, uCobble * (1.08 + .12 * cb.x), worn * .55);
-    vec3 cob = mix(uCobble * .82, stone * mix(mix(.45, .72, worn), 1., joint), sharp);
-    cob *= .9 + .2 * n1;
-
-    // Weeds grow in the joints away from the trodden middle, more on the minor streets.
-
-    float weeds = (1. - joint) * (1. - worn) * smoothstep(.5, .75, n2 * .8 + n3 * .3 + rough * .25) * sharp;
-    float blade = mix(gNoise(w * 7.) * gNoise(w * 13.), .25, smoothstep(.3, 1., length(fwidth(w * 7.))));
+    float bladeFar = smoothstep(.3, 1., length(fwidth(w * 7.)));
+    float blade = bladeFar < 1. ? mix(gNoise(w * 7.) * gNoise(w * 13.), .25, bladeFar) : .25;
     vec3 grass = uGrass * (.7 + .45 * n2 + .2 * n3) * (.75 + .8 * blade);
-    cob = mix(cob, grass * 1.1, weeds * .85);
-
     vec3 earth = uEarth * (.8 + .3 * n1 + .15 * n3) * mix(1., 1.12, track) * mix(1., 1.1, worn);
     float wet = smoothstep(.3, .22, n1) * track;
     earth = mix(earth, uEarth * .55, wet);
 
-    // A minor street has lost stones here and there, and the earth shows through.
+    // One cobble pattern serves every street. Main streets lay large flat setts, minor streets small rough stones.
+    // The cells are worked out only on paving, and only where they are larger than a pixel; elsewhere the stone
+    // takes its average shade.
 
-    float gap = rough * smoothstep(.62, .8, n1 * .6 + n3 * .45 + cb.x * .25) * (1. - worn * .6);
-    cob = mix(cob, earth * .92, gap);
+    float cell = uCell * mix(1., 1.4, setts) * mix(1., .8, rough);
+    float sharp = 1. - smoothstep(.25, .8, length(fwidth(w / cell)));
+    vec3 cob = uCobble * .82 * mix(1., .9, rough * .6) * (.9 + .2 * n1);
+    if (paved > .002 && sharp > .01) {
+      vec2 cb = cobble(w / cell);
+      float joint = smoothstep(.03, .12, cb.y);
+      vec3 stone = uCobble * (.7 + .55 * cb.x);
+      stone = mix(stone, uCobble * vec3(1.14, 1.08, 1.) * (.88 + .22 * cb.x), setts * .75);
+      stone = mix(stone, uCobble * (.8 + .3 * cb.x) * .9, rough * .6);
+      stone = mix(stone, uCobble * (1.08 + .12 * cb.x), worn * .55);
+      cob = mix(cob, stone * mix(mix(.45, .72, worn), 1., joint) * (.9 + .2 * n1), sharp);
+
+      // Weeds grow in the joints away from the trodden middle, more on the minor streets. A minor street has lost
+      // stones here and there, and the earth shows through.
+
+      float weeds = (1. - joint) * (1. - worn) * smoothstep(.5, .75, n2 * .8 + n3 * .3 + rough * .25) * sharp;
+      cob = mix(cob, grass * 1.1, weeds * .85);
+      float gap = rough * smoothstep(.62, .8, n1 * .6 + n3 * .45 + cb.x * .25) * (1. - worn * .6);
+      cob = mix(cob, earth * .92, gap);
+    }
 
     // Open ground is bare and trodden near the streets and patchy grass and weeds further off. Verges grow along the
     // lots, and a few tufts anywhere.
