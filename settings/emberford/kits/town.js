@@ -19,10 +19,18 @@ export function kits(H) {
     return { cx, cz, frontage, deep, ry: across ? 0 : HALF_PI, fr, back, yard: [x - fr.x * (deep / 2 + .5), z - fr.z * (deep / 2 + .5)] };
   }
 
-  // A house body, a pitched roof along the street and a lit door on the street side.
+  // A stone plinth 0.5 m high under a house's walls, a little wider than them, and a door step on its street side.
+
+  function footing(p, w, d) {
+    prop('box', p.cx, .25, p.cz, (p.fr.x ? d : w) + .3, .5, (p.fr.x ? w : d) + .3, [.22, .21, .19]);
+    prop('box', p.cx + p.fr.x * (d / 2 + .35), .1, p.cz + p.fr.z * (d / 2 + .35), p.fr.x ? .6 : 1.4, .2, p.fr.x ? 1.4 : .6, [.26, .25, .23]);
+  }
+
+  // A house body on its footing, a pitched roof along the street and a lit door on the street side.
 
   function house(p, h, skin, roof, st, r, lit = st.lit) {
     const [w, d] = [p.frontage, p.deep];
+    footing(p, w, d);
     bld(p.cx, p.cz, w, d, h, st, r, { skin, ry: p.ry, roof: false, kibble: false, lit });
     bld(p.cx, p.cz, w + .7, d + .9, Math.min(w, d) * .55, st, r, { y0: h, shape: 'gable', skin: roof[0], base: roof[1], lit: 0, roof: false, ry: p.ry });
     glow(p.cx + p.fr.x * (d / 2 + .05), 1.2, p.cz + p.fr.z * (d / 2 + .05), p.fr.x ? .05 : .9, 1.9, p.fr.x ? .9 : .05, [1, .6, .25]);
@@ -111,6 +119,7 @@ export function kits(H) {
 
     ef_tall(x, z, s, st, b, r) {
       const p = strip(x, z, s, 9 + r() * 3), floors = 2 + (r() < .4), hs = 3.6;
+      footing(p, p.frontage, p.deep);
       bld(p.cx, p.cz, p.frontage, p.deep, hs, st, r, { skin: SKINS.stone, ry: p.ry, roof: false, kibble: false, lit: st.lit * 1.4 });
       const jut = { ...p, cx: p.cx + p.fr.x * .35, cz: p.cz + p.fr.z * .35, deep: p.deep + .7 };
       bld(jut.cx, jut.cz, jut.frontage, jut.deep, floors * 3, st, r, { y0: hs, skin: SKINS.timber, ry: p.ry, roof: false, kibble: false });

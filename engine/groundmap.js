@@ -1,6 +1,7 @@
 // The ground map, for a pack whose look.groundMap is set. The town plan is painted into a texture: paved streets
 // and the square, the lots, the trodden middle of every street, and the town's extent. One lit surface reads it and
-// draws each kind with procedural detail: cobbles with dark joints on paving, packed earth with a worn track and
+// draws each kind with procedural detail: cobbles with dark joints and a gutter along each edge on paving, wheel
+// ruts on earth lanes, mud and puddles round the gates and the well, packed earth with a worn track and
 // puddles on lanes, grassy verges along the lot edges and a few tufts, and yards of bare earth with patches of
 // grass. It takes the
 // sun, sky light and shadows like any lit surface. Outside the town it draws nothing, so the land beneath shows.
@@ -10,6 +11,7 @@
 //   paved { main: 7, major: 5 }   street kinds that are paved, and their width in metres; the square is paved too
 //   track 3.5          width of the trodden middle of every street, in metres
 //   cobble, earth, yard, grass   their colours as [r, g, b]; country (default grass) for the grass outside the town
+//   mud []             extra mud spots as [x, z, radius]; the gates and the centre have mud already
 //   cell .38           size of a cobble in metres
 //   mesh 1.25          on a relief, the ground's grid in metres, over the town's wards
 //   wall               on a relief, the retaining walls' colour as [r, g, b]
@@ -74,13 +76,19 @@ function plan() {
   return t;
 }
 
+// Mud spots: the gates and the centre's well, as [x, z, radius]. A pack adds its own in look.groundMap.mud.
+
+const MUD = !G ? [] : [...(CITY.gates ?? []).map(([x, z]) => [x, z, 16]), ...CENTRE_R ? [[CENTRE.x, CENTRE.y, 8]] : [], ...G.mud ?? []];
+const MUD_N = Math.max(1, MUD.length);
+
 // The procedural ground. Masks get noise added before their threshold, so edges wander instead of following the
 // texels. Cobbles are cells of a jittered grid with dark joints; cells and joints smaller than a pixel fade into
 // their average. On a relief, steep lanes are drawn as steps. Puddles lie in the hollows of a slow noise on the track. Verges grow where a blurred read of the
 // lot mask says a lot is within a few metres.
 
 const GROUND_GLSL = `
-  uniform sampler2D uGroundMap; uniform vec4 uGroundBox; uniform vec3 uCobble, uEarth, uYard, uGrass, uCountry; uniform float uCell;
+  #define MUD_N ${MUD_N}
+  uniform sampler2D uGroundMap; uniform vec4 uGroundBox; uniform vec3 uCobble, uEarth, uYard, uGrass, uCountry; uniform float uCell; uniform vec3 uMud[MUD_N];
   varying vec3 vGW;
   float gHash(vec2 p) { vec3 q = fract(vec3(p.xyx) * .1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
   float gNoise(vec2 p) {
@@ -120,12 +128,31 @@ const GROUND_GLSL = `
     vec3 field = uCountry * (.85 + .25 * n2 + .1 * n3);
     vec3 col = mix(mix(mix(lane, field, country * (1. - track) * .9), cob, paved), yard, lot);
 
-    // Steep ground off the lots is a flight of steps: a dark riser and a pale nose every 20 cm of height, where the
+    // A gutter runs along each edge of the paving: a dark stone channel where the paved mask fades.
+
+    float gutter = smoothstep(.22, .34, m.r) * smoothstep(.52, .4, m.r) * (1. - lot);
+    col = mix(col, uCobble * .45, gutter * .8 * sharp);
+
+    // Wheel ruts: two dark grooves where the trodden track meets the rest of an earth lane.
+
+    float rut = smoothstep(.36, .46, m.b) * smoothstep(.62, .52, m.b) * (1. - paved) * (1. - lot);
+    col *= 1. - .35 * rut * (1. - smoothstep(.4, 1.2, length(fwidth(w))));
+
+    // Mud: churned dark earth and standing puddles round the gates and wells, where carts and feet gather.
+
+    float mud = 0.;
+    for (int i = 0; i < MUD_N; i++) mud = max(mud, 1. - smoothstep(uMud[i].z * .4, uMud[i].z, distance(w, uMud[i].xy)));
+    mud *= (1. - lot) * smoothstep(.3, .6, n2 + n1 * .4);
+    col = mix(col, uEarth * .45, mud);
+    col = mix(col, vec3(.08, .1, .12), mud * smoothstep(.62, .7, n1 + n3 * .2) * .8);
+
+    // A steep street in the town is a flight of steps: a dark riser and a pale nose every 20 cm of height, where the
     // grade passes about 1 in 5 and the steps are larger than a pixel.
 
     vec3 wn = normalize(cross(dFdx(p), dFdy(p)));
     float grade = length(wn.xz) / max(abs(wn.y), .05), e = fract(p.y / .2);
-    float stairs = smoothstep(.16, .24, grade) * (1. - lot) * (1. - smoothstep(.3, .7, fwidth(p.y / .2)));
+    float street = max(paved, smoothstep(.2, .5, m.b)) * (1. - country);
+    float stairs = smoothstep(.16, .24, grade) * (1. - lot) * street * (1. - smoothstep(.3, .7, fwidth(p.y / .2)));
     return col * mix(1., mix(.55, 1.15, smoothstep(0., .15, e)), stairs);
   }
 `;
@@ -154,7 +181,8 @@ export const ground = G && (() => {
   if (moat) scene.add(new THREE.Mesh(moat, WATER_MAT));
   const U = { uGroundMap: { value: plan() }, uGroundBox: { value: new THREE.Vector4(ox, oz, 1 / dx, 1 / dz) },
     uCobble: { value: new THREE.Vector3(...G.cobble) }, uEarth: { value: new THREE.Vector3(...G.earth) },
-    uYard: { value: new THREE.Vector3(...G.yard) }, uGrass: { value: new THREE.Vector3(...G.grass) }, uCountry: { value: new THREE.Vector3(...G.country) }, uCell: { value: G.cell } };
+    uYard: { value: new THREE.Vector3(...G.yard) }, uGrass: { value: new THREE.Vector3(...G.grass) }, uCountry: { value: new THREE.Vector3(...G.country) },
+    uMud: { value: (MUD.length ? MUD : [[1e6, 1e6, 1]]).map(v => new THREE.Vector3(...v)) }, uCell: { value: G.cell } };
 
   // The surface keeps the hooks surface() gave it (holes), then swaps its flat colour for the ground's.
 

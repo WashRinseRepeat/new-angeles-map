@@ -564,8 +564,8 @@ export function landmarks(H) {
 
   return {
 
-    // JQ Station: carbosteel transit megatower over a truck podium. Freight maglev fans out at mid-height,
-    // hopper pads shelve out of the upper faces like bracket fungi, cranes lift hoppers through the open crown.
+    // JQ Station: carbosteel transit megatower over a truck podium. Hopper pads shelve out of the upper faces
+    // like bracket fungi, and cranes lift hoppers through the open crown.
 
     qui_jq: { at: [785, 1407], label: 'JQ Station', labelY: 250, minSide: 64, reach: 360, build(x, z, w, d, st, r) {
       const T = uvFrame(x, z, w, d), S = Math.min(w, d);
@@ -604,31 +604,6 @@ export function landmarks(H) {
         prop('box', x, y1 + .6, z, sw + 4, 1.2, sw + 4, [.06, .06, .07]);
       }
       const top = 228, tw = S * .5;
-
-      // Freight maglev deck at mid-height with guideways running out in all directions.
-
-      const my = 64, dw = S * .78 / 2 + 4;
-      for (const [fx, fz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        prop('box', x + fx * dw, my, z + fz * dw, fx ? 8 : dw * 2 + 8, 2.4, fx ? dw * 2 + 8 : 8, [.07, .07, .08]);
-        glow(x + fx * (dw + 4.1), my - 1.4, z + fz * (dw + 4.1), fx ? .2 : dw * 2, .3, fx ? dw * 2 : .2, dim(SODIUM, .7));
-      }
-      const lines = 5, a0 = r() * Math.PI;
-      for (let k = 0; k < lines; k++) {
-        const a = a0 + k * Math.PI * 2 / lines + (r() - .5) * .3, sx = Math.sin(a), sz = Math.cos(a);
-        const len = 260 + r() * 220, y1 = my - 16 - r() * 16, p0 = [x + sx * dw, my, z + sz * dw], p1 = [x + sx * len, y1, z + sz * len];
-        beam(p0, p1, 2, [.09, .09, .1]);
-        beam([p0[0], my - 1.9, p0[2]], [p1[0], y1 - 1.9, p1[2]], .35, dim(SODIUM, .55), 'glow');
-        for (let t = dw + 40; t < len; t += 60) {
-          const py = lerp(my, y1, (t - dw) / (len - dw));
-          prop('box', x + sx * t, py / 2, z + sz * t, 1.4, py, 1.4, [.07, .07, .075]);
-          if (r() < .35) glow(x + sx * t, py + .3, z + sz * t, .6, .3, .6, dim(HAZARD, .8));
-        }
-        for (let c = 0; c < 2; c++) {
-          const t = dw + 30 + r() * (len - 90), py = lerp(my, y1, (t - dw) / (len - dw));
-          prop('box', x + sx * t, py + 2.4, z + sz * t, 3.2, 3, 34, pick(r, CONT), a);
-          glow(x + sx * (t + 17.2), py + 2.4, z + sz * (t + 17.2), 1.8, .5, 1.8, [1.4, 1.3, 1.1]);
-        }
-      }
 
       // Hopper pads: discs shelved out of the upper faces on inverted cone brackets, many with a parked hopper.
 

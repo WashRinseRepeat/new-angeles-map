@@ -490,14 +490,21 @@ tabs.firstChild.click();
 
 const hourInput = sliders.querySelector('input[aria-label="Time of day"]');
 if (hourInput) {
-  document.body.insertAdjacentHTML('beforeend', '<label id="clock" title="Time of day"><output></output>'
-    + '<input type="range" min="0" max="23.75" step=".25" aria-label="Hour"></label>');
+  document.body.insertAdjacentHTML('beforeend', '<label id="clock" title="Time of day"><button class="play" type="button"></button>'
+    + '<output></output><input type="range" min="0" max="23.75" step=".25" aria-label="Hour"></label>');
   const clock = document.querySelector('#clock input'), clockText = document.querySelector('#clock output');
+  const play = document.querySelector('#clock .play'), run = DAY.cycle || 4;
   const show = () => {
     const text = `${Math.floor(DAY.hour)}:${String(Math.floor(DAY.hour % 1 * 60)).padStart(2, '0')}`;
     clock.value = hourInput.value = DAY.hour;
     clockText.textContent = hourInput.previousElementSibling.textContent = text;
+    play.textContent = DAY.cycle ? '❚❚' : '▶';
+    play.setAttribute('aria-label', DAY.cycle ? 'Stop the day' : 'Run the day');
   };
+
+  // The button runs the day, four minutes a day unless the pack's cycle says otherwise, or stops it.
+
+  play.onclick = () => { DAY.cycle = DAY.cycle ? 0 : run; show(); };
   clock.oninput = () => { hourInput.value = clock.value; hourInput.oninput(); show(); };
   clock.onchange = () => hourInput.onchange();
   hourInput.addEventListener('input', show);

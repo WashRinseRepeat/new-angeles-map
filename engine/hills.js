@@ -9,11 +9,12 @@
 //   low, high, rock  ground colours: valley grass, upland grass and bare tops, as [r, g, b]
 //   trees 6000       trees on the hills, tree [r, g, b] their crown colour
 //   road [r, g, b]   the colour of the country roads the city file lists under roads, laid 5 m wide over the hills
+//                    and hedged for their first 700 m
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { vnoise } from './core.js';
-import { moatSink, reliefAt } from './relief.js';
+import { ditchAt, moatSink, reliefAt, softAt } from './relief.js';
 
 export function build(H, group) {
   const L = { size: 7000, height: 150, pad: 40, rise: 700, low: [.05, .07, .04], high: [.07, .09, .05], rock: [.1, .1, .09],
@@ -26,7 +27,8 @@ export function build(H, group) {
   const hill = (x, z) => .6 * vnoise(x / 900 + 3, z / 900 + 7) + .4 * vnoise(x / 300 + 11, z / 300 + 2);
   const hills = (x, z) => H.smooth(L.pad, L.pad + L.rise, out(x, z)) * L.height * (.25 + .75 * hill(x, z));
 
-  // A city file's relief adds to the hills. Inside the town the land sinks up to 2.5 m below it, so the coarse
+  // A city file's relief adds to the hills. Inside the town the land sinks at least 2.5 m below it, and at least
+  // 3.5 m below the town's levelled ground (its square and sites, which flatten rises), so the coarse
   // grid never shows through the town's own ground; it sinks over the first 16 m inside the wards' edge, and along a
   // moat.
 
@@ -45,7 +47,12 @@ export function build(H, group) {
     }
     return best;
   };
-  const height = (x, z) => hills(x, z) + reliefAt(x, z) - (wards.length ? 2.5 * H.smooth(0, 16, inside(x, z)) : 0) - moatSink(x, z);
+  const height = (x, z) => {
+    const h = hills(x, z) + reliefAt(x, z) - moatSink(x, z);
+    if (!wards.length) return h;
+    const k = H.smooth(0, 16, inside(x, z));
+    return k ? h + (Math.min(h - 2.5, softAt(x, z) + ditchAt(x, z) - 3.5) - h) * k : h;
+  };
 
   const N = wards.length ? 440 : 220, geo = new THREE.PlaneGeometry(L.size, L.size, N, N).rotateX(-Math.PI / 2).translate(cx, 0, cz);
   const pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
@@ -86,6 +93,33 @@ export function build(H, group) {
     g.computeVertexNormals();
     group.add(new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: new THREE.Color(...(L.road ?? [.2, .16, .11])), roughness: 1,
       side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })));
+  }
+
+  // Hedges line the country roads for their first 700 m, 4 m out on each side, in 6 m lengths with gaps for gates.
+
+  const hedges = [], hr = H.rng(H.hash(77, 5));
+  for (const R of H.CITY.roads ?? []) {
+    let run = 0;
+    for (let i = 1; i < R.length; i++) {
+      const [ax, az] = R[i - 1], [bx, bz] = R[i], L = Math.hypot(bx - ax, bz - az) || 1;
+      run += L;
+      if (run > 700) break;
+      const tx = (bx - ax) / L, tz = (bz - az) / L;
+      for (const side of [-1, 1]) {
+        if (hr() < .15) continue;
+        const x = (ax + bx) / 2 - tz * side * 4, z = (az + bz) / 2 + tx * side * 4;
+        hedges.push([x, height(x, z), z, L * .95, Math.atan2(tx, tz)]);
+      }
+    }
+  }
+  if (hedges.length) {
+    const hedge = new THREE.InstancedMesh(new THREE.BoxGeometry(1.2, 1.6, 1), new THREE.MeshStandardMaterial({ color: new THREE.Color(...L.tree), roughness: .95 }), hedges.length);
+    const o = new THREE.Object3D();
+    hedges.forEach(([x, y, z, len, ry], i) => {
+      o.position.set(x, y + .7, z); o.rotation.set(0, ry, 0); o.scale.set(1, .8 + hr() * .5, len); o.updateMatrix();
+      hedge.setMatrixAt(i, o.matrix);
+    });
+    group.add(hedge);
   }
   const onRoad = (x, z) => near.get(key(x, z))?.some(([px, pz]) => (px - x) ** 2 + (pz - z) ** 2 < 49);
 
