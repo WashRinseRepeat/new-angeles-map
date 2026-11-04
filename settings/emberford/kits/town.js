@@ -108,12 +108,12 @@ export function parts(H) {
     }
   }
 
-  return { ROOFS, strip, house, pick, tree, yard };
+  return { ROOFS, strip, footing, house, pick, tree, yard };
 }
 
 export function kits(H) {
   const { bld, prop, glow, flickerGlow, puff, SKINS } = H;
-  const { ROOFS, strip, house, pick, tree, yard } = parts(H);
+  const { ROOFS, strip, footing, house, pick, tree, yard } = parts(H);
   return {
 
     // Two storeys of timber frame or plaster under tile or thatch.
