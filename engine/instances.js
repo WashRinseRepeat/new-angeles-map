@@ -4,11 +4,13 @@ import * as THREE from 'three';
 import { S, H } from './state.js';
 import { AXIS_HI, AXIS_LO, lerp } from './core.js';
 import { SETTING } from './setting.js';
-import { FOCUS_GLSL, FOG_GLSL, U, scene } from './render.js';
+import { FOCUS_GLSL, FOG_GLSL, SHADOWS, SHADOW_GLSL, U, scene, shadowUniforms } from './render.js';
+import { RELIEF, groundAt } from './relief.js';
 
 // ---------- buildings: five shapes, procedural windows and wall materials in the shader ----------
 
 export const B_VS = `
+  ${SHADOWS ? '#define SHADOWS' : ''}
   attribute vec3 aBase, aWin; attribute vec4 aP; attribute float aSkin;
   varying vec3 vW, vN, vWN, vL, vS, vBase, vWin; varying vec4 vP; varying float vSkin;
   #ifdef MERGED
@@ -21,8 +23,16 @@ export const B_VS = `
       vWN = normal; vS = vec3(1.); vU = aU; vLen = aLen;
     #else
       vec4 w = modelMatrix * instanceMatrix * vec4(position, 1.);
-      vWN = normalize(mat3(instanceMatrix) * normal);
       vS = vec3(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz), length(instanceMatrix[2].xyz));
+
+      // With shadows the normal takes the inverse scale, so a stretched roof slope faces the right way. Without
+      // shadows it keeps the plain transform, as New Angeles has always drawn.
+
+      #ifdef SHADOWS
+        vWN = normalize(mat3(instanceMatrix) * (normal / (vS * vS)));
+      #else
+        vWN = normalize(mat3(instanceMatrix) * normal);
+      #endif
     #endif
     vW = w.xyz; vL = position; vN = normal;
     vBase = aBase; vWin = aWin; vP = aP; vSkin = aSkin;
@@ -36,12 +46,17 @@ export const B_FS = `
   #endif
   ${FOG_GLSL}
   ${FOCUS_GLSL}
+  ${SHADOW_GLSL}
   float h21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
   void main(){
     if (vW.y > uClipTop || focusCut(vW)) discard;
     if (!gl_FrontFacing) { gl_FragColor = vec4(fogged(vBase * 1.8 + vec3(.012, .014, .02), vW), 1.); return; }
     vec3 n = normalize(vWN);
-    vec3 diff = uLightCol * (uLightK.x + uLightK.y * max(n.y, 0.) + uLightK.z * max(dot(n, normalize(uLightDir)), 0.));
+    float sun = max(dot(n, normalize(uLightDir)), 0.);
+    #ifdef SHADOWS
+      sun *= shadowAt(vW, n);
+    #endif
+    vec3 diff = uLightCol * (uLightK.x + uLightK.y * max(n.y, 0.) + uLightK.z * sun);
     vec3 col = vBase * diff * (.6 + .4 * clamp(vW.y / 50., 0., 1.));
 
     // Material skins (plaster, timber, stone, and the roof skins tile and thatch) skip the tower look: floor bands,
@@ -146,7 +161,7 @@ export function buildingMesh(geo, cap, defines = {}) {
   geo.setAttribute('aWin', new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3));
   geo.setAttribute('aP', new THREE.InstancedBufferAttribute(new Float32Array(cap * 4), 4));
   geo.setAttribute('aSkin', new THREE.InstancedBufferAttribute(new Float32Array(cap), 1));
-  return new THREE.InstancedMesh(geo, new THREE.ShaderMaterial({ uniforms: U, defines, vertexShader: B_VS, fragmentShader: B_FS }), cap);
+  return new THREE.InstancedMesh(geo, new THREE.ShaderMaterial({ uniforms: U, defines, vertexShader: B_VS, fragmentShader: B_FS, userData: { casts: true } }), cap);
 }
 export const SHAPES = {
   box: buildingMesh(new THREE.BoxGeometry(1, 1, 1), 200000),
@@ -255,6 +270,10 @@ export function put(mesh, x, y, z, sx, sy, sz, ry = 0, rx = 0, rgb) {
     ry += S.FRAME.a;
     if (S.FRAME.sy) { y *= S.FRAME.sy; sy *= S.FRAME.sy; }
   }
+
+  // On a relief every part stands on the ground at its own spot: a lot's platform or the slope.
+
+  if (RELIEF) y += groundAt(x, z);
   const i = mesh.count++;
   _o.position.set(x, y, z); _o.rotation.set(rx, ry, 0); _o.scale.set(sx, sy, sz); _o.updateMatrix();
   mesh.setMatrixAt(i, _o.matrix);
@@ -560,6 +579,7 @@ export function laser(a, b, w, rgb, { sweep = [0, 0, 0, 0], blink = 0 } = {}) {
 export function soften(m) {
   m.userData.soft = true;
   m.onBeforeCompile = s => {
+    shadowUniforms(s);
     s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>\nvarying float vSoft;')
       .replace('#include <project_vertex>', `#include <project_vertex>
         vec3 softN = normal;

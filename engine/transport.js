@@ -6,7 +6,8 @@ import { S } from './state.js';
 import { CENTRE, CENTRE_PLACE, CITY, lerp, mapToWorld, rng, sdPoly, smooth, styleAt } from './core.js';
 import { SETTING } from './setting.js';
 import { edgeAt } from './edge.js';
-import { QUALITY, camera, scene } from './render.js';
+import { RELIEF, groundAt } from './relief.js';
+import { QUALITY, U, camera, scene, shadowUniforms } from './render.js';
 import { _c, glow, prop, yawAt } from './instances.js';
 
 // ---------- elevated highways: they clear a canyon and carry streams of light ----------
@@ -408,7 +409,7 @@ const litGeo = mergeGeometries([
 ]);
 const TRAIN_HULL = new THREE.InstancedMesh(new THREE.BoxGeometry(3.4, 2.8, 11.2), new THREE.MeshStandardMaterial({ color: 0xb8c0cc, roughness: .3, metalness: .7 }), 600);
 const TRAIN_LIT = new THREE.InstancedMesh(litGeo, new THREE.MeshBasicMaterial({ vertexColors: true }), 600);
-for (const m of [TRAIN_HULL, TRAIN_LIT]) { m.count = 0; m.frustumCulled = false; scene.add(m); }
+for (const m of [TRAIN_HULL, TRAIN_LIT]) { m.count = 0; m.frustumCulled = false; m.userData.moves = true; scene.add(m); }
 export function carriage() {
   const i = TRAIN_HULL.count++, o = new THREE.Object3D(), look = o.lookAt.bind(o);
   TRAIN_LIT.count = TRAIN_HULL.count;
@@ -490,6 +491,7 @@ hwTraffic.sort((a, b) => a.rank - b.rank);
 export const hwCars = new THREE.InstancedMesh(new THREE.BoxGeometry(.9, .5, 2.6), new THREE.MeshBasicMaterial(), hwTraffic.length);
 hwTraffic.forEach((c, i) => hwCars.setColorAt(i, _c.setRGB(...HW.colours[c.lane > 0 ? 0 : 1])));
 hwCars.frustumCulled = false;
+hwCars.userData.moves = true;
 scene.add(hwCars);
 
 // ---------- street and sky traffic ----------
@@ -533,9 +535,24 @@ export const traffic = [], HOVER = SETTING.transport.hover;
   }
 }
 export const ground = traffic.filter(c => !c.hover).sort((a, b) => a.rank - b.rank), sky = traffic.filter(c => c.hover).sort((a, b) => a.rank - b.rank);
-export const cars = new THREE.InstancedMesh(carGeometry(), new THREE.MeshBasicMaterial({ vertexColors: true }), ground.length);
+
+// A pack's transport.cars.lit lights its cars by the sun and the sky, for daylight, and lets them take shadows.
+// A part whose colour passes 1 is a lamp: it glows while the windows are lit.
+
+function carMaterial() {
+  if (!SETTING.transport.cars.lit) return new THREE.MeshBasicMaterial({ vertexColors: true });
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .85 });
+  m.onBeforeCompile = s => {
+    shadowUniforms(s);
+    s.uniforms.uWin = U.uWin;
+    s.fragmentShader = s.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uWin;')
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vColor.rgb * step(1., max(vColor.r, max(vColor.g, vColor.b))) * uWin;');
+  };
+  return m;
+}
+export const cars = new THREE.InstancedMesh(carGeometry(), carMaterial(), ground.length);
 export const hovers = new THREE.InstancedMesh(hoverGeometry(), cars.material, sky.length);
-for (const m of [cars, hovers]) { m.frustumCulled = false; scene.add(m); }
+for (const m of [cars, hovers]) { m.frustumCulled = false; m.userData.moves = true; scene.add(m); }
 export const TRAFFIC = { ground: 1, hover: 1, highway: 1, speed: 1 };
 
 // All traffic follows one clock scaled by TRAFFIC.speed. Maglev trains run timetables in ride.js.
@@ -566,7 +583,7 @@ export function moveCars(dt) {
     const k = Math.floor(c.u), f = c.u - k, a = P[k], b = P[k + 1], sd = c.st.side[k], off = c.lane * c.dir;
     const px = lerp(a.x, b.x, f) + sd.x * off, pz = lerp(a.z, b.z, f) + sd.z * off;
     if ((px - cx) ** 2 + (c.y - cy) ** 2 + (pz - cz) ** 2 > far * far) return false;
-    yawAt(mesh, mesh.count++, px, c.y, pz, (b.x - a.x) * c.dir, (b.z - a.z) * c.dir, c.hover ? 1.4 : 1);
+    yawAt(mesh, mesh.count++, px, c.y + (RELIEF && !c.hover ? groundAt(px, pz) : 0), pz, (b.x - a.x) * c.dir, (b.z - a.z) * c.dir, c.hover ? 1.4 : 1);
     return true;
   };
   const move = (list, near, mesh, show, far) => {

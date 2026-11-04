@@ -22,6 +22,11 @@ The engine (`engine/`) is generic. Everything that belongs to New Angeles lives 
 | `ui.css` | the interface stylesheet, its colours and font as CSS variables. A pack's `settings/<id>/theme.css` overrides them |
 | `engine/clouds.js` | cloud decks for the cloud pass: `cloudLayer`, and the pack's `look.clouds` |
 | `engine/hills.js` | a terrain module of rolling hills and woods, for packs without their own |
+| `engine/daylight.js` | the day clock: blends the pack's `look.clock` keyframes by the hour, moves the sun and moon, and draws the sky dome with its haze and stars |
+| `engine/relief.js` | the lie of the land: the city file's hills, lot and site platforms, `groundAt`, and the retaining walls |
+| `engine/groundmap.js` | the ground map: the town plan painted into a texture and drawn as cobbles, earth lanes, verges and yards, from the pack's `look.groundMap` |
+| `engine/boats.js` | boats on the city file's rivers, from the pack's `boats` |
+| `engine/people.js` | people on foot: walkers on the streets and crowds round points, from the pack's `people` |
 | `engine/setting.js` | loads the active setting pack (`SETTING`) and resolves its paths. See `SETTINGS.md` |
 | `engine/state.js` | `H` and the shared mutable state `S` (`FRAME`, `DECOR`, `flicker`, `BASE`, `trafficT`) |
 | `engine/core.js` | city data, layout maths, district styles (`STYLES`, `styleAt`), named places |

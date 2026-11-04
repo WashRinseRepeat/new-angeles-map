@@ -3,23 +3,235 @@
   "radius": 260,
   "wobble": 0.12,
   "square": 34,
-  "gates": [15, 100, 190, 340],
+  "gates": [
+    15,
+    100,
+    190,
+    340
+  ],
   "road": 50,
-  "lanes": 3,
+  "lanes": 5,
   "districts": [
-    { "id": "castle-ward", "name": "Castle Ward", "from": 210, "to": 330 },
-    { "id": "market-ward", "name": "Market Ward", "from": 330, "to": 90 },
-    { "id": "craft-ward", "name": "Craft Ward", "from": 90, "to": 210 }
+    {
+      "id": "castle-ward",
+      "name": "Castle Ward",
+      "from": 210,
+      "to": 330
+    },
+    {
+      "id": "market-ward",
+      "name": "Market Ward",
+      "from": 330,
+      "to": 90
+    },
+    {
+      "id": "craft-ward",
+      "name": "Craft Ward",
+      "from": 90,
+      "to": 210
+    }
   ],
   "sites": [
-    { "name": "The Keep", "kind": "keep", "bearing": 270, "dist": 190, "w": 64, "d": 64, "rot": 0 },
-    { "name": "Saint Wenna's Church", "kind": "church", "bearing": 40, "dist": 92, "w": 50, "d": 26, "rot": 0 },
-    { "name": "Market Hall", "kind": "hall", "bearing": 200, "dist": 14, "w": 26, "d": 12, "rot": 20 }
+    {
+      "name": "The Keep",
+      "kind": "keep",
+      "bearing": 270,
+      "dist": 190,
+      "w": 64,
+      "d": 64,
+      "rot": 0,
+      "high": true,
+      "search": 30
+    },
+    {
+      "name": "Saint Wenna's Church",
+      "kind": "church",
+      "bearing": 40,
+      "dist": 92,
+      "w": 50,
+      "d": 26,
+      "rot": 0,
+      "high": true,
+      "search": 24
+    },
+    {
+      "name": "Market Hall",
+      "kind": "hall",
+      "bearing": 200,
+      "dist": 14,
+      "w": 26,
+      "d": 12,
+      "rot": 20
+    },
+    {
+      "name": "Ember Mill",
+      "kind": "mill",
+      "bearing": 108,
+      "dist": 425,
+      "w": 18,
+      "d": 12,
+      "rot": 108
+    },
+    {
+      "name": "Saint Giles' Chapel",
+      "kind": "chapel",
+      "bearing": 250,
+      "dist": 130,
+      "w": 30,
+      "d": 22,
+      "rot": 250
+    },
+    {
+      "name": "Saint Anne's Chapel",
+      "kind": "chapel",
+      "bearing": 140,
+      "dist": 150,
+      "w": 30,
+      "d": 22,
+      "rot": 140
+    },
+    {
+      "name": "Market Cross",
+      "kind": "cross",
+      "bearing": 45,
+      "dist": 12,
+      "w": 8,
+      "d": 8,
+      "rot": 45
+    },
+    {
+      "name": "The Swan",
+      "kind": "inn",
+      "bearing": 330,
+      "dist": 64,
+      "w": 20,
+      "d": 18,
+      "rot": 330
+    },
+    {
+      "name": "The Plough",
+      "kind": "inn",
+      "bearing": 175,
+      "dist": 205,
+      "w": 20,
+      "d": 18,
+      "rot": 175
+    },
+    {
+      "name": "Ember Quay",
+      "kind": "quay",
+      "bearing": 92,
+      "dist": 417.0,
+      "w": 40,
+      "d": 20,
+      "rot": 2
+    },
+    {
+      "name": "Hill Mill",
+      "kind": "windmill",
+      "bearing": 300,
+      "dist": 470,
+      "w": 14,
+      "d": 14,
+      "rot": 120
+    },
+    {
+      "name": "The Tanyard",
+      "kind": "tannery",
+      "bearing": 116,
+      "dist": 415.0,
+      "w": 24,
+      "d": 16,
+      "rot": 26
+    }
   ],
-  "river": { "name": "River Ember", "bearing": 100, "dist": 430, "width": 28 },
+  "river": {
+    "name": "River Ember",
+    "bearing": 100,
+    "dist": 430,
+    "width": 28
+  },
   "greens": [
-    { "name": "North Fields", "from": 205, "to": 325, "inner": 30, "outer": 130 },
-    { "name": "Hollow Wood park", "from": 112, "to": 176, "inner": 25, "outer": 120 },
-    { "name": "East Fields", "from": 30, "to": 85, "inner": 30, "outer": 120 }
-  ]
+    {
+      "name": "North Fields",
+      "from": 205,
+      "to": 325,
+      "inner": 30,
+      "outer": 130
+    },
+    {
+      "name": "Hollow Wood park",
+      "from": 112,
+      "to": 176,
+      "inner": 25,
+      "outer": 120
+    },
+    {
+      "name": "East Fields",
+      "from": 30,
+      "to": 85,
+      "inner": 30,
+      "outer": 120
+    }
+  ],
+  "relief": {
+    "terrace": 1.5,
+    "hump": 2.5,
+    "moat": {
+      "offset": 9,
+      "width": 12,
+      "depth": 4,
+      "water": 2
+    },
+    "hills": [
+      {
+        "at": [
+          0,
+          -180
+        ],
+        "r": 480,
+        "h": 32
+      },
+      {
+        "at": [
+          -10,
+          -195
+        ],
+        "r": 170,
+        "h": 16
+      },
+      {
+        "at": [
+          0,
+          -190
+        ],
+        "r": 72,
+        "h": 13,
+        "shape": "mound",
+        "top": 0.6
+      },
+      {
+        "at": [
+          -190,
+          110
+        ],
+        "r": 150,
+        "h": -6
+      }
+    ]
+  },
+  "roads": {
+    "100": 210
+  },
+  "suburbs": {
+    "length": 170,
+    "clear": 22,
+    "names": {
+      "15": "Eastgate",
+      "100": "Bridge End",
+      "190": "Westgate",
+      "340": "Castlegate"
+    }
+  },
+  "far": 3200
 }

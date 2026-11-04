@@ -1,5 +1,9 @@
 {
   "castle-ward": "Stone houses under the keep.",
   "market-ward": "Tall timber houses round the square and the church.",
-  "craft-ward": "Workshops and yards toward the river road."
+  "craft-ward": "Workshops and yards toward the river road.",
+  "suburb-15": "Cottages and smithies along the east road, past the moat bridge.",
+  "suburb-100": "The south road's houses down to the river bridge, with the mill on the bank.",
+  "suburb-190": "Cottages and gardens strung along the west road.",
+  "suburb-340": "Workshops and cottages on the road below the castle side of town."
 }

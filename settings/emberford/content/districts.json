@@ -1,5 +1,44 @@
 {
-  "castle-ward": { "kicker": "Ward", "text": ["The north side of town, under the keep. Stone houses with slate roofs line its lanes, built by the lord's masons and the families who serve the castle."] },
-  "market-ward": { "kicker": "Ward", "text": ["The east side of town, round the square and the church. Merchants build tall here, timber floors jutting over the street above a stone shop at the ground."] },
-  "craft-ward": { "kicker": "Ward", "text": ["The south and west of town, toward the river road. Smiths, dyers and coopers keep workshops in the yards behind their houses, and the smoke hangs low at dusk."] }
+  "castle-ward": {
+    "kicker": "Ward",
+    "text": [
+      "The north side of town, under the keep. Stone houses with slate roofs line its lanes, built by the lord's masons and the families who serve the castle."
+    ]
+  },
+  "market-ward": {
+    "kicker": "Ward",
+    "text": [
+      "The east side of town, round the square and the church. Merchants build tall here, timber floors jutting over the street above a stone shop at the ground."
+    ]
+  },
+  "craft-ward": {
+    "kicker": "Ward",
+    "text": [
+      "The south and west of town, toward the river road. Smiths, dyers and coopers keep workshops in the yards behind their houses, and the smoke hangs low at dusk."
+    ]
+  },
+  "suburb-15": {
+    "kicker": "Suburb",
+    "text": [
+      "Cottages and smithies along the east road, past the moat bridge. They grew outside the wall, where rents were low and the noisier trades were allowed."
+    ]
+  },
+  "suburb-100": {
+    "kicker": "Suburb",
+    "text": [
+      "The south road's houses down to the river bridge, with the mill on the bank. They grew outside the wall, where rents were low and the noisier trades were allowed."
+    ]
+  },
+  "suburb-190": {
+    "kicker": "Suburb",
+    "text": [
+      "Cottages and gardens strung along the west road. They grew outside the wall, where rents were low and the noisier trades were allowed."
+    ]
+  },
+  "suburb-340": {
+    "kicker": "Suburb",
+    "text": [
+      "Workshops and cottages on the road below the castle side of town. They grew outside the wall, where rents were low and the noisier trades were allowed."
+    ]
+  }
 }

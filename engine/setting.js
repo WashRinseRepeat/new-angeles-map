@@ -44,6 +44,17 @@ if (LOOK_MODE) for (const [k, v] of Object.entries(S.look.modes[LOOK_MODE])) {
   S.look[k] = v && typeof v === 'object' && !Array.isArray(v) && S.look[k] ? { ...S.look[k], ...v } : v;
 }
 
+// A pack's look.clock lights the map by the hour (daylight.js). It runs unless ?look= picks a fixed mode. ?time=HH:MM
+// sets the starting hour and ?cycle=<minutes> the length of a day; a cycle of 0 holds the hour.
+
+const Q = new URLSearchParams(location.search), at = /^(\d{1,2})(?::(\d\d))?$/.exec(Q.get('time') ?? '');
+export const CLOCK = !LOOK_MODE && S.look.clock ? {
+  start: 12, cycle: 0, ...S.look.clock,
+  sun: { rise: 6, set: 20, peak: 60, moon: 40, noon: null, ...S.look.clock.sun },
+  ...at && { start: (+at[1] + (+at[2] || 0) / 60) % 24 },
+  ...Q.has('cycle') && { cycle: Math.max(0, +Q.get('cycle') || 0) },
+} : null;
+
 // ?streets=<variant> loads city-<variant>.json, a street layout that gen.ts writes next to city.json. The pack's
 // data.streets names the default variant, and ?streets=grid loads city.json itself.
 

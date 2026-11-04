@@ -9,7 +9,7 @@ import { B_FS, B_VS, FACES, GLOWS, SKINS, beacon, bld, glow, glows, grey, helipa
 
 // ---------- lot prisms: buildings that follow a lot's real outline, merged into one mesh ----------
 
-export const MERGED_MAT = new THREE.ShaderMaterial({ uniforms: U, defines: { MERGED: 1 }, vertexShader: B_VS, fragmentShader: B_FS });
+export const MERGED_MAT = new THREE.ShaderMaterial({ uniforms: U, defines: { MERGED: 1 }, vertexShader: B_VS, fragmentShader: B_FS, userData: { casts: true } });
 export let merged = null, M = null;
 export const resetMerged = () => { M = { pos: [], nrm: [], base: [], win: [], p: [], skin: [], u: [], len: [] }; };
 resetMerged();

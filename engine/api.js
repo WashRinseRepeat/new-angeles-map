@@ -6,6 +6,7 @@ import { S, H } from './state.js';
 import { AXIS_HI, AXIS_LO, BLOCK, CENTRE, CENTRE_PLACE, CENTRE_R, CITY, PLACES, STANDALONE, STYLES, hash, lerp, loadMsg, mapToWorld, mixStyle, rng, sdPoly, smooth, styleAt } from './core.js';
 import { SETTING, atRoot, inPack } from './setting.js';
 import { FOG_GLSL, SURFACE, U, WATER_GLSL, addHole, holed, label, outerGround, slab, surface, water } from './render.js';
+import { groundAt } from './relief.js';
 import { FACES, GLOWS, INSTANCED, PROPS, SKINS, beacon, beam, bld, laser, glow, glows, grey, helipad, holo, kibble, neon, pool, prop, puff, put, soften, roof, sign, textSign } from './instances.js';
 import { KITS, crownOf, decor, grammarTowerBody, neonTexture, panel, plate, stringLights } from './grammar.js';
 import { fillGreens } from './greens.js';
@@ -341,7 +342,7 @@ for (const p of PLACES) {
     if (Math.abs(X * site.c - Z * site.s) < sw / 2 + 2 && Math.abs(X * site.s + Z * site.c) < sd / 2 + 2) f.taken = true;
   }
   const g = new THREE.Group();
-  g.position.set(site.cx, 0, site.cz);
+  g.position.set(site.cx, groundAt(site.cx, site.cz), site.cz);
   g.rotation.y = site.a;
   decor.add(g);
   S.DECOR = g;
@@ -403,7 +404,7 @@ for (const lm of LANDMARKS_KITS) {
   site.size = [Math.min(site.w, BLOCK_MAX), Math.min(site.d, BLOCK_MAX)];
   if (!lm.free) for (const f of FRAMES) if (inRect(site, f.cx, f.cz, 2)) f.taken = true;
   const g = new THREE.Group(), sy = lm.scaleY ?? 1, ly = (lm.labelY ?? SETTING.scale.labels.landmarkY) * sy;
-  g.position.set(site.cx, 0, site.cz);
+  g.position.set(site.cx, groundAt(site.cx, site.cz), site.cz);
   g.rotation.y = site.a;
   g.scale.y = sy;
   decor.add(g);
@@ -433,7 +434,7 @@ for (const lm of LANDMARKS_KITS) {
   if (lm.update) LANDMARKS.push(lm);
   const el = lm.label && label(lm.label, 'district landmark', new THREE.Vector3(fx, ly, fz));
   if (el) LANDMARK_LABELS.push(el);
-  const place = lm.slug && { slug: lm.slug, title: lm.label, district: '', type: 'Landmark', summary: '', color: SETTING.look.cardColor, top: new THREE.Vector3(fx, ly, fz), frame: view };
+  const place = lm.slug && { slug: lm.slug, title: lm.label, district: '', type: 'Landmark', summary: '', color: SETTING.look.cardColor, top: new THREE.Vector3(fx, ly + groundAt(fx, fz), fz), frame: view };
 
   // Kit geometry lands in shared instanced meshes, so an unseen box over the site takes the clicks.
 

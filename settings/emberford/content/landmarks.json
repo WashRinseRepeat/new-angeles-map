@@ -1,7 +1,100 @@
 {
-  "Market Square": { "kicker": "Square", "category": "civic", "text": ["The square where the four gate streets meet. Stalls ring it on market days, round the well and the market cross."] },
-  "Market Hall": { "kicker": "Hall", "category": "civic", "text": ["An open arcade on stone posts, where traders keep their stalls out of the rain. The council meets in the timber hall above."] },
-  "Saint Wenna's Church": { "kicker": "Church", "category": "civic", "text": ["The parish church, its long nave facing east to a round apse. The west tower carries a slate spire that travellers see from the river road."] },
-  "The Keep": { "kicker": "Castle", "category": "civic", "text": ["The lord's keep, a square stone tower with corner turrets, inside its own curtain wall with four round towers. Its gatehouse faces the town."] },
-  "Town Wall": { "kicker": "Defences", "category": "civic", "text": ["A stone wall rings the town, with a tower every few stretches and a gatehouse at each of the four gates. Torches burn at the gates until the curfew bell."] }
+  "Market Square": {
+    "kicker": "Square",
+    "category": "civic",
+    "text": [
+      "The square where the four gate streets meet. Stalls ring it on market days, round the well and the market cross."
+    ]
+  },
+  "Market Hall": {
+    "kicker": "Hall",
+    "category": "civic",
+    "text": [
+      "An open arcade on stone posts, where traders keep their stalls out of the rain. The council meets in the timber hall above."
+    ]
+  },
+  "Saint Wenna's Church": {
+    "kicker": "Church",
+    "category": "civic",
+    "text": [
+      "The parish church, its long nave facing east to a round apse. The west tower carries a slate spire that travellers see from the river road."
+    ]
+  },
+  "The Keep": {
+    "kicker": "Castle",
+    "category": "civic",
+    "text": [
+      "The lord's keep, a square stone tower with corner turrets, inside its own curtain wall with four round towers. Its gatehouse faces the town."
+    ]
+  },
+  "Town Wall": {
+    "kicker": "Defences",
+    "category": "civic",
+    "text": [
+      "A stone wall rings the town, with a tower every few stretches and a gatehouse at each of the four gates. Torches burn at the gates until the curfew bell."
+    ]
+  },
+  "Saint Giles' Chapel": {
+    "kicker": "Chapel",
+    "category": "faith",
+    "text": [
+      "The castle ward's parish chapel, with a bellcote over its west end and a walled churchyard where the ward buries its dead."
+    ]
+  },
+  "Saint Anne's Chapel": {
+    "kicker": "Chapel",
+    "category": "faith",
+    "text": [
+      "The craft ward's chapel, small and plain, its churchyard crowded with the graves of smiths and dyers."
+    ]
+  },
+  "Market Cross": {
+    "kicker": "Cross",
+    "category": "civic",
+    "text": [
+      "The stone cross on its steps marks the market's peace. Beside it stands the pillory, for those who break it."
+    ]
+  },
+  "The Swan": {
+    "kicker": "Inn",
+    "category": "civic",
+    "text": [
+      "The merchants' inn below the castle, three storeys round a lit courtyard where carts unload for the market."
+    ]
+  },
+  "The Plough": {
+    "kicker": "Inn",
+    "category": "civic",
+    "text": [
+      "A drovers' inn by the west gate, where carters stable their horses and wait for the gate to open."
+    ]
+  },
+  "Ember Quay": {
+    "kicker": "Quay",
+    "category": "trade",
+    "text": [
+      "Barges land wool, timber and wine at the stone quay below the bridge, and the crane lifts them into two warehouses."
+    ]
+  },
+  "Hill Mill": {
+    "kicker": "Windmill",
+    "category": "trade",
+    "text": [
+      "A post mill on a mound above the town, turned whole into the wind. It grinds when the river runs too low for the water mill."
+    ]
+  },
+  "The Tanyard": {
+    "kicker": "Tannery",
+    "category": "trade",
+    "text": [
+      "Downstream of the town and downwind of it, the tanners soak hides in vats of bark and lime and stretch them to dry."
+    ]
+  },
+  "Ember Mill": {
+    "kicker": "Mill",
+    "category": "trade",
+    "text": [
+      "The town's water mill on the River Ember, its wheel turned by a sluice off the current."
+    ]
+  }
 }

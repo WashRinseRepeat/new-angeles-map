@@ -14,6 +14,11 @@ import { TRAFFIC, centre, hwCars, hwTraffic, moveCars, nearHighway, track, uploa
 import { BLOCK_MAX, CITYTUNE, FRAMES, QUERY, SC, SITES, frontOf, generate } from './generator.js';
 import { LANDMARKS, LANDMARK_LABELS } from './api.js';
 import { initNav } from './nav.js';
+import { DAY, tick } from './daylight.js';
+import { movePeople } from './people.js';
+import { moveBoats } from './boats.js';
+import './groundmap.js';
+import { RELIEF, groundAt } from './relief.js';
 
 // ---------- layers: a horizontal slice through the city ----------
 
@@ -335,6 +340,14 @@ export const TUNE = {
     ['speed', 'Traffic speed', 0, 3, .05, T.speed ?? 0.3, 'Speed of all traffic.', v => { TRAFFIC.speed = v; }],
   ].filter(Boolean),
 
+  // A pack with a clock gets the hour and the length of a day. Under the clock, the hour sets the Light rows it
+  // covers whenever it moves.
+
+  ...DAY && { Time: [
+    ['hour', 'Time of day', 0, 23.75, .25, DAY.hour, 'The hour. Sun, moon, sky, shadows, windows and lanterns follow it.', v => { DAY.hour = v; }],
+    ['cycle', 'Day length (min)', 0, 60, 1, DAY.cycle, 'Minutes for a whole day. At 0 the clock stands still.', v => { DAY.cycle = v; }],
+  ] },
+
   // Skyline and Lots rows change how the city builds.
 
   Skyline: [
@@ -363,6 +376,10 @@ for (const [key, name, min, max, step, def, info = '', group = 'Lots'] of [...SE
 export const TUNE_KEY = `${SETTING.storage}-map-tune`;
 export let saved = {};
 try { saved = JSON.parse(localStorage.getItem(TUNE_KEY)) || {}; } catch {}
+
+// ?time= and ?cycle= win over a stored hour and day length.
+
+if (DAY && /[?&](time|cycle)=/.test(location.search)) { delete saved.hour; delete saved.cycle; }
 export const tuned = {};
 export const sliders = document.getElementById('sliders'), tabs = document.getElementById('ttabs');
 export const resets = [];
@@ -467,6 +484,15 @@ for (const [group, rows] of Object.entries(TUNE)) {
   if (rows.some(row => row[8])) box.insertAdjacentHTML('beforeend', '<div class="note">The city rebuilds when you release a slider.</div>');
 }
 tabs.firstChild.click();
+
+// A running clock moves its slider twice a second.
+
+const hourInput = sliders.querySelector('input[aria-label="Time of day"]');
+if (hourInput) setInterval(() => {
+  if (!DAY.cycle) return;
+  hourInput.value = DAY.hour;
+  hourInput.previousElementSibling.textContent = `${Math.floor(DAY.hour)}:${String(Math.floor(DAY.hour % 1 * 60)).padStart(2, '0')}`;
+}, 500);
 if (Object.values(TUNE).flat().some(([k, , , , , def, , , regen]) => regen && (saved[k] ?? def) !== def)) rebuild();
 document.getElementById('treset').onclick = () => {
   resets.forEach(f => f());
@@ -566,7 +592,7 @@ thin(false);
 // carrying the remainder keeps 120 and 144 Hz screens near 60 instead of dropping to 48.
 
 const SLOT = 1000 / 60, flickered = new Map(), FLICKER = SETTING.look.flicker, FOG_ZOOM = SETTING.scale.fogZoom;
-let lastFrame = 0, lift = 0;
+let lastFrame = 0, lift = 0, settled = false;
 renderer.setAnimationLoop(now => {
   const since = now - lastFrame;
   if (since < SLOT - 2) return;
@@ -611,6 +637,14 @@ renderer.setAnimationLoop(now => {
   k.z = THREE.MathUtils.clamp(k.z + (fading ? dt : -dt) / .3, 0, 1);
   thin(k.z > 0);
   turnCompass(dt);
+
+  // On a relief the orbit's target rides on the ground, so the camera climbs and falls with the town. It settles at
+  // once on the first frame and eases after that. A ride or a tour steers the camera itself.
+
+  if (RELIEF && !fly && !riding() && !tourFocus) {
+    const dy = (groundAt(controls.target.x, controls.target.z) - controls.target.y) * (settled ? Math.min(1, dt * 4) : 1);
+    controls.target.y += dy; camera.position.y += dy; settled = true;
+  }
   controls.update();
   clipTop += (LAYERS[layer] - clipTop) * Math.min(1, dt * 3);
   const top = layer === 'all' && clipTop > LAYERS.all - 10 ? 1e5 : clipTop;
@@ -628,6 +662,8 @@ renderer.setAnimationLoop(now => {
   }
 
   moveCars(dt * TRAFFIC.speed);
+  movePeople(dt);
+  moveBoats(dt);
 
   // Highway cars sort by rank, so the shown ones come first. Every car moves on, but one past the pack's near range
   // takes its new spot every second frame, about a metre at a time, and one past the fog only one frame in eight.
@@ -704,6 +740,7 @@ renderer.setAnimationLoop(now => {
     tl.mesh.visible = d < scene.fog.far + tl.half * 1.5 && (!tl.detail || d < QUALITY.detail + tl.half * 1.4);
   }
 
+  tick(dt);
   composer.render();
 
   // Labels rewrite every element's style, so they redraw only when the camera moved, and every sixth frame

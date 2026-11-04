@@ -1,6 +1,7 @@
 // Cloud layers, drawn by the engine's cloud pass (render.js) into CLOUD_SCENE.
 
 import { CLOUD_SCENE, CLOUD_U, QUALITY } from './render.js';
+import { CLOCK } from './setting.js';
 
 // Cloud layers. Each pixel marches its view ray through a horizontal slab. A coarse weather map places
 // separate cloud clusters with clear sky between them. Each cluster's cover sets a height profile, and 3D
@@ -9,6 +10,9 @@ import { CLOUD_SCENE, CLOUD_U, QUALITY } from './render.js';
 //
 // A pack lists its decks in look.clouds, and the engine lays them over the centre. A terrain module may build its
 // own decks with cloudLayer, adding uniforms, GLSL, a geometry and mask code that sets mask or discards.
+//
+// Under a pack's clock the tops take the hour's sun and sky light, the cloud round the sun brightens, and the
+// underside glow of the town's lights follows the windows.
 
 const CLOUD_STEPS = { high: 20, medium: 12, low: 6 };
 
@@ -95,6 +99,7 @@ export function cloudLayer(H, { y0, y1, cell, tile, cover, glow = [0, 0, 0], dom
       #include <packing>
       uniform sampler2D uDepth; uniform vec2 uLowRes; uniform float uNear, uFar;
       uniform float uTime, uSteps; uniform vec2 uCentre; uniform sampler3D uNoise; uniform sampler2D uWeather, uOpen; varying vec3 vW;
+      ${CLOCK ? 'uniform vec3 uCloudLit, uLightDir; uniform float uCloudGlow, uCloudSun;' : ''}
       ${H.FOG_GLSL}
       ${glsl}
       const float Y0 = ${y0.toFixed(1)}, Y1 = ${y1.toFixed(1)}, K = ${f(1 / (64 * cell))}, COVER = ${f(cover)}, E = ${f(erode)};
@@ -159,7 +164,8 @@ export function cloudLayer(H, { y0, y1, cell, tile, cover, glow = [0, 0, 0], dom
         if (t1 <= t0) discard;
         const float STEP = ${f(Math.min(35, cell * .4))};
         float L = t1 - t0, n = clamp(ceil(L / STEP), 4., uSteps), dt = L / n, j = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
-        vec3 lit = mix(uFog * 2.2, vec3(.28, .31, .4), .35), dark = uFog * .45, col = vec3(0.);
+        vec3 lit = mix(uFog * 2.2, ${CLOCK ? 'uCloudLit' : 'vec3(.28, .31, .4)'}, .35), dark = uFog * .45, col = vec3(0.);
+        ${CLOCK ? 'lit *= 1. + 1.6 * uCloudSun * pow(max(dot(rd, normalize(uLightDir)), 0.), 6.);' : ''}
         float T = 1., up = (Y1 - Y0) * .3;
         for (int i = 0; i < 20; i++) {
           if (float(i) >= n || T < .03) break;
@@ -171,7 +177,7 @@ export function cloudLayer(H, { y0, y1, cell, tile, cover, glow = [0, 0, 0], dom
           if (d <= 0.) continue;
           float h = clamp((p.y - Y0) / (Y1 - Y0), 0., 1.), shade = exp(-densLo(p + vec3(0., up, 0.), c) * 3.);
           float a = 1. - exp(-d * dt * .04);
-          col += T * a * (mix(dark, lit, shade * (.4 + .6 * h)) + GLOW * (1. - h) * (1. - h));
+          col += T * a * (mix(dark, lit, shade * (.4 + .6 * h)) + GLOW${CLOCK ? ' * uCloudGlow' : ''} * (1. - h) * (1. - h));
           T *= 1. - a;
         }
 
