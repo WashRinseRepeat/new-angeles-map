@@ -2,7 +2,7 @@
   "burg": {
     "kicker": "Quarter",
     "text": [
-      "The steep streets under the castle. Patricians and the emperor's officers live in stone houses, and the Tiergärtnertor opens to the north-west."
+      "The steep streets under the castle, built by Alpine masters the emperor brought from Tyrol: whitewashed ground floors, dark timber above, carved balconies and wide roofs with deep eaves. The Tiergärtnertor opens to the north-west."
     ]
   },
   "sebald": {
@@ -14,13 +14,13 @@
   "lorenz": {
     "kicker": "Quarter",
     "text": [
-      "The south half of the town, round St. Lorenz. Königstraße runs down from the river to the Königstor."
+      "The west of the Lorenz side, round St. Lorenz, where the Hanseatic merchants of Lübeck keep their houses: red and glazed brick, tall stepped gables with white blind arches and hoists for the bales. Königstraße runs down from the river to the Königstor."
     ]
   },
   "lorenz-ost": {
     "kicker": "Quarter",
     "text": [
-      "The east of the Lorenz side, with the Mauthalle, St. Klara and the workshops toward the Marientor."
+      "The east of the Lorenz side, the colony of Venetian traders: stucco houses in ochre and rose, Gothic windows over arcaded shops, roof terraces and funnel chimneys, round the Mauthalle and St. Klara."
     ]
   },
   "suburb-44": { "kicker": "Suburb", "text": ["Houses and gardens on the road out of the Marientor."] },

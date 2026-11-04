@@ -405,28 +405,42 @@ const X0 = Math.min(...all.map(p => p[0])) - pad, Z0 = Math.min(...all.map(p => 
 const W = Math.max(...all.map(p => p[0])) + pad - X0, D = Math.max(...all.map(p => p[1])) + pad - Z0;
 svg.setAttribute('viewBox', `${X0} ${Z0} ${W} ${D}`);
 const pts = poly => poly.map(p => p.join(',')).join(' ');
-// The inside point farthest from every edge, found on a 24 × 24 grid. Long thin districts keep their name inside.
-
 const edgeDist = (x, z, poly) => Math.min(...poly.map(([ax, az], i) => {
   const [bx, bz] = poly[(i + 1) % poly.length], dx = bx - ax, dz = bz - az;
   const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz || 1)));
   return Math.hypot(x - ax - t * dx, z - az - t * dz);
 }));
-function roomiest(poly) {
-  const xs = poly.map(p => p[0]), zs = poly.map(p => p[1]), x0 = Math.min(...xs), z0 = Math.min(...zs), sx = (Math.max(...xs) - x0) / 24, sz = (Math.max(...zs) - z0) / 24;
-  let best = centroidOf(poly), bd = -1;
-  for (let i = 0; i <= 24; i++) for (let j = 0; j <= 24; j++) {
-    const x = x0 + i * sx, z = z0 + j * sz;
-    if (!insidePoly(x, z, poly)) continue;
-    const e = edgeDist(x, z, poly);
-    if (e > bd) { bd = e; best = [x, z]; }
+
+// Names take places in turn, largest ward first. Each tries the roomiest points inside its ward, then rings round it,
+// and takes the first spot whose box clears every name placed so far. Small wards get smaller names. A name with no
+// free spot is left out.
+
+const area = P => Math.abs(P.reduce((s, [x, z], i) => { const [u, v] = P[(i + 1) % P.length]; return s + x * v - u * z; }, 0) / 2);
+function placeNames() {
+  const placed = [], big = W / 26;
+  for (const d of [...DISTRICTS].sort((a, b) => area(b.poly) - area(a.poly))) {
+    const f = area(d.poly) < W * D * .012 ? big * .72 : big, w = nameOf(d).length * f * .58 + f * .4, h = f * 1.25;
+    const xs = d.poly.map(p => p[0]), zs = d.poly.map(p => p[1]), [cx, cz] = centroidOf(d.poly), spots = [];
+    for (let i = 0; i <= 16; i++) for (let j = 0; j <= 16; j++) {
+      const x = Math.min(...xs) + (Math.max(...xs) - Math.min(...xs)) * i / 16, z = Math.min(...zs) + (Math.max(...zs) - Math.min(...zs)) * j / 16;
+      if (insidePoly(x, z, d.poly)) spots.push([x, z, edgeDist(x, z, d.poly) + 1e4]);
+    }
+    for (let r = h; r < h * 5; r += h * .8) for (let k = 0; k < 12; k++) spots.push([cx + Math.cos(k * Math.PI / 6) * r * 1.6, cz + Math.sin(k * Math.PI / 6) * r, -r]);
+    spots.sort((a, b) => b[2] - a[2]);
+    d.mm = null;
+    for (const [sx, sz] of spots) {
+      const x = Math.min(Math.max(sx, X0 + w / 2), X0 + W - w / 2), z = Math.min(Math.max(sz, Z0 + h / 2), Z0 + D - h / 2);
+      if (placed.some(o => Math.abs(o.x - x) < (o.w + w) / 2 && Math.abs(o.z - z) < (o.h + h) / 2)) continue;
+      placed.push(d.mm = { x, z, w, h, f });
+      break;
+    }
   }
-  return best;
 }
 function drawMinimap() {
+  if (DISTRICTS.some(d => d.mm === undefined)) placeNames();
   svg.innerHTML = (CITY.coast ?? []).map(c => `<polyline class="coast" points="${pts(c)}"/>`).join('')
     + DISTRICTS.map(d => `<polygon class="${d === current ? 'on' : ''}" points="${pts(d.poly)}"><title>${esc(nameOf(d))}</title></polygon>`).join('')
-    + DISTRICTS.map(d => { const [x, z] = d.mm ??= roomiest(d.poly); return `<text x="${x}" y="${z}" font-size="${W / 26}">${esc(nameOf(d))}</text>`; }).join('')
+    + DISTRICTS.filter(d => d.mm).map(d => `<text x="${d.mm.x}" y="${d.mm.z}" font-size="${d.mm.f}">${esc(nameOf(d))}</text>`).join('')
     + CARDS.map(p => `<circle cx="${p.top.x}" cy="${p.top.z}" r="${W / 160}" fill="${rgb(p.color ?? [2, 2, 2])}"/>`).join('')
     + (tour ? `<polyline class="route" points="${tour.stops.map(s => `${s.at.x},${s.at.z}`).join(' ')}"/>` : '')
     + '<polygon id="mmCone" class="cone"/>';

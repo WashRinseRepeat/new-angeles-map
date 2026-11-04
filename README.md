@@ -78,6 +78,9 @@ Nuremberg adds:
 - The Pegnitz between stone quays, with islands and five bridges.
 - One fantasy addition, the Lindwurmdom: a soaring Gothic cathedral with openwork spires, flying buttresses and
   glowing stained glass, and a lindworm coiled round its crossing tower that breathes, flexes its wings and smokes.
+- Four quarters in four building traditions, blending at their borders: Franconian sandstone and timber round the
+  Hauptmarkt, Hanseatic brick with stepped gables round St. Lorenz, a Venetian merchant colony of stucco, arcades and
+  roof terraces in Lorenz Ost, and Alpine timber with balconies and wide roofs under the castle.
 - The Rebenberg, a 300 m hill north of the town built to show off steep ground: the vintners' village of Rebenhain
   on terraced lanes joined by flights of steps, switchbacks up from the city, terraced vineyards, orchards and woods,
   and Burg Himmelsfels on the summit, reached by a road that spirals once round the hill, with outer walls and

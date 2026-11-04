@@ -67,7 +67,7 @@ export default {
     wallSkins: ['stone', 'timber'], slots: { skin: { stone: [3, .5], timber: [1, 3], plaster: [1, 1.5] } },
   },
   kits: {
-    families: ['town', 'civic', 'churches', 'fortress', 'fantasy', 'hillcastle', 'vineyard'], districts: [], finds: [], ownTiers: ['burg', 'sebald', 'lorenz', 'lorenz-ost', ...SUBURBS, 'rebenhain'],
+    families: ['town', 'hanse', 'venice', 'alpine', 'civic', 'churches', 'fortress', 'fantasy', 'hillcastle', 'vineyard'], districts: [], finds: [], ownTiers: ['burg', 'sebald', 'lorenz', 'lorenz-ost', ...SUBURBS, 'rebenhain'],
     blockZones: Z => Z.districts.map(Z.districtZone),
     cityTune: EMBER.kits.cityTune,
   },

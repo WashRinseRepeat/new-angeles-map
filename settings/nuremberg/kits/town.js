@@ -280,15 +280,19 @@ export function kits(H) {
 
 // Every lot is narrow, so tier 0 decides each ward's mix. The higher tiers repeat it.
 
-const BURG = ['nb_patrician', 'nb_patrician', 'nb_gablestone', 'nb_gablestone', 'nb_tower', 'nb_timber', 'nb_small', 'ef_stone', 'nb_garden'];
 const SEBALD = ['nb_patrician', 'nb_patrician', 'nb_shop', 'nb_shop', 'nb_gablestone', 'nb_timber', 'nb_timber', 'nb_brewer', 'nb_small', 'nb_tower'];
-const LORENZ = ['nb_patrician', 'nb_shop', 'nb_shop', 'nb_gablestone', 'nb_timber', 'nb_timber', 'nb_brewer', 'nb_small', 'ef_workshop'];
-const OST = ['nb_timber', 'nb_timber', 'nb_small', 'nb_small', 'nb_brewer', 'ef_workshop', 'ef_workshop', 'nb_garden'];
 const SUBURB = ['ef_cottage', 'ef_cottage', 'ef_workshop', 'nb_small', 'nb_garden', 'nb_garden'];
+
+// Three quarters show other building traditions: Hanseatic brick in Lorenz, a Venetian merchant colony in Lorenz Ost and
+// Alpine timber under the castle. Their kits live in kits/hanse.js, kits/venice.js and kits/alpine.js.
+
+const HANSE = ['hs_gable', 'hs_gable', 'hs_merchant', 'hs_twin', 'hs_glazed', 'hs_small', 'hs_small', 'hs_warehouse'];
+const VENICE = ['ve_casa', 've_casa', 've_palazzo', 've_arcade', 've_court', 've_small', 've_small', 've_campanile'];
+const ALPINE = ['al_chalet', 'al_chalet', 'al_painted', 'al_inn', 'al_barn', 'al_small', 'al_small', 'al_shingle'];
 const VILLAGE = ['ef_cottage', 'ef_cottage', 'nb_small', 'nb_small', 'nb_timber', 'ef_workshop', 'nb_garden'];
 const all = list => ({ 0: list, 1: list, 2: list });
 export const tiers = {
-  burg: all(BURG), sebald: all(SEBALD), lorenz: all(LORENZ), 'lorenz-ost': all(OST),
+  burg: all(ALPINE), sebald: all(SEBALD), lorenz: all(HANSE), 'lorenz-ost': all(VENICE),
   ...Object.fromEntries(SUBURBS.map(id => [id, all(SUBURB)])),
   rebenhain: all(VILLAGE),
 };
