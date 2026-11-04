@@ -8,7 +8,7 @@ import { SETTING } from './setting.js';
 import { edgeAt } from './edge.js';
 import { RELIEF, groundAt } from './relief.js';
 import { QUALITY, U, camera, scene, shadowUniforms } from './render.js';
-import { _c, glow, prop, yawAt } from './instances.js';
+import { _c, beam, glow, prop, yawAt } from './instances.js';
 
 // ---------- elevated highways: they clear a canyon and carry streams of light ----------
 
@@ -140,11 +140,13 @@ const joined = p => { for (const P of laid) { const { k, d } = nearestOn(P, p); 
 const clearOf = (R, s) => Math.min(Infinity, ...(R.path.into ?? []).filter(Boolean).map(T => nearestOn(T, R.curve.getPointAt(Math.min(1, Math.max(0, s / R.len)))).d));
 
 // A line that ends on another track at an angle swings onto it on a 220 m radius arc, tangent to both, so it
-// stays on its own side of that track and lands running along it. Returns the path and the track it joins.
+// stays on its own side of that track and lands running along it. A line that ends on another line's end runs on
+// from it with no arc. Returns the path and the track it joins.
 
 const mergeTail = path => {
   const e = path.at(-1), J = joined(e);
   if (!J) return [path, null];
+  if (!J.P.closed && (J.k === 0 || J.k === J.P.length - 1)) return [path, J.P];
   const { P, k } = J, hE = new THREE.Vector3().subVectors(e, path.at(-6)).setY(0).normalize();
   const t = new THREE.Vector3().subVectors(flatAt(P, k + 1), flatAt(P, k - 1)).setY(0).normalize(), dir = t.dot(hE) < 0 ? -1 : 1;
   const th = Math.acos(Math.min(1, Math.abs(t.dot(hE)))), T = Math.max(40, 220 * Math.tan(th / 2));
@@ -280,11 +282,14 @@ for (const R of ROUTES) if (R.root) STATIONS.push({ ...MAGLEV.centreStation, rou
 
 // A line end that joins another track gets an interchange 90 m in. Where the end merges, it sits at least
 // 150 m in and 30 m clear of the track it merges onto, so the platform stays off the ramp. It takes the name of
-// the nearest station on another track within 500 m, or its district's name with Junction.
+// the nearest station on another track within 500 m, or its district's name with Junction. Two lines that meet end
+// to end run on as one track, so that end gets no interchange.
 
+const lineEnds = ROUTES.filter(R => !R.closed).flatMap(R => [R.path[0], R.path.at(-1)]);
 for (const R of ROUTES) if (!R.closed) for (const [k, s0, way] of [[0, 90, 1], [R.path.length - 1, R.len - 90, -1]]) {
   const p = R.path[k];
   if (!laid.some(P => P !== R.path && P.some(q => Math.hypot(q.x - p.x, q.z - p.z) < 9))) continue;
+  if (lineEnds.some(q => q !== p && Math.hypot(q.x - p.x, q.z - p.z) < 9)) continue;
   let s = s0;
   if (R.path.into?.[k ? 1 : 0]) for (s = s0 + way * 60; clearOf(R, s) < 30 && Math.abs(s - s0) < R.len / 3; s += way * 10);
   const q = R.curve.getPointAt(s / R.len), inD = v => CITY.districts.find(d => sdPoly(v.x, v.z, d.poly) > 0), d = inD(q) ?? inD(p);
@@ -363,6 +368,32 @@ for (const { path, closed = false } of SPURS) {
   addSweep(sweep(path, [[-3.2, 0], [3.2, 0], [2.4, -2.8], [-2.4, -2.8]], closed), concrete);
   for (const s of [-1, 1]) addSweep(sweep(path, [[s * 1.3, 0], [s * 2.1, 0], [s * 2.1, .7], [s * 1.3, .7]], closed), steel);
 }
+
+// A pylon on the sea side of the traced coast stands in the sea, which lies left of the coast's direction. It rests
+// on two splayed stilts from the sea bed, braced halfway up, with pile caps at the waterline and an amber marker light.
+
+const COAST = (CITY.coast ?? []).flatMap(l => l.slice(1).map((b, i) => [l[i], b]));
+function offshore(x, z) {
+  let best = Infinity, side = 0;
+  for (const [[ax, az], [bx, bz]] of COAST) {
+    const dx = bx - ax, dz = bz - az, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)));
+    const d = Math.hypot(x - ax - t * dx, z - az - t * dz);
+    if (d < best) { best = d; side = dx * (z - az) - dz * (x - ax); }
+  }
+  return side > 0 && CITY.districts.every(d => sdPoly(x, z, d.poly) < 0);
+}
+const SEA_Y = -2, LEG = [.07, .075, .085], CAP = [.11, .1, .09];
+function stilts(p, t, y) {
+  const L = Math.hypot(t.x, t.z) || 1, ox = -t.z / L, oz = t.x / L, y0 = SEA_Y - 8, mid = (SEA_Y + y) / 2;
+  const at = (o, h) => [p.x + ox * o, h, p.z + oz * o], spread = h => 3.4 - 2.1 * (h - y0) / (y - y0);
+  for (const s of [-1, 1]) {
+    beam(at(s * 3.4, y0), at(s * 1.3, y), 1.3, LEG);
+    prop('cyl', ...at(s * spread(SEA_Y), SEA_Y + .4), 2.4, 1.6, 2.4, CAP);
+  }
+  beam(at(-spread(mid), mid), at(spread(mid), mid), .7, LEG);
+  glow(...at(spread(SEA_Y) + 1.4, SEA_Y + 1.6), .3, .3, .3, [1.6, .8, .2]);
+}
+
 // A pylon that would land on a highway deck moves along the line until it clears it.
 
 const onHighway = (x, z) => HW_PTS.some(q => q.y > 5 && Math.hypot(q.x - x, q.z - z) < 11);
@@ -381,7 +412,8 @@ export function buildPylons() {
     if (u >= 1) break;
     const p = curve.getPointAt(u), t = curve.getTangentAt(u), top = p.y - 2.8;
     prop('box', p.x, top - .9, p.z, 9, 1.8, 3.2, [.06, .065, .075], Math.atan2(t.x, t.z));
-    prop('cyl', p.x, (top - 1.8) / 2, p.z, 2.8, top - 1.8, 2.8, [.06, .065, .075]);
+    if (offshore(p.x, p.z)) stilts(p, t, top - 1.8);
+    else prop('cyl', p.x, (top - 1.8) / 2, p.z, 2.8, top - 1.8, 2.8, [.06, .065, .075]);
     glow(p.x, top - 1.9, p.z, .5, .2, .5, [.3, .7, 1.0]);
   }
   void r;

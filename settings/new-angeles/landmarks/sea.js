@@ -25,7 +25,14 @@ export function sea(H, land, SEA) {
 
   const taken = [], lanes = [];
   const laneGap = (x, z) => Math.min(Infinity, ...lanes.map(l => Math.abs((x - l.cx) * l.sx + (z - l.cz) * l.sz)));
-  const room = (x, z, rad, lane = rad) => clear(x, z, rad) && laneGap(x, z) > lane + 150 && taken.every(([tx, tz, tr]) => Math.hypot(x - tx, z - tz) > rad + tr)
+  // Nothing anchors within 40 m of a maglev line on stilts.
+
+  const segs = (H.CITY.lines ?? []).flatMap(l => l.slice(1).map((b, i) => [l[i], b]));
+  const offTrack = (x, z, rad) => segs.every(([[ax, az], [bx, bz]]) => {
+    const dx = bx - ax, dz = bz - az, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)));
+    return Math.hypot(x - ax - t * dx, z - az - t * dz) > rad + 40;
+  });
+  const room = (x, z, rad, lane = rad) => clear(x, z, rad) && offTrack(x, z, rad) && laneGap(x, z) > lane + 150 && taken.every(([tx, tz, tr]) => Math.hypot(x - tx, z - tz) > rad + tr)
     && [[0, 0], [rad, 0], [-rad, 0], [0, rad], [0, -rad]].every(([a, b]) => wet(x + a, z + b, 5));
   const claim = (x, z, rad) => { taken.push([x, z, rad]); return [x, z]; };
 
