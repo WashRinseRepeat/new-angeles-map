@@ -68,6 +68,31 @@ export function lotFrame(poly) {
 }
 export const FRAMES = CITY.lots.map(lotFrame);
 
+// A point inside a frame's full rectangle, grown by pad.
+
+const within = (f, x, z, pad = 0) => {
+  const X = x - f.cx, Z = z - f.cz;
+  return Math.abs(X * f.c - Z * f.s) < f.w / 2 + pad && Math.abs(X * f.s + Z * f.c) < f.d / 2 + pad;
+};
+
+// Blocks with no lot centre inside them. Lot centres sit in 50 m buckets, so each block checks only its neighbours.
+
+let YARDS = null;
+function lotlessBlocks() {
+  const B = 50, cells = new Map();
+  for (const f of FRAMES) {
+    const k = `${Math.floor(f.cx / B)},${Math.floor(f.cz / B)}`;
+    if (!cells.has(k)) cells.set(k, []);
+    cells.get(k).push(f);
+  }
+  return ALL_BLOCK_FRAMES.filter(b => {
+    const R = Math.ceil(Math.hypot(b.w, b.d) / 2 / B);
+    for (let i = -R; i <= R; i++) for (let j = -R; j <= R; j++)
+      for (const f of cells.get(`${Math.floor(b.cx / B) + i},${Math.floor(b.cz / B) + j}`) ?? []) if (within(b, f.cx, f.cz)) return false;
+    return true;
+  });
+}
+
 // City dials scale heights, built lots, street lights and each block zone's cap. The first build uses the defaults of
 // the pack's cityTune rows. skew bends small-lot heights toward low, so tall ones grow rarer. small scales each
 // style's smallShare.
@@ -724,8 +749,28 @@ export function generate(blend) {
     KITS[STYLES[st.id].edgeKit ?? 'grove'](0, 0, 10, st, 1, rng(hash(c.x, c.z + 11)));
     S.FRAME = null;
   }
+
+  // A style with yardBlocks builds its yard kit on every block that holds no lots, in pieces up to 40 m long, so no
+  // block of that style stands empty. Fill cells keep off those blocks.
+
+  YARDS ??= lotlessBlocks();
+  const yarded = [];
+  for (const b of YARDS) {
+    if (b.used || Math.min(b.w, b.d) < 8 || inSite(b.cx, b.cz, 2) || edgeAt(b.cx, b.cz) < .08) continue;
+    const st = styleAt(b.cx, b.cz, blend), SB = STYLES[st.id], yk = SB.yardBlocks && KITS[SB.yardKit];
+    if (!yk) continue;
+    yarded.push(b);
+    const along = b.w >= b.d, L = along ? b.w : b.d, n = Math.ceil(L / 40);
+    for (let k = 0; k < n; k++) {
+      const o = (k - (n - 1) / 2) * L / n;
+      const g = { ...b, cx: b.cx + (along ? o * b.c : o * b.s), cz: b.cz + (along ? -o * b.s : o * b.c), w: along ? L / n : b.w, d: along ? b.d : L / n };
+      S.FRAME = g;
+      yk(g.cx, g.cz, Math.min(g.w, g.d) - 2, st, 1, rng(hash(Math.round(g.cx * 10), Math.round(g.cz * 10) + 5)));
+      S.FRAME = null;
+    }
+  }
   for (const c of FILL) {
-    if (inSite(c.x, c.z, 4) || edgeAt(c.x, c.z) < .05) continue;
+    if (inSite(c.x, c.z, 4) || edgeAt(c.x, c.z) < .05 || yarded.some(b => within(b, c.x, c.z, 2))) continue;
     const r = rng(hash(Math.round(c.x * 10), Math.round(c.z * 10) + 7));
     const Q = quarterAt(c.x, c.z), st = { ...styleAt(c.x, c.z, blend), ...(Q?.fill && Q.style) };
     const fk = KITS[STYLES[st.id].fillKit];

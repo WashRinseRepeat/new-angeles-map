@@ -41,7 +41,7 @@ export const STYLES = {
     tiers: [['park', 'park', 'block'], ['block', 'tower', 'park'], ['tower', 'twin', 'block'], ['tower', 'twin']], yardKit: 'lv_garden', fillKit: 'lv_fill',
     blockCap: 160, blockGap: 0, blockMin: 30, smallShare: 1 }),
   rabotgorod: STYLE({ w: .2, h0: 14, h1: 38, density: .92, neon: .12, lit: .12, grime: .85, base: [.09, .085, .08], win: [.82, .9, .78],
-    signs: [[1.4, .12, .1], [.25, .55, 1.4], [1.3, .9, .2]], street: [.62, .78, .7], zones: ['industry'],
+    signs: [[1.4, .12, .1], [.25, .55, 1.4], [1.3, .9, .2]], street: [.62, .78, .7], zones: ['industry'], yardKit: 'rab_yard', yardBlocks: true,
     tiers: [['block', 'tenement'], ['block', 'tenement', 'stack'], ['tenement', 'block', 'stack']] }),
   'la-costa': STYLE({ w: .3, h0: 4, h1: 16, density: .15, neon: .08, lit: .15, grime: .2, base: [.13, .11, .09], win: [1, .76, .46],
     signs: [[1.5, .3, 1.2], [.9, 1.2, 1.3], [.2, 1.3, 1.1]], street: [1, .7, .4],

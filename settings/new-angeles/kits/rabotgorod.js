@@ -218,6 +218,77 @@ export function kits(H) {
       lamp(along ? x : x + S / 2, along ? z + S / 2 : z, 6);
     },
 
+    // Yard: the lots the blocs leave bare. A container yard with a gantry crane, container homes stacked two or three
+    // high that never moved on, or rows of prefab huts. Stalingrad leans to containers. Everything stays under 9 m,
+    // so a yard under a highway or the maglev keeps clear of the deck.
+
+    rab_yard(x, z, s, st, b, r) {
+      const [W, D] = dims(s), along = W >= D, L = (along ? W : D) - 2, S = (along ? D : W) - 2;
+      const at = (u, v) => along ? [x + u, z + v] : [x + v, z + u];
+      const box = (u, y, v, l, h, t, rgb) => { const [px, pz] = at(u, v); prop('box', px, y, pz, along ? l : t, h, along ? t : l, rgb); };
+      const gl = (u, y, v, l, h, t, rgb) => { const [px, pz] = at(u, v); glow(px, y, pz, along ? l : t, h, along ? t : l, rgb); };
+      const ground = (rgb) => prop('box', x, .1, z, W, .2, D, rgb);
+      const kind = r() < (area(x, z) === 'Stalingrad' ? .6 : .3) ? 'yard' : r() < .65 ? 'homes' : 'huts';
+
+      if (kind === 'yard') {
+        ground([.05, .048, .045]);
+        for (let v = -S / 2 + 2; v < S / 2 - 2; v += 3.2) for (let u = -L / 2 + 4; u < L / 2 - 4; u += 6.6) {
+          if (r() < .15) continue;
+          const n = 1 + Math.floor(r() * 3);
+          for (let j = 0; j < n; j++) box(u, 1.3 + j * 2.6, v, 6.2, 2.5, 2.5, pick(r, BOXES));
+        }
+        if (L > 20) {
+          const g = (r() - .5) * L * .4, GY = 8.6, CR = [.45, .3, .06];
+          for (const sv of [-1, 1]) {
+            const [ax, az] = at(g - 1.5, sv * (S / 2 - .5)), [bx, bz] = at(g + 1.5, sv * (S / 2 - .5));
+            beam([ax, 0, az], [ax, GY, az], .4, CR); beam([bx, 0, bz], [bx, GY, bz], .4, CR);
+          }
+          for (const du of [-1.5, 1.5]) { const [ax, az] = at(g + du, -S / 2), [bx, bz] = at(g + du, S / 2); beam([ax, GY, az], [bx, GY, bz], .5, CR); }
+          gl(g, GY - .6, (r() - .5) * S * .6, 1.6, .3, 1.6, [1.5, 1.3, .9]);
+        }
+        lamp(...at(L / 2 - 1, S / 2 - 1), 8);
+        return;
+      }
+
+      if (kind === 'homes') {
+
+        // Container homes: stacks two or three high along both long edges, a lane between, stairs, lit windows and
+        // laundry over the lane.
+
+        ground([.045, .04, .038]);
+        const COL = [[.22, .12, .07], [.08, .12, .16], [.18, .16, .08], [.1, .13, .09], [.16, .16, .15], [.2, .08, .06]];
+        for (const sv of [-1, 1]) for (let u = -L / 2 + 3.4; u < L / 2 - 3; u += 6.6) {
+          const v = sv * (S / 2 - 2), n = 2 + Math.floor(r() * 2);
+          for (let j = 0; j < n; j++) {
+            box(u, 1.3 + j * 2.6, v, 6.2, 2.5, 2.5, pick(r, COL));
+            if (r() < .55) gl(u + (r() - .5) * 3, 1.5 + j * 2.6, v - sv * 1.27, .9, .8, .04, r() < .75 ? WARM.map(c => c * .8) : PALE.map(c => c * .6));
+          }
+          if (r() < .4) box(u, 2.6 * n + .15, v, 6.6, .12, 3, [.12, .14, .16]);
+          if (r() < .3) { const [sx, sz] = at(u + 2.6, v - sv * 2); beam([sx, 0, sz], [sx + (along ? 1.6 : 0), 2.6, sz + (along ? 0 : 1.6)], .7, [.1, .1, .1]); }
+        }
+        for (let u = -L / 2 + 6; u < L / 2 - 4; u += 9) if (r() < .5) {
+          const [ax, az] = at(u, -S / 2 + 3.3), [bx, bz] = at(u + 2, S / 2 - 3.3);
+          stringLights([ax, 4.4, az], [bx, 4.4, bz], .5, 6, r() < .5 ? WARM.map(c => c * .5) : [.5, .45, .4]);
+        }
+        lamp(...at(0, 0), 3.4);
+        return;
+      }
+
+      // Prefab huts: low long barracks in rows with warm windows, corrugated roofs and a water tank.
+
+      ground([.05, .045, .04]);
+      for (let v = -S / 2 + 3; v < S / 2 - 2.5; v += 7) {
+        const hl = Math.min(L - 4, 14 + r() * 10), u = (r() - .5) * (L - 4 - hl);
+        box(u, 1.6, v, hl, 3.2, 5, pick(r, BOXES).map(c => c * 1.2));
+        box(u, 3.35, v, hl + .4, .3, 5.6, [.1, .1, .1]);
+        for (let k = -hl / 2 + 1.5; k < hl / 2 - 1; k += 3) if (r() < .5) gl(u + k, 1.8, v + 2.53, .8, .7, .04, WARM.map(c => c * .7));
+      }
+      const [tx, tz] = at(L / 2 - 3, -S / 2 + 3);
+      prop('cyl', tx, 4.5, tz, 3, 3, 3, [.07, .06, .05]);
+      for (const [a, c] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) prop('cyl', tx + a, 1.5, tz + c, .2, 3, .2, [.06, .06, .06]);
+      lamp(...at(-L / 2 + 2, S / 2 - 1), 3.6);
+    },
+
     // Chone / Green Valley: bright white housing blocks on a deck, lime slidewalks and bioplastic trees.
 
     rab_greenvalley(x, z, s, st, b, r) {

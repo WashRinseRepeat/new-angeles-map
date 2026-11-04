@@ -397,6 +397,7 @@ for (const lm of LANDMARKS_KITS) {
 
   // hush r lowers the lots round the landmark out to r metres, so it stands clear of its neighbours.
   // A free landmark ([w, d, a]) stands at its point without a block, for a park or open ground. The optional a turns it.
+  // claim: true makes it take the lots whose centres fall inside it, so a small one can replace a single lot.
 
   const fa = lm.free?.[2] ?? 0;
   let site = lm.free ? { cx: x, cz: z, a: fa, c: Math.cos(fa), s: Math.sin(fa), w: lm.free[0], d: lm.free[1] } : null;
@@ -407,7 +408,7 @@ for (const lm of LANDMARKS_KITS) {
   site.used = true;
   if (lm.hush) HUSH.push({ x: site.cx, z: site.cz, r: lm.hush });
   site.size = [Math.min(site.w, BLOCK_MAX), Math.min(site.d, BLOCK_MAX)];
-  if (!lm.free) for (const f of FRAMES) if (inRect(site, f.cx, f.cz, 2)) f.taken = true;
+  if (!lm.free || lm.claim) for (const f of FRAMES) if (inRect(site, f.cx, f.cz, 2)) f.taken = true;
   const g = new THREE.Group(), sy = lm.scaleY ?? 1, ly = (lm.labelY ?? SETTING.scale.labels.landmarkY) * sy;
   g.position.set(site.cx, groundAt(site.cx, site.cz), site.cz);
   g.rotation.y = site.a;

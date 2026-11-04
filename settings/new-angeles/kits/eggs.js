@@ -1,4 +1,4 @@
-// Easter eggs in the city. Each takes a small block and has no label or card, so only a sharp eye finds it.
+// Easter eggs in the city. None has a label or a card, so only a sharp eye finds them.
 // The sea, the jungle and the mountains hold the rest (landmarks/eggs.js).
 
 const dim = (rgb, k) => rgb.map(c => c * k);
@@ -8,14 +8,6 @@ function eggs(H) {
   const { beam, glow, prop, puff, textSign, flickerGlow } = H;
   const pool = (x, z, rad, rgb) => H.pool?.(x, z, rad, rgb);
   const front = () => { const f = H.frame()?.front ?? { x: 0, z: 1 }; return [f.x, f.z, Math.atan2(f.x, f.z)]; };
-
-  // A figure in a dark coat, standing. Bioroids get cyan eyes.
-
-  const figure = (x, z, ry, coat, eyes) => {
-    prop('box', x, .9, z, .55, 1.8, .35, coat, ry);
-    prop('box', x, 2, z, .32, .38, .32, [.5, .48, .46], ry);
-    if (eyes) for (const s of [-.08, .08]) glow(x + Math.cos(ry) * s + Math.sin(ry) * .17, 2.05, z - Math.sin(ry) * s + Math.cos(ry) * .17, .05, .04, .02, eyes, ry);
-  };
 
   return {
 
@@ -40,21 +32,55 @@ function eggs(H) {
       },
     },
 
-    // Hedge Fund: a pink vending machine in a Rabotgorod back lot, with a bored bioroid waiting at it.
+    // Hedge Fund: a pink vending machine on a small Rabotgorod lot, with a tall bioroid reaching for its keypad.
+    // It claims only the one lot under it.
 
     egg_hedge: {
-      at: [535, 985], minSide: 24, reach: 260,
+      at: [533.81, 963.28], free: [16, 18, -.718], claim: true,
       build(x, z, w, d, st, r) {
-        // The machine stands in the middle of the lot with its lit front to the street side, where the bioroid waits.
 
-        const [fx, fz, fy] = front(), mx = x + fx * 1.5, mz = z + fz * 1.5;
-        prop('box', x, .1, z, w, .2, d, [.04, .04, .045]);
-        prop('box', mx - fx * .5, 1.05, mz - fz * .5, 1.3, 2.1, .9, [.25, .08, .18], fy);
-        glow(mx - fx * .97, 1.15, mz - fz * .97, 1, 1.5, .05, PINK, fy);
-        textSign('HEDGE FUND', mx - fx * .99, 2.35, mz - fz * .99, 1.2, .3, fy + Math.PI, [1.8, 1.6, 1.7]);
-        figure(mx - fx * 2.2, mz - fz * 2.2, fy, [.32, .34, .36], [.4, 1.6, 1.8]);
-        for (let k = 0; k < 4; k++) prop('box', mx + (r() - .5) * 4, .35, mz - fx * (r() - .5) * 3 - fz * 2, .8, .7, .7, [.03, .03, .03], r() * 3);
-        pool(mx, mz, 6, [.12, .03, .08]);
+        // u runs across the machine, v out from its lit front toward the bioroid.
+
+        const [fx, fz, fy] = front(), rx = fz, rz = -fx;
+        const at = (u, y, v) => [x + rx * u + fx * v, y, z + rz * u + fz * v];
+        const P = (u, y, v, sx, sy, sz, rgb) => { const [px, , pz] = at(u, y, v); prop('box', px, y, pz, sx, sy, sz, rgb, fy); };
+        const G = (u, y, v, sx, sy, sz, rgb) => { const [px, , pz] = at(u, y, v); glow(px, y, pz, sx, sy, sz, rgb, fy); };
+
+        // The machine: a pink cabinet with a lit window of products, a keypad and coin slot, a tray and a logo band.
+
+        const CASE = [.22, .06, .15], DARK = [.05, .04, .05], GOODS = [[1.6, .5, .3], [.3, 1.2, 1.5], [1.5, 1.3, .3], [.4, 1.5, .5], [1.6, .3, 1]];
+        P(0, .1, 0, 2.8, .2, 2, DARK);
+        P(0, 2.2, 0, 2.6, 4.2, 1.8, CASE);
+        G(-.3, 2.5, .91, 1.7, 2.4, .03, dim(PINK, .45));
+        for (let row = 0; row < 4; row++) for (let col = 0; col < 3; col++) G(-.3 + (col - 1) * .52, 1.55 + row * .6, .95, .36, .3, .03, GOODS[(row * 3 + col) % GOODS.length]);
+        P(.95, 2.5, .92, .44, 1.3, .05, DARK);
+        for (let k = 0; k < 9; k++) G(.84 + (k % 3) * .11, 2.75 - Math.floor(k / 3) * .14, .95, .07, .07, .02, [1.4, 1.4, 1.5]);
+        G(.95, 2.05, .95, .22, .05, .02, CYAN);
+        P(0, .6, .92, 2.1, .5, .14, DARK);
+        G(0, .86, .96, 1.9, .04, .02, PINK);
+        G(0, 4.05, .93, 2.5, .38, .03, PINK);
+        const [tx, , tz] = at(0, 4.05, .96);
+        textSign('HEDGE FUND', tx, 4.05, tz, 2.3, .34, fy, [1.9, 1.8, 1.9]);
+        for (const s of [-1, 1]) G(s * 1.32, 2.2, 0, .03, 3.9, .12, PINK);
+
+        // The bioroid: about 3.8 m tall, pale synthetic plates, a cyan chest light and visor, one arm on the keypad.
+
+        const SKIN = [.55, .57, .6], JOINT = [.2, .21, .23], V = 3.3;
+        for (const s of [-1, 1]) {
+          P(s * .36, .95, V, .4, 1.9, .45, SKIN);
+          P(s * .36, .12, V - .12, .46, .24, .72, JOINT);
+          P(s * .36, 1.92, V, .44, .18, .5, JOINT);
+          P(s * .76, 3.32, V, .42, .36, .52, SKIN);
+        }
+        P(0, 2.05, V, 1, .36, .52, JOINT);
+        P(0, 2.8, V, 1.16, 1.3, .62, SKIN);
+        G(0, 3.0, V - .32, .3, .3, .03, CYAN);
+        P(-.82, 2.62, V, .26, 1.25, .3, SKIN);
+        beam(at(.78, 3.3, V), at(.95, 2.75, 1.05), .3, SKIN);
+        P(0, 3.6, V, .26, .24, .26, JOINT);
+        P(0, 3.97, V, .52, .56, .56, SKIN);
+        G(0, 4.0, V - .29, .44, .1, .03, CYAN);
+        pool(x + fx * 1.5, z + fz * 1.5, 9, [.14, .03, .09]);
       },
     },
 
