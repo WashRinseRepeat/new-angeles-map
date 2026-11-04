@@ -74,7 +74,7 @@ An engine change for a new pack must leave New Angeles as it was. `node spikes/m
 | `audio` | optional. `episodes`, `moves(helpers)`, `labels`, `centreGaze`. Without episodes the Tours tab and the welcome card's tour button hide |
 | `walks` | optional walking tours, each `{ title, summary, stops: [{ slug, h, text }] }`. A stop's slug names a place card, a landmark (its label, slugged) or a district id. They show under Tours and play in the stop-by-stop tour panel |
 | `cards` | `districts` and `landmarks` card files. Each find family adds `content/<family>.json`. `site: true` says the places have pages and images on the archive site |
-| `layers` | optional extra layers, each `{ module, clip, mistBase }` plus, for a dungeon level, `cut`, `floor`, `follow`, `background`, `underground` and `labels`. The module exports `group`, `labels`, `build()` and optionally `update(t, dt, layer)`. Several layers may share one module. Buttons with `data-layer` switch them |
+| `layers` | optional extra layers, each `{ module, clip, mistBase }`. The module exports `group`, `labels` and `build()` |
 
 ### Styles
 
@@ -178,20 +178,6 @@ Emberford's town hill rises about 25 m from the south wall to the square, then s
 ### Audio guide moves
 
 `audio.moves(E)` returns camera moves by cue verb. `E` holds `V`, `mix`, `ease`, `smooth`, `CENTRE`, `WIDE_T`, `camera`, `find(name)` and `landmark` (the centre module's api). A move is `c => ({ blend, pod, pose(e, C, T, P) })`, as in `settings/new-angeles/moves.js`. The engine keeps the generic moves `sky`, `orbit`, `pan`, `dolly` and `spiral`.
-
-### Dungeons
-
-`engine/under.js` builds dungeons below a city for a pack layer. `dungeon(opts)` returns a builder `D`; the layer module builds with it and calls `D.bake()` once, then passes `update` on to `D.update`. Nuremberg's `catacombs.js` is the example.
-
-- Building: `room`, `tunnel`, `cavern`, `wall`, `box`, `cyl`, `floor`, `floorPoly`, `stairs`, `shaft`, `arch`, `slab`, `water`, `glow`
-- Light: `torch`, `brazier`, `candle`, `flame`, `light` (`flicker: 0` for steady light)
-- Own geometry: `geo(geometry, mat)` merges any three.js geometry into the lit stone; `mat(colour)` and `add(mesh)` for moving meshes; `tick(fn)` animates them
-- `frame(x, z, rot, fn)` moves and turns everything built inside `fn`
-- Materials: ashlar, rubble, brick, rock, flag, dirt, wood, iron, bone, gold, water, glow, plaster, moss, cloth
-- Rooms and tunnels have no ceilings, so the map looks down into them
-- `bake()` adds up the light of every torch at every vertex. The shader flickers it by the phase of each vertex's brightest torch
-
-A dungeon layer hides the town with a deep `clip` (-1e4) and cuts the dungeon above its own `cut`. Built-in three.js materials keep to the town's clip and vanish, so a moving mesh uses `D.mat`. `floor` sets the orbit target's height, or its depth under the ground with `follow`. `labels: [lo, hi]` shows the names whose height lies between.
 
 ## What a pack cannot change yet
 
