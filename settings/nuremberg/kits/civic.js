@@ -442,49 +442,61 @@ export function landmarks(H) {
         spandrel(A, face * (d / 2 - .4), -uc, spring, 2 * R, .9, S2.base, la);
       }
 
+      // Above the deck every part stands at a set height, whatever the ground under it. Fd adds to each part's
+      // height the drop from the ground under the centre to the ground under the part. So a wing on the bank sits
+      // on the deck instead of floating at the river's level over it.
+
+      const g0 = groundAt(sx0, sz0), drop = (u, v) => { const [wx, wz] = turn(HALF_PI, u, v); return g0 - groundAt(sx0 + wx, sz0 + wz); };
+      const Fd = {
+        B: (u, v, bw, bd, h, s2, rr, o = {}) => F.B(u, v, bw, bd, h, s2, rr, { ...o, y0: (o.y0 ?? 0) + drop(u, v) }),
+        P: (k, u, y, v, ...rest) => F.P(k, u, y + drop(u, v), v, ...rest),
+        G: (u, y, v, ...rest) => F.G(u, y + drop(u, v), v, ...rest),
+        L: (u, y, v, ...rest) => F.L(u, y + drop(u, v), v, ...rest),
+      };
+
       // the stone hall under a steep roof
 
       const hu = -6, hl = 44, hv = -1, hd = 15;
-      F.B(hu, hv, hl, hd, 10, S, r, { y0: K, skin: sk });
-      F.B(hu, hv, hl + .8, hd + 1.4, 11, st, r, { y0: K + 10, shape: 'gable', skin: SKINS.tile, base: TILE, lit: 0 });
+      Fd.B(hu, hv, hl, hd, 10, S, r, { y0: K, skin: sk });
+      Fd.B(hu, hv, hl + .8, hd + 1.4, 11, st, r, { y0: K + 10, shape: 'gable', skin: SKINS.tile, base: TILE, lit: 0 });
       for (let u = hu - hl / 2 + 4; u < hu + hl / 2 - 2; u += 5) for (const [f, p] of [['s', hv + hd / 2], ['n', hv - hd / 2]]) {
-        gothic(F, u, K + 4.2, p, f, 1.4, 4.4, r);
-        win(F, u, K + 1.2, p, f, .9, 1.4, r, { bars: true });
+        gothic(Fd, u, K + 4.2, p, f, 1.4, 4.4, r);
+        win(Fd, u, K + 1.2, p, f, .9, 1.4, r, { bars: true });
       }
-      for (let i = 0; i < 8; i++) dormer(F, hu - hl / 2 + 5.5 + i * 5.2, hv, i % 2 ? 1 : -1, (hd + 1.4) / 2, K + 10, 11, 3.2, 2.2, 1.5, S, TILE, r);
+      for (let i = 0; i < 8; i++) dormer(Fd, hu - hl / 2 + 5.5 + i * 5.2, hv, i % 2 ? 1 : -1, (hd + 1.4) / 2, K + 10, 11, 3.2, 2.2, 1.5, S, TILE, r);
 
       // half-timber wing on the east end with two jettied floors
 
       const tu = 24, tl = 12, tv = 2, T = { ...st, lit: .3 };
-      F.B(tu, tv, tl, 13, 4, S, r, { y0: K, skin: sk });
-      F.B(tu, tv, tl + .8, 14, 4.2, T, r, { y0: K + 4, skin: SKINS.timber, base: CREAM });
-      F.B(tu, tv, tl + 1.6, 15, 4.2, T, r, { y0: K + 8.2, skin: SKINS.timber, base: [.46, .4, .3] });
-      F.B(tu, tv, tl + 3, 16.6, 7, st, r, { y0: K + 12.4, shape: 'gable', skin: SKINS.tile, base: TILE2, lit: 0, ry: HALF_PI });
-      F.B(tu, tv + 8.1, .5, tl + 2.2, 7, T, r, { y0: K + 12.4, shape: 'gable', skin: SKINS.timber, base: CREAM, ry: HALF_PI });
+      Fd.B(tu, tv, tl, 13, 4, S, r, { y0: K, skin: sk });
+      Fd.B(tu, tv, tl + .8, 14, 4.2, T, r, { y0: K + 4, skin: SKINS.timber, base: CREAM });
+      Fd.B(tu, tv, tl + 1.6, 15, 4.2, T, r, { y0: K + 8.2, skin: SKINS.timber, base: [.46, .4, .3] });
+      Fd.B(tu, tv, tl + 3, 16.6, 7, st, r, { y0: K + 12.4, shape: 'gable', skin: SKINS.tile, base: TILE2, lit: 0, ry: HALF_PI });
+      Fd.B(tu, tv + 8.1, .5, tl + 2.2, 7, T, r, { y0: K + 12.4, shape: 'gable', skin: SKINS.timber, base: CREAM, ry: HALF_PI });
       for (const u of [tu - 3.5, tu, tu + 3.5]) {
-        win(F, u, K + 5.2, tv + 7.7, 's', 1.1, 1.6, r, { shut: [.28, .1, .06], sill: true });
-        win(F, u, K + 9.4, tv + 8.5, 's', 1.1, 1.6, r, { shut: [.28, .1, .06], sill: true });
+        win(Fd, u, K + 5.2, tv + 7.7, 's', 1.1, 1.6, r, { shut: [.28, .1, .06], sill: true });
+        win(Fd, u, K + 9.4, tv + 8.5, 's', 1.1, 1.6, r, { shut: [.28, .1, .06], sill: true });
       }
-      for (const u of [tu - 3.5, tu + 3.5]) win(F, u, K + 1.2, tv + 6.5, 's', 1, 1.6, r, { bars: true });
-      for (let i = 0; i < 5; i++) { F.P('box', tu - 4.4 + i * 2.2, K + 3.6, tv + 7.2, .3, .6, 1.4, TIMB); F.P('box', tu - 4.4 + i * 2.2, K + 7.8, tv + 8, .3, .6, 1.4, TIMB); }
+      for (const u of [tu - 3.5, tu + 3.5]) win(Fd, u, K + 1.2, tv + 6.5, 's', 1, 1.6, r, { bars: true });
+      for (let i = 0; i < 5; i++) { Fd.P('box', tu - 4.4 + i * 2.2, K + 3.6, tv + 7.2, .3, .6, 1.4, TIMB); Fd.P('box', tu - 4.4 + i * 2.2, K + 7.8, tv + 8, .3, .6, 1.4, TIMB); }
 
       // tower with a spire at the west end
 
       const gu = -27, gv = -6;
-      F.B(gu, gv, 5, 5, 20, S, r, { y0: K, skin: sk });
-      F.B(gu, gv, 4.2, 4.2, 5, S, r, { y0: K + 20, shape: 'oct', skin: sk });
-      facets(F, gu, gv, 1.95, K + 22.5, 2, .9, [0, HALF_PI, Math.PI, 3 * HALF_PI], r);
-      F.P('cone', gu, K + 30.5, gv, 5, 11, 5, COPPER);
-      F.P('cone', gu, K + 36.8, gv, .4, 1.8, .4, GOLD);
-      for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) F.P('cone', gu + a * 2.1, K + 26.2, gv + b * 2.1, .7, 2.2, .7, COPPER);
-      for (const y of [6, 12, 17]) win(F, gu, K + y, gv + 2.5, 's', .6, 1.4, r);
+      Fd.B(gu, gv, 5, 5, 20, S, r, { y0: K, skin: sk });
+      Fd.B(gu, gv, 4.2, 4.2, 5, S, r, { y0: K + 20, shape: 'oct', skin: sk });
+      facets(Fd, gu, gv, 1.95, K + 22.5, 2, .9, [0, HALF_PI, Math.PI, 3 * HALF_PI], r);
+      Fd.P('cone', gu, K + 30.5, gv, 5, 11, 5, COPPER);
+      Fd.P('cone', gu, K + 36.8, gv, .4, 1.8, .4, GOLD);
+      for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) Fd.P('cone', gu + a * 2.1, K + 26.2, gv + b * 2.1, .7, 2.2, .7, COPPER);
+      for (const y of [6, 12, 17]) win(Fd, gu, K + y, gv + 2.5, 's', .6, 1.4, r);
 
       // chapel porch on the south and quay lanterns
 
-      F.B(10, 8.6, 6, 3.4, 5, S, r, { y0: K, skin: sk });
-      F.B(10, 8.6, 6.6, 4, 3, st, r, { y0: K + 5, shape: 'gable', skin: SKINS.tile, base: TILE, lit: 0 });
-      gothic(F, 10, K + 1.2, 10.3, 's', 1.3, 3, r);
-      for (const u of [-26, -10, 12, 28]) { F.P('cyl', u, K + 1.6, 10.5, .14, 3.2, .14, IRON); F.L(u, K + 3.4, 10.5, .3, .4, .3, LAMP, r, .7); }
+      Fd.B(10, 8.6, 6, 3.4, 5, S, r, { y0: K, skin: sk });
+      Fd.B(10, 8.6, 6.6, 4, 3, st, r, { y0: K + 5, shape: 'gable', skin: SKINS.tile, base: TILE, lit: 0 });
+      gothic(Fd, 10, K + 1.2, 10.3, 's', 1.3, 3, r);
+      for (const u of [-26, -10, 12, 28]) { Fd.P('cyl', u, K + 1.6, 10.5, .14, 3.2, .14, IRON); Fd.L(u, K + 3.4, 10.5, .3, .4, .3, LAMP, r, .7); }
       return { focus: [0, 0], span: 90 };
     },
   }));
