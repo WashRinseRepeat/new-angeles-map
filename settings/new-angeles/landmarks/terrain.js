@@ -155,13 +155,17 @@ function terrainMesh(H, land) {
         vec3 n = normalize(vN);
         float slope = 1. - n.y;
 
-        // Lowland scrub, cloud forest, paramo grass, bare rock on steep ground, glacier on the peaks.
-        vec3 col = mix(vec3(.011, .012, .009), vec3(.008, .012, .011), smoothstep(300., 1500., vE));
+        // Lowland scrub, cloud forest, paramo grass, bare rock on steep ground, glacier on the peaks. The lowland is
+        // dark olive, so it never reads as night sea.
+        vec3 col = mix(vec3(.02, .028, .013), vec3(.008, .012, .011), smoothstep(300., 1500., vE));
         col = mix(col, vec3(.019, .02, .016), smoothstep(2700., 3900., vE));
         col = mix(col, vec3(.022, .021, .021), smoothstep(.3, .65, slope) + smoothstep(4300., 4700., vE) * .7);
         float snow = smoothstep(4650., 4950., vE + n.y * 120.) * (1. - smoothstep(.6, .85, slope));
         col = mix(col, vec3(.2, .24, .31), snow);
-        col = mix(col, vec3(.012, .015, .014), smoothstep(-.5, -.2, -abs(vW.y + .5)));
+        col = mix(col, vec3(.018, .025, .013), smoothstep(-.5, -.2, -abs(vW.y + .5)));
+
+        // A pale band of sand and mud where the land meets the sea.
+        col = mix(col, vec3(.08, .07, .052), smoothstep(-3., 0., vE) * (1. - smoothstep(2., 9., vE)));
 
         float moon = max(dot(n, uMoon), 0.);
         vec3 lit = col * (.55 + .5 * n.y) + col * moon * (1.1 + snow * 1.5);
