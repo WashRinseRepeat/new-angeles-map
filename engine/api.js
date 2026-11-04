@@ -165,6 +165,10 @@ const SEATS = await fetch(atRoot(SETTING.data.seats), { cache: 'no-store' }).the
 for (const lm of LANDMARKS_KITS) keep(...(SEATS[`lm:${lm.name}`]?.at ?? mapToWorld(lm.at ?? [0, 0])), lm.free ? Math.hypot(lm.free[0], lm.free[1]) / 2 + 20 : 70);
 for (const p of CITY.places ?? []) keep(...(SEATS[p.slug]?.at ?? p.at), 70);
 
+// The city file's keep list holds more ground solid, as [x, z, r] circles, where hand-added lots meet the edge.
+
+for (const [x, z, r] of CITY.keep ?? []) keep(x, z, r);
+
 if (SETTING.terrain) {
   const mod = await import(inPack(SETTING.terrain));
   if (mod.build) {

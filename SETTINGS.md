@@ -28,7 +28,7 @@ python3 spikes/map/gen/town.py spikes/map/settings/emberford
 ## Make a new pack
 
 1. Copy `settings/sandbox/` to `settings/<id>/` and change the values. Add the optional fields below as the setting needs them. `settings/new-angeles/setting.js` shows every field in use.
-2. Write a city file with the shape `gen/gen.ts` writes: `dims`, `origin`, `placeHalf`, `districts`, `streets` (`main`, `major`, `minor`), `lots` and `blocks`. Optional lists are `root` (the centre point), `highways`, `maglev` (a loop of three or more points), `spurs`, `lines`, `rings`, `water`, `parks`, `coast`, `quarters`, `subareas` and `places`. Name the file in `data.city`.
+2. Write a city file with the shape `gen/gen.ts` writes: `dims`, `origin`, `placeHalf`, `districts`, `streets` (`main`, `major`, `minor`), `lots` and `blocks`. Optional lists are `root` (the centre point), `highways`, `maglev` (a loop of three or more points), `spurs`, `lines`, `rings`, `water`, `parks`, `coast`, `quarters`, `subareas`, `places` and `keep` (`[x, z, r]` circles that hold the frayed edge solid). Name the file in `data.city`.
 3. Give every district id in the city file a style in `styles.styles`. Pick two of them as the style axis ends.
 4. Add kit families under `kits/` and list them in `kits`. Every kit name the styles' tiers use must exist.
 5. Add station kits for the maglev, or one default kit.

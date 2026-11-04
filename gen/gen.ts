@@ -93,8 +93,8 @@ for (const a of TRACE.arterials) {
 
 // The southern highway leaves the Quinde arterial at its south-west bend and runs east just outside the city,
 // over the low peninsula south of Hospital Alcívar. It crosses the estuary on the Puente Alterno Sur and ends past
-// the Florine Ojeda Bank in the south-east corner. Past the branch it keeps 70 m off the district edge, so the
-// Guayaquil lots stay as they are.
+// the Florine Ojeda Bank. Past the branch it keeps 70 m off the district edge, so the Guayaquil lots stay as they
+// are. gen/se-strip.py then grows the south-east corner down to it and turns its east end north into the city.
 
 HIGHWAYS.push({ y: 26, pts: [[810, 1561.33], [810.56, 1584.44], [824.44, 1609.44], [874.44, 1617.78], [943.89, 1616.39], [993.89, 1612.22], [1124.44, 1612.22], [1166.11, 1615], [1221.67, 1617.78], [1263.33, 1615]].map(w) });
 
