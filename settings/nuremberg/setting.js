@@ -77,6 +77,16 @@ export default {
   boats: { n: 3 },
   people: { walk: 7, crowds: [{ at: [-5, 0], ring: 30, n: 60 }, { at: [-5, 0], r: 22, n: 40 }, { at: [20, 300], r: 18, n: 20 }] },
 
+  // The catacombs: four levels below the town in one module. Each level hides the town (clip) and cuts the dungeon
+  // above its own top (cut). labels is the depth band whose names show.
+
+  layers: {
+    cellars: { module: 'catacombs.js', clip: -1e4, cut: 1e5, floor: -12, follow: true, background: 0x07060a, mistBase: -1e4, underground: true, labels: [-6.5, 80] },
+    dungeons: { module: 'catacombs.js', clip: -1e4, cut: -6.5, floor: -18, background: 0x07060a, mistBase: -1e4, underground: true, labels: [-27, -6.5] },
+    deep: { module: 'catacombs.js', clip: -1e4, cut: -27, floor: -40, background: 0x07060a, mistBase: -1e4, underground: true, labels: [-52, -27] },
+    abyss: { module: 'catacombs.js', clip: -1e4, cut: -52, floor: -70, background: 0x07060a, mistBase: -1e4, underground: true, labels: [-200, -52] },
+  },
+
   walks: [
     {
       title: 'A Walk Through Nuremberg', summary: 'From the Hauptmarkt up to the castle, down to the river and over to St. Lorenz, in ten stops.',

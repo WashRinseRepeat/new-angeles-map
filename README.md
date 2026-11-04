@@ -78,6 +78,16 @@ Nuremberg adds:
 - The Pegnitz between stone quays, with islands and five bridges.
 - One fantasy addition, the Lindwurmdom: a soaring Gothic cathedral with openwork spires, flying buttresses and
   glowing stained glass, and a lindworm coiled round its crossing tower that breathes, flexes its wings and smokes.
+- The catacombs under the town, on four levels the Town, Cellars, Dungeons, Deep and Abyss buttons peel open, every
+  wall lit by flickering torches:
+  - Cellars: the Kloake sewers along the Pegnitz, the Kaiserburg casemates with Eppelein's cell, the Lochgefängnisse
+    and their torture chamber, the bone halls of St. Sebald and the rock-cut Felsengänge beer cellars.
+  - Dungeons: a ring of passages with cells, crypts and guard rooms, the grotto of the Pegnitz Nix with his soul pots
+    and a rat king, Rumpelstilzchen's straw chamber and hearth, and a smugglers' tunnel to the moat.
+  - Deep: Alberich's hoard with dwarf forges and the Tarnkappe, the Totenweg, and the Walpurgissaal, where witches
+    sway round a turning sigil and the Black Goat rises out of it.
+  - Abyss: Frau Holle's meadow at the bottom of the castle well, with falling snow, and the lindworm's old lair under
+    the Lindwurmdom, with its shed skin and a clutch of glowing eggs.
 - About 3,700 houses of eight kinds, from five-storey patrician houses with dormer rows and oriels to timber-framed
   craftsmen's houses, brewers' houses with hoists and small back-lane houses, each in its own stone, plaster and
   roof colours.
@@ -113,7 +123,8 @@ repository. Any static host works, GitHub Pages included.
 | Option | Effect |
 |---|---|
 | `?listen=e01-the-thread-to-the-sky` | Opens an audio guide episode, paused |
-| `?layer=undercity` | Starts in the undercity layer |
+| `?layer=undercity` | Starts in the undercity layer (New Angeles) |
+| `?layer=cellars` | Starts on a catacomb level (Nuremberg): `cellars`, `dungeons`, `deep` or `abyss` |
 | `?showcase=<family>` | Shows one kit family on an empty grid, at three style weights |
 | `?probe=live` | Shows frame time, CPU time, draw calls and uploads, with buttons to switch parts off |
 | `?probe` | Measures each part of the scene in turn |

@@ -25,7 +25,7 @@ import { RELIEF, groundAt } from './relief.js';
 // The all layer clips above the tallest tower. A pack layer, such as New Angeles' undercity, lives in its own module.
 // It exports group, labels and build(), loads on first use and builds once.
 
-const PACK_LAYERS = SETTING.layers ?? {}, LAYER_MODS = {};
+const PACK_LAYERS = SETTING.layers ?? {}, LAYER_MODS = {}, SKY = scene.background;
 export const LAYERS = { all: SETTING.scale.layerTop,
   ...Object.fromEntries(Object.entries(PACK_LAYERS).map(([k, l]) => [k, l.clip])) };
 export const clipPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 1e5);
@@ -46,11 +46,16 @@ export function setLayer(name) {
   }
   layer = name;
   for (const m of SURFACE) m.visible = !L;
-  for (const [k, mod] of Object.entries(LAYER_MODS)) {
-    mod.group.visible = k === name;
-    for (const el of mod.labels) el.obj.visible = k === name;
+
+  // Several layers may share one module, each with its own clip, such as the levels of a dungeon.
+
+  for (const mod of new Set(Object.values(LAYER_MODS))) {
+    mod.group.visible = mod === LAYER_MODS[name];
+    for (const el of mod.labels) el.obj.visible = mod === LAYER_MODS[name];
   }
   U.uMistBase.value = L?.mistBase ?? 0;
+  scene.background = L?.background != null ? new THREE.Color(L.background) : SKY;
+  document.body.classList.toggle('underground', !!L?.underground);
   for (const b of document.querySelectorAll('[data-layer]')) b.classList.toggle('on', b.dataset.layer === name);
 }
 for (const b of document.querySelectorAll('[data-layer]')) b.onclick = () => setLayer(b.dataset.layer);
@@ -231,7 +236,7 @@ export function flyTo(target, dist = 150, dir = null, dur = 1.2) {
 export const FOCUS = PLACES.find(p => p.slug === QUERY.get('focus'));
 if (FOCUS) { controls.target.set(FOCUS.x, 10, FOCUS.z); camera.position.set(FOCUS.x + 110, 190, FOCUS.z + 150); select(FOCUS); }
 
-window.spike = { H, generate, renderer, composer, TILES: () => TILES, getSites: () => SITES, scene, CITY, density, styleAt, STYLES, getMerged: () => merged, TALLY, ARCHETYPES, SHAPES, select, PLACES, CENTRE_PLACE, camera, controls, track, FRAMES, nearHighway, CENTRE, CENTRE_R, SETTING };
+window.spike = { setLayer, look: (x, y, z, d = 60) => { controls.target.set(x, y, z); camera.position.set(x - d * .5, y + d * .8, z + d * .6); controls.update(); }, H, generate, renderer, composer, TILES: () => TILES, getSites: () => SITES, scene, CITY, density, styleAt, STYLES, getMerged: () => merged, TALLY, ARCHETYPES, SHAPES, select, PLACES, CENTRE_PLACE, camera, controls, track, FRAMES, nearHighway, CENTRE, CENTRE_R, SETTING };
 
 export const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
 export let down = null;
@@ -656,11 +661,13 @@ renderer.setAnimationLoop(now => {
   thin(k.z > 0);
   turnCompass(dt);
 
-  // On a relief the orbit's target rides on the ground, so the camera climbs and falls with the town. It settles at
+  // On a relief the orbit's target rides on the ground, so the camera climbs and falls with the town. A layer's floor
+  // sets the target's height instead, or with follow its depth below the ground. It settles at
   // once on the first frame and eases after that. A ride or a tour steers the camera itself.
 
   if (RELIEF && !fly && !riding() && !tourFocus) {
-    const dy = (groundAt(controls.target.x, controls.target.z) - controls.target.y) * (settled ? Math.min(1, dt * 4) : 1);
+    const L = PACK_LAYERS[layer], g = L?.floor == null || L.follow ? groundAt(controls.target.x, controls.target.z) : 0;
+    const dy = (g + (L?.floor ?? 0) - controls.target.y) * (settled ? Math.min(1, dt * 4) : 1);
     controls.target.y += dy; camera.position.y += dy; settled = true;
   }
   controls.update();
@@ -701,6 +708,7 @@ renderer.setAnimationLoop(now => {
   }
   uploadUsed(hwCars);
   for (const l of LANDMARKS) l.update?.(t, dt);
+  if (layer !== 'all') LAYER_MODS[layer]?.update?.(t, dt, PACK_LAYERS[layer]);
   rideTick(dt);
   updateFireworks(dt);
   for (const f of waving) f.rotation.y = Math.sin(t * 2.3) * .25;
