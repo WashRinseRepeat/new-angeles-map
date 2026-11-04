@@ -68,11 +68,14 @@ export function kits(H) {
     };
     const hoist = (u, y) => fbox(u, vf + .55, y, .22, .22, 1.2, WOOD);
 
-    const kind = pick(r, o.roof);
+    // A house wider than 10.5 m turns its eaves to the street, and no roof rises more than 10 to 11.5 m, so a big
+    // plot gets a flatter roof instead of a towering one.
+
+    const picked = pick(r, o.roof), kind = w > 10.5 && picked !== 'hip' ? 'eaves' : picked;
     let rh;
     if (kind === 'eaves' || kind === 'hip') {
       const W = w + .3, D = dr + .9;
-      rh = kind === 'hip' ? Math.min(W, D) * (.6 + r() * .2) : D * (.68 + r() * .14);
+      rh = Math.min(kind === 'hip' ? Math.min(W, D) * (.6 + r() * .2) : D * (.68 + r() * .14), 10 + r() * 1.5);
       if (kind === 'hip' && W <= D + .5) block(0, v0, top, W, D, rh, roofM, { shape: 'pyr', lit: 0 });
       else if (kind === 'hip') {
         block(0, v0, top, W - D, D, rh, roofM, { shape: 'gable', lit: 0 });

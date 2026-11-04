@@ -91,13 +91,14 @@ function kit(H, st, r) {
   };
 
   // A polygonal apse: half an octagon whose side flats run on at the choir walls (z = ±half), under a hipped
-  // tile roof that meets the choir's gable.
+  // tile roof. The roof is a tiled pyramid as wide as the choir, whose apex meets the choir's ridge, so its west half
+  // hides inside the choir's gable and its east half reads as the hipped end.
 
   const apse = (x, z, half, h, rh, base = TILE) => {
     const s = half * 2 / COS8;
     oct(x, z, s + .6, 1.3, 0, PLINTH);
     oct(x, z, s, h);
-    spire(x, z, h, (half + .4) * 2 / COS8, rh, base);
+    bld(x, z, half * 2 + .8, half * 2 + .8, rh, S, r, o(h, jit(base), { shape: 'pyr' }));
   };
 
   // The apse's flats (centre and normal) and corners (corner and outward normal) on its east side.

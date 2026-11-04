@@ -7,6 +7,7 @@ import { cloudLayer } from '../../../engine/clouds.js';
 import { edgeAt } from '../../../engine/edge.js';
 import { MAP } from '../map.js';
 import { sea } from './sea.js';
+import { eggs } from './eggs.js';
 
 const CX = -158, CZ = 1476, EXT = 13000;
 const V = .05;                  // world metres per real metre: 4x exaggeration at 82 real m per world m
@@ -16,17 +17,18 @@ const FRAME = [-2448, -1404, 2131, 4356];
 const px = (x, y) => [(x - MAP.cx) * MAP.scale, (y - MAP.cy) * MAP.scale];
 
 export function build(H, group) {
-  let ships = null;
+  let ships = null, hidden = null;
   load(H, new URL('./terrain.png', import.meta.url)).then(hm => {
     const land = landField(H, hm);
     ships = sea(H, land, SEA);
-    group.add(terrainMesh(H, land), seaMesh(H, hm), ...edgeLights(H, land), ...jungle(H, land), ...ships.meshes);
+    hidden = eggs(H, land, SEA);
+    group.add(terrainMesh(H, land), seaMesh(H, hm), ...edgeLights(H, land), ...jungle(H, land), ...ships.meshes, ...hidden.meshes);
     for (const m of cloudDecks(H, hm, land)) { CLOUD_SCENE.add(m); m.updateMatrixWorld(); }
   });
 
-  // The ships sail once the heightmap has loaded.
+  // The ships and the eggs move once the heightmap has loaded.
 
-  return { update: t => ships?.update(t) };
+  return { update: t => { ships?.update(t); hidden?.update(t); } };
 }
 
 async function load(H, url) {

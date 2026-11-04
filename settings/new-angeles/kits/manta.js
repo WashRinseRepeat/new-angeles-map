@@ -1035,6 +1035,20 @@ export function landmarks(H) {
           return m;
         });
 
+        // A lone night surfer rides the first wave in on a board edged in neon. update() moves them with it.
+
+        const surfer = new THREE.Group(), body = new THREE.MeshStandardMaterial({ color: new THREE.Color(.05, .05, .06), roughness: .6 });
+        const board = new THREE.Mesh(new THREE.BoxGeometry(.6, .1, 2.3), new THREE.MeshStandardMaterial({ color: new THREE.Color(.8, .8, .78), roughness: .4 }));
+        const rim = new THREE.Mesh(new THREE.BoxGeometry(.7, .04, 2.4), new THREE.MeshBasicMaterial({ color: new THREE.Color(.5, 1.8, 1.9) }));
+        const legs = new THREE.Mesh(new THREE.BoxGeometry(.25, .8, .7).translate(0, .45, 0), body);
+        const torso = new THREE.Mesh(new THREE.BoxGeometry(.3, .7, .4).translate(0, 1.15, .1), body);
+        const head = new THREE.Mesh(new THREE.BoxGeometry(.22, .24, .22).translate(0, 1.65, .15), body);
+        rim.position.y = -.04;
+        surfer.add(board, rim, legs, torso, head);
+        surfer.traverse(o => { o.userData.noTile = true; o.frustumCulled = false; });
+        H.decor.add(surfer);
+        SURF.surfer = { g: surfer, i: Math.floor(shore.length * .45) };
+
         // The name stands at the shore nearest the block and reads from the land. The camera looks from the land side.
 
         const S = seaward(cx, cz, 0), sx = S.x - S.u * 5, sz = S.z - S.v * 5;
@@ -1053,6 +1067,12 @@ export function landmarks(H) {
           });
           p.needsUpdate = true;
         });
+        if (SURF.surfer) {
+          const { g, i } = SURF.surfer, ph = (t * .11) % 1, out = 22 - ph * 24 - 1.2, [lx, lz, su, sv, , edge] = SURF.shore[i], al = (ph - .5) * 40;
+          g.position.set(lx + su * (edge + out) - sv * al, -1.6 + Math.sin(t * 1.9) * .12, lz + sv * (edge + out) + su * al);
+          g.rotation.set(Math.sin(t * 1.3) * .08, Math.atan2(-sv, su), Math.sin(t * 1.9) * .1);
+          g.visible = ph > .05 && ph < .8;
+        }
       },
     },
   };
