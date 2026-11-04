@@ -56,7 +56,7 @@ export default {
     ...EMBER.look,
     fogStart: [600, 3200], fogBase: { near: 800, far: 3200 },
     groundMap: { ...EMBER.look.groundMap, paved: { main: 8, major: 6, minor: 4 }, cobble: [.29, .25, .21],
-      pavedSites: ['square', 'fountain', 'frauenkirche', 'rathaus', 'sebald', 'lorenz', 'church', 'durer', 'towerhouse', 'gatetower', 'inn', 'mauthalle', 'fantasy'] },
+      pavedSites: ['square', 'fountain', 'frauenkirche', 'rathaus', 'sebald', 'lorenz', 'church', 'durer', 'towerhouse', 'gatetower', 'inn', 'mauthalle'] },
     clouds: [{ ...EMBER.look.clouds[0], y0: 700, y1: 950, tile: 4400 }],
   },
   styles: {
@@ -66,7 +66,7 @@ export default {
     wallSkins: ['stone', 'timber'], slots: { skin: { stone: [3, .5], timber: [1, 3], plaster: [1, 1.5] } },
   },
   kits: {
-    families: ['town', 'civic', 'churches', 'fortress', 'fantasy'], districts: [], finds: [], ownTiers: ['burg', 'sebald', 'lorenz', 'lorenz-ost', ...SUBURBS],
+    families: ['town', 'civic', 'churches', 'fortress'], districts: [], finds: [], ownTiers: ['burg', 'sebald', 'lorenz', 'lorenz-ost', ...SUBURBS],
     blockZones: Z => Z.districts.map(Z.districtZone),
     cityTune: EMBER.kits.cityTune,
   },
