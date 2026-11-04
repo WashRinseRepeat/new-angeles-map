@@ -165,7 +165,7 @@ export function eggs(H, land, SEA) {
     }
   }
 
-  // ---------- the Estero Salado serpent: three humps glide on a slow circle, and once a minute a long neck rises ----------
+  // ---------- the Estero Salado serpent: three humps and a raised neck glide on a slow circle ----------
 
   {
     const [X, Z] = [1430, 3960], RAD = 28, skin = new THREE.MeshStandardMaterial({ color: new THREE.Color(.03, .06, .04), roughness: .35, metalness: .15 });
@@ -186,14 +186,13 @@ export function eggs(H, land, SEA) {
     out.push(beast);
     const ring = lightPool(X, WATER_Y + .05, Z, 1, [.12, .16, .16]);
     anim.push(t => {
-      const q = t % 60, up = H.smooth(30, 33.5, q) * (1 - H.smooth(41, 44.5, q)), a = t * .035;
-      beast.position.set(X + Math.cos(a) * RAD, WATER_Y - 9 * (1 - up), Z + Math.sin(a) * RAD);
+      const a = t * .035;
+      beast.position.set(X + Math.cos(a) * RAD, WATER_Y + Math.sin(t * .9) * .15, Z + Math.sin(a) * RAD);
       beast.rotation.y = -a - Math.PI / 2;
       neck.rotation.z = Math.sin(t * .7) * .06;
       neck.rotation.y = Math.sin(t * .4) * .25;
       ring.position.set(beast.position.x, WATER_Y + .05, beast.position.z);
-      ring.scale.setScalar(4 + 16 * H.smooth(30, 36, q) * (1 - H.smooth(44, 47, q)));
-      ring.visible = q > 29 && q < 47;
+      ring.scale.setScalar(14 + Math.sin(t * .9) * 2);
     });
   }
 
