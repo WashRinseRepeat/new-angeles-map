@@ -4,6 +4,10 @@ An interactive 3D night map of New Angeles, the city of the Android universe. Fl
 cards of over a hundred landmarks, ride the maglev lines and listen to a narrated audio guide. It runs in the
 browser with no build step.
 
+The engine behind it knows no setting. It also draws two medieval cities by day and by night, with sun shadows,
+a day clock and terrain. Emberford is an invented market town, and Nuremberg is the real city around 1500, at true
+scale. See [Medieval settings](#medieval-settings).
+
 ![The city at night, from Esmeraldas up to the Root](docs/city.jpg)
 
 ## Features
@@ -25,8 +29,8 @@ browser with no build step.
 - **Search, atlas and minimap.** Search finds any landmark or district, the atlas lists them by district, and the
   minimap jumps anywhere.
 - **Mouse, trackpad and touch.** Phones and tablets work, and quality adapts to the device.
-- **Other settings.** The engine draws any city from a setting pack. Emberford, a medieval market town, and
-  Nuremberg around 1500, traced at true scale, ship as further examples.
+- **Other settings.** The engine draws any city from a setting pack. Two medieval packs ship with it, with a day
+  clock, sun shadows and terrain. See [Medieval settings](#medieval-settings).
 - **Smooth edges.** A switch in the corner renders at 1.5 times the screen's pixel ratio and adds SMAA, for
   fast graphics cards.
 
@@ -37,6 +41,48 @@ browser with no build step.
 | ![A maglev ride through Base de Cayambe](docs/maglev-ride.jpg) | ![The audio guide with subtitles](docs/audio-guide.jpg) |
 | A maglev ride through Base de Cayambe | The audio guide with subtitles |
 
+## Medieval settings
+
+Two pages show the engine with a medieval kit instead of the cyberpunk one:
+
+| Page | City |
+|---|---|
+| [`nuremberg.html`](https://washrinserepeat.github.io/new-angeles-map/nuremberg.html) | Nuremberg around 1500, traced at true scale from the real wall, river, streets and landmarks |
+| [`emberford.html`](https://washrinserepeat.github.io/new-angeles-map/emberford.html) | Emberford, an invented walled market town on a hill, under a castle |
+
+Both share the same features:
+
+- **Time of day.** A slider in the corner sets the hour, and its play button runs the day. Sun, moon, sky, fog,
+  clouds, windows and lanterns follow the clock, from a warm dawn through a clear day and a golden evening to a
+  lantern-lit night with stars.
+- **Shadows.** The sun or moon casts shadows that turn and lengthen through the day. They are sharp at a wall's foot
+  and soften with distance, and walkers and carts cast them too. Creases where walls meet the ground darken.
+- **Terrain.** The towns sit on hills. Every plot is a level platform held by a battered retaining wall, with steps
+  down to its street, and steep lanes turn into stairs. A moat runs round the wall, with bridges at the gates.
+- **A detailed ground.** Cobbled streets and squares with gutters, earth lanes with wheel ruts and puddles, mud
+  round the gates and wells, grass verges and yards. Lamp light lies on the ground and follows every slope.
+- **Building materials.** Timber frame in several patterns, plaster, coursed ashlar, rubble stone, sandstone quoins,
+  tile, slate and thatch, each drawn in the shader.
+- **Life.** Townsfolk walk the streets and crowd the market, carts with lanterns drive the roads, barges work the
+  river, and guards walk the wall.
+- **A walking tour.** The Tours tab holds a stop-by-stop walk past the town's landmarks.
+
+Nuremberg adds:
+
+- The Kaiserburg on its sandstone rock, with the Palas, the round Sinwellturm and the long Kaiserstallung.
+- St. Sebald and St. Lorenz with their twin towers, hall choirs and coloured windows, and the Frauenkirche,
+  St. Egidien, St. Jakob and St. Klara.
+- The Hauptmarkt with its stalls and the Schöner Brunnen, the Gothic town hall, the Heilig-Geist-Spital on its arches
+  over the Pegnitz, the Weinstadel with the covered Henkersteg, the Mauthalle, the Nassauer Haus and the Dürer-Haus.
+- The double wall with its roofed walk, dozens of towers, the dry moat and the four great round gate towers.
+- The Pegnitz between stone quays, with islands and five bridges.
+- About 3,700 houses of eight kinds, from five-storey patrician houses with dormer rows and oriels to timber-framed
+  craftsmen's houses, brewers' houses with hoists and small back-lane houses, each in its own stone, plaster and
+  roof colours.
+
+`?look=day` and `?look=night` hold a fixed light instead of the clock. `?time=HH:MM` opens at an hour, and
+`?cycle=<minutes>` runs a whole day in that many minutes.
+
 ## Run it
 
 Serve the folder over HTTP and open it in a browser:
@@ -45,7 +91,7 @@ Serve the folder over HTTP and open it in a browser:
 python3 -m http.server 8000
 ```
 
-Then open http://localhost:8000/. The live version runs at
+Then open http://localhost:8000/, or `nuremberg.html` and `emberford.html` for the medieval cities. The live version runs at
 https://washrinserepeat.github.io/new-angeles-map/. Three.js r160 loads from the jsDelivr CDN. Every other file is in this
 repository. Any static host works, GitHub Pages included.
 
@@ -58,6 +104,7 @@ repository. Any static host works, GitHub Pages included.
 | Touch | Drag to move, pinch to zoom, twist to turn, slide two fingers up or down to tilt |
 | <kbd>/</kbd> | Jump to search |
 | <kbd>?</kbd> or four taps on the ? button | Show the tuning panel |
+| Time slider (medieval pages) | Set the hour; the play button runs the day |
 
 ## URL options
 
@@ -68,6 +115,9 @@ repository. Any static host works, GitHub Pages included.
 | `?showcase=<family>` | Shows one kit family on an empty grid, at three style weights |
 | `?probe=live` | Shows frame time, CPU time, draw calls and uploads, with buttons to switch parts off |
 | `?probe` | Measures each part of the scene in turn |
+| `?time=17:30` | Medieval pages: opens at that hour |
+| `?cycle=4` | Medieval pages: runs a whole day in that many minutes |
+| `?look=day` or `?look=night` | Medieval pages: holds a fixed light instead of the clock |
 
 ## How it is built
 
@@ -99,12 +149,14 @@ building styles, kits, transport, audio guide and card texts. Each page names it
 | Page | Pack | Content |
 |---|---|---|
 | `index.html` | `settings/new-angeles/` | New Angeles, the full city |
-| `emberford.html` | `settings/emberford/` | Emberford, a walled medieval market town with a keep, church, market hall and a walking tour. `?look=day` shows it in daylight |
+| `emberford.html` | `settings/emberford/` | Emberford, a walled medieval market town with a keep, church, market hall and a walking tour |
 | `nuremberg.html` | `settings/nuremberg/` | Nuremberg around 1500 at true scale: the double wall, the Pegnitz, the Kaiserburg, St. Sebald, St. Lorenz, the Hauptmarkt and some 3,700 houses, with a walking tour |
 | `sandbox.html` | `settings/sandbox/` | A minimal test town that shows what the engine needs at least |
 
 To make your own setting, copy `settings/sandbox/` and its page, then change the values. `gen/town.py` writes
-a walled or open town from a short JSON file, as for Emberford. `SETTINGS.md` documents every field of a pack.
+a walled or open town from a short JSON file, as for Emberford. It also takes a traced plan (a wall outline,
+streets, sites, a river through the town and ward boundaries) and fills the blocks with lanes, as for Nuremberg.
+`SETTINGS.md` documents every field of a pack.
 
 ## Extending
 
