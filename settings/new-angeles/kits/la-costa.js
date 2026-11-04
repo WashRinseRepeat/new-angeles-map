@@ -115,11 +115,19 @@ export function kits(H) {
     // jungle scrub on its own ground, so neighbouring cells join into patches. A cell costs at most six instances.
 
     lc_fill(x, z, s, st, b, r) {
-      const [wx, wz] = toWorld(x, z), n = vnoise(wx / 80 + 17, wz / 80 + 4);
-      H.soil(x, z, s + .5, s + .5, n < .66 ? SOIL : [.016, .03, .016]);
+
+      // Filler cells sit on a square world grid, so ground and rows square to the world tile without seams.
+      // Rows run one way per patch, three to a cell, and carry on into the next cell.
+
+      const [wx, wz] = toWorld(x, z), n = vnoise(wx / 80 + 17, wz / 80 + 4), a = -(H.frame()?.a ?? 0);
+      const at = (dx, dz) => H.toLocal(wx + dx, wz + dz);
+      H.soil(x, z, s + .5, s + .5, n < .66 ? SOIL : [.016, .03, .016], a);
       if (n < .5) {
-        const c = FILL_CROPS[Math.min(3, Math.floor(vnoise(wx / 50 + 3, wz / 50 + 8) * 4))];
-        for (const o of [-3.2, 0, 3.2]) prop('box', x + o, .5, z, 2.2, .7, s - 1, c);
+        const c = FILL_CROPS[Math.min(3, Math.floor(vnoise(wx / 50 + 3, wz / 50 + 8) * 4))], east = vnoise(wx / 240 + 5, wz / 240 + 9) < .5;
+        for (const o of [-s / 3, 0, s / 3]) {
+          const [px, pz] = east ? at(0, o) : at(o, 0);
+          prop('box', px, .5, pz, east ? s : 2.2, .7, east ? 2.2 : s, c, a);
+        }
       } else if (n < .66) {
         for (const [a, c] of [[-2.5, -2.5], [2.5, -2.5], [-2.5, 2.5], [2.5, 2.5]]) tree('broad', x + a, .2, z + c, 3 + r() * 2, 2.8 + r(), r);
       } else {

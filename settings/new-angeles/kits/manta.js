@@ -904,6 +904,7 @@ export function landmarks(H) {
       at: [432, 1056], reach: 400, minSide: 30, label: 'White Beach', labelY: 30,
       build(x, z, w, d, st, r) {
         const [cx, cz] = toW(0, 0), pts = [], P = pal(st), RING = 200, shore = [];
+        const SHADE = [[.55, .12, .1], [.1, .25, .5], [.6, .48, .1], [.5, .5, .48], [.1, .42, .32]];
         for (const line of H.CITY.coast ?? []) for (let i = 0; i + 1 < line.length; i++) {
           const [ax, az] = line[i], [bx, bz] = line[i + 1], n = Math.ceil(Math.hypot(bx - ax, bz - az) / 14);
           for (let k = 0; k < n; k++) {
@@ -973,6 +974,19 @@ export function landmarks(H) {
             glow(lx + su * b - sv * a, .95, lz + sv * b + su * a, .35, 1.7, .35, dim(pick(r, P), .5));
           }
           if (i % 5 === 0) glow(lx + su * (edge + 2), .95, lz + sv * (edge + 2), .3, 1.8, .3, [.6, .8, 1.7]);
+
+          // Beach umbrellas in loose rows, each with a lounger or two beside it.
+
+          for (let k = 0; k < 2; k++) {
+            if (r() < .35) continue;
+            const a = (r() - .5) * 12, b = edge + 5 + r() * (SAND - 10), ux = lx + su * b - sv * a, uz = lz + sv * b + su * a;
+            prop('cyl', ux, 1.25, uz, .12, 2.5, .12, [.3, .3, .3]);
+            prop('cone', ux, 2.6, uz, 3.4, .8, 3.4, pick(r, SHADE));
+            for (let j = r() < .5 ? 1 : 2; j > 0; j--) {
+              const o = j === 1 ? 1.2 : -1.2;
+              prop('box', ux - sv * o + su * .8, .3, uz + su * o + sv * .8, .7, .25, 1.9, [.45, .44, .4], Math.atan2(su, sv));
+            }
+          }
         });
 
         // Ribbons join neighbouring shore points into quads. They break where the coast leaves the beach
@@ -1006,7 +1020,7 @@ export function landmarks(H) {
         shore.forEach(q => { q[5] += SAND; });
 
         // Surf: three foam ribbons a third of a cycle apart, just above the sea. update() rolls each one in from
-        // 25 m beyond the sand, widens it as it breaks and fades it at the sand's edge.
+        // 22 m beyond the sand, widens it as it breaks and fades it as it runs up under the sand's edge.
 
         SURF.shore = shore;
         // Foam fades out over the last three points before each ribbon end or break.
@@ -1030,8 +1044,8 @@ export function landmarks(H) {
       },
       update(t) {
         SURF.waves?.forEach((m, k) => {
-          const ph = (t * .11 + k / 3) % 1, out = 25 - ph * 23, th = .4 + 2.2 * ph * ph, p = m.geometry.attributes.position;
-          m.material.color.setRGB(.55, .65, .7).multiplyScalar(Math.sin(Math.PI * ph) ** 1.5);
+          const ph = (t * .11 + k / 3) % 1, out = 22 - ph * 24, th = .4 + 2.2 * ph * ph, p = m.geometry.attributes.position;
+          m.material.color.setRGB(.55, .65, .7).multiplyScalar(H.smooth(0, .35, ph) * (1 - H.smooth(.85, 1, ph)));
           SURF.shore.forEach(([lx, lz, su, sv, , edge], i) => {
             const o0 = edge + out - th / 2, o1 = edge + out + th / 2;
             p.setXYZ(i * 2, lx + su * o0, -1.75, lz + sv * o0);
