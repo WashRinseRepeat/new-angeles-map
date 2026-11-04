@@ -58,32 +58,6 @@ export function sights(G) {
     }
   };
 
-  // BRIDGE holds the traffic lights. update() writes their matrices straight into the instance buffer.
-
-  const BRIDGE = { cars: null, lanes: null };
-  const carM = (e, o, x, y, z, dx, dz, sx, sy, sz) => {
-    e[o] = dz * sx; e[o + 1] = 0; e[o + 2] = -dx * sx; e[o + 3] = 0;
-    e[o + 4] = 0; e[o + 5] = sy; e[o + 6] = 0; e[o + 7] = 0;
-    e[o + 8] = dx * sz; e[o + 9] = 0; e[o + 10] = dz * sz; e[o + 11] = 0;
-    e[o + 12] = x; e[o + 13] = y; e[o + 14] = z; e[o + 15] = 1;
-    return o + 16;
-  };
-  const moveCars = t => {
-    const { cars, lanes } = BRIDGE;
-    if (!cars) return;
-    const e = cars.instanceMatrix.array;
-    let o = 0;
-    for (let q = 0; q < lanes.length; q++) {
-      const ln = lanes[q], ph = ln[7];
-      for (let k = 0; k < ph.length; k++) {
-        const s = (ph[k] + t * ln[5]) % ln[6];
-        o = carM(e, o, ln[0] + ln[3] * (s + 1.7), ln[1], ln[2] + ln[4] * (s + 1.7), ln[3], ln[4], 1.5, .4, .6);
-        o = carM(e, o, ln[0] + ln[3] * (s - 1.7), ln[1], ln[2] + ln[4] * (s - 1.7), ln[3], ln[4], 1.5, .35, .45);
-      }
-    }
-    cars.instanceMatrix.needsUpdate = true;
-  };
-
   return {
     // Estero Salado is a toxic lobe of the Waterways off the Daule bank. Black-brown water carries a bacterial
     // sheen that pulses slowly, and goop strands tangle across it. No traffic comes in. A punishment boat sits
@@ -229,16 +203,17 @@ export function sights(G) {
       },
     },
 
-    // Puente Alterno Sur is one of the newer traffic bridges across the Waterways. It has a cable-stayed concrete
-    // deck on twin-column piers, LED lamps, lit stays and four lanes of moving head and tail lights. North of it on the
-    // Daule bank, chained ship-flats hold a hulk burning after a fight with river workers.
+    // Puente Alterno Sur carries the southern highway across the estuary below the city. The highway brings the deck,
+    // the piers and the traffic. The bridge adds an A-frame pylon with fans of lit stays and LED lamps on both edges.
+    // Its toll plaza keeps the old block in town. North of it on the Daule bank, chained ship-flats hold a hulk
+    // burning after a fight with river workers.
 
     gye_alterno: {
       at: [1032, 1454], label: 'Puente Alterno Sur', minSide: 24, reach: 300, labelY: 40,
       build(x, z, w, d, st, r) {
         const F = facing(x, z), sp = F.span(w, d), LED = [1.4, 1.32, 1.15];
 
-        // The claimed block is an approach plaza with a lit toll canopy over three booths.
+        // The claimed block is the toll plaza, with a lit canopy over three booths.
 
         prop('box', x, .1, z, w, .2, d, [.05, .05, .055]);
         F.box(0, 0, 6, 8, .5, sp * .8, [.14, .14, .15]);
@@ -249,29 +224,13 @@ export function sights(G) {
         }
         for (const s of [-1, 1]) F.box(0, s * sp * .4, 3, .5, 6, .5, [.15, .15, .16], 'cyl');
         if (!shore()) return;
-        const ZB = 3832, b = banks(ZB);
-        if (!b) return;
-        const X0 = b[0] - 16, X1 = b[1] + 16, LB = X1 - X0, XM = (X0 + X1) / 2, DY = 17, TOP = DY + .9;
-        const DECK = [.13, .13, .14], PIER = [.1, .1, .105], STAY = [.22, .26, .34], PT = 84;
 
-        // The deck sits on a box girder between two abutments, with a median and rails that carry an LED line.
+        // The highway's straight span over the estuary, in world metres: z, the two banks and the deck top.
+        // gen/gen.ts lays the highway on the same line.
 
-        P('box', XM, DY, ZB, LB, 1.8, 24, DECK);
-        P('box', XM, DY - 2.1, ZB, LB, 2.4, 13, PIER);
-        for (const s of [-1, 1]) {
-          P('box', XM, TOP + .55, ZB + s * 11.6, LB, 1.1, .4, [.16, .16, .17]);
-          Gl(XM, TOP + .2, ZB + s * 11.85, LB, .14, .14, dim(LED, .35));
-        }
-        P('box', XM, TOP + .4, ZB, LB, .8, .7, [.15, .15, .16]);
-        for (const X of [X0 + 6, X1 - 6]) P('box', X, DY / 2, ZB, 12, DY, 26, CONC);
-
-        // Twin-column piers keep clear of the pylon.
-
-        for (let X = X0 + 50; X < X1 - 40; X += 58) {
-          if (Math.abs(X - XM) < 30) continue;
-          for (const s of [-1, 1]) P('cyl', X, (DY - 3) / 2, ZB + s * 5.5, 2.6, DY - 3, 2.6, PIER);
-          P('cyl', X, .4, ZB, 7, 1, 18, [.07, .07, .075]);
-        }
+        const ZB = 4400, X0 = 1130, X1 = 1600, XM = (X0 + X1) / 2, TOP = 26.3, EDGE = 8;
+        const PIER = [.1, .1, .105], STAY = [.22, .26, .34], PT = 92;
+        for (const s of [-1, 1]) Gl(XM, TOP + .3, ZB + s * (EDGE - .2), X1 - X0, .14, .14, dim(LED, .35));
 
         // An A-frame pylon at mid-span with uplit legs and a beacon. Fans of lit stays run to both deck edges.
 
@@ -279,38 +238,22 @@ export function sights(G) {
           Bm([XM, 0, ZB + s * 17], [XM, PT, ZB + s * 1.6], 3.2, [.16, .16, .17]);
           Bm([XM + 1.7, 2, ZB + s * 16.8], [XM + 1.7, PT - 2, ZB + s * 1.9], .25, dim(LED, .3), 'glow');
         }
-        P('box', XM, DY - 3.6, ZB, 3, 2, 30, PIER);
+        P('box', XM, TOP - 4.5, ZB, 3, 2, 30, PIER);
         P('box', XM, PT + 1.5, ZB, 3.6, 3, 5, [.16, .16, .17]);
         { const [px, pz] = toLocal(XM, ZB); beacon(px, PT + 3.6, pz, r); }
         for (const s of [-1, 1]) for (let k = 0; k < 6; k++) {
           const y = PT - 4 - k * 2.2, zl = 17 - 15.4 * y / PT;
-          for (const dir of [-1, 1]) Bm([XM, y, ZB + s * zl], [XM + dir * (24 + k * 22), TOP + .3, ZB + s * 10.6], .22, STAY, 'glow');
+          for (const dir of [-1, 1]) Bm([XM, y, ZB + s * zl], [XM + dir * (24 + k * 22), TOP + .3, ZB + s * (EDGE - .4)], .22, STAY, 'glow');
         }
 
         // LED lamps line both edges and light the water below.
 
         for (let X = X0 + 14; X < X1 - 8; X += 24) for (const s of [-1, 1]) {
-          P('cyl', X, TOP + 4.5, ZB + s * 11.2, .25, 9, .25, [.2, .2, .21]);
-          P('box', X, TOP + 9, ZB + s * 10.4, .5, .25, 1.8, [.2, .2, .21]);
-          Gl(X, TOP + 8.8, ZB + s * 10.3, .45, .12, 1.4, LED);
-          if (X > b[0] + 10 && X < b[1] - 10 && (X - X0) % 48 < 24) Po(X, ZB + s * 17, 10, dim(LED, .05));
+          P('cyl', X, TOP + 4.5, ZB + s * (EDGE + .3), .25, 9, .25, [.2, .2, .21]);
+          P('box', X, TOP + 9, ZB + s * (EDGE - .5), .5, .25, 1.8, [.2, .2, .21]);
+          Gl(X, TOP + 8.8, ZB + s * (EDGE - .6), .45, .12, 1.4, LED);
+          if ((X - X0) % 48 < 24) Po(X, ZB + s * 17, 10, dim(LED, .05));
         }
-
-        // Head and tail lights drive on the right in four lanes. update() moves them.
-
-        const N = 20, lanes = [];
-        for (const [off, dx] of [[-8.4, -1], [-4.8, -1], [4.8, 1], [8.4, 1]]) {
-          const [sx, sz] = toLocal(dx > 0 ? X0 + 10 : X1 - 10, ZB + off), [ux, uz] = dirL(dx, 0), len = LB - 20;
-          lanes.push([sx, TOP + .8, sz, ux, uz, 13 + r() * 6, len, Array.from({ length: N }, (_, k) => (k + r() * .6) * len / N)]);
-        }
-        const cars = new THREE.InstancedMesh(GLOWS.sphere.geometry, GLOWS.sphere.material, lanes.length * N * 2);
-        const HEAD = new THREE.Color(1.7, 1.55, 1.25), TAIL = new THREE.Color(1.8, .09, .05);
-        for (let i = 0; i < cars.count; i++) cars.setColorAt(i, i % 2 ? TAIL : HEAD);
-        cars.userData.noTile = true;
-        cars.frustumCulled = false;
-        H.decor.add(cars);
-        Object.assign(BRIDGE, { cars, lanes });
-        moveCars(0);
 
         // A row of chained hulls with deck shacks lies off the Daule bank. The middle one burns.
 
@@ -367,7 +310,6 @@ export function sights(G) {
         }
         return { focus: toLocal(XM, ZB), span: 340, face: dirL(0, 1) };
       },
-      update(t) { moveCars(t); },
     },
 
     // Pocket harbours on the west bank in sight of El Puente. Alleys end at crumbling concrete moles round small
