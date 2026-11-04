@@ -285,8 +285,10 @@ const SEBALD = ['nb_patrician', 'nb_patrician', 'nb_shop', 'nb_shop', 'nb_gables
 const LORENZ = ['nb_patrician', 'nb_shop', 'nb_shop', 'nb_gablestone', 'nb_timber', 'nb_timber', 'nb_brewer', 'nb_small', 'ef_workshop'];
 const OST = ['nb_timber', 'nb_timber', 'nb_small', 'nb_small', 'nb_brewer', 'ef_workshop', 'ef_workshop', 'nb_garden'];
 const SUBURB = ['ef_cottage', 'ef_cottage', 'ef_workshop', 'nb_small', 'nb_garden', 'nb_garden'];
+const VILLAGE = ['ef_cottage', 'ef_cottage', 'nb_small', 'nb_small', 'nb_timber', 'ef_workshop', 'nb_garden'];
 const all = list => ({ 0: list, 1: list, 2: list });
 export const tiers = {
   burg: all(BURG), sebald: all(SEBALD), lorenz: all(LORENZ), 'lorenz-ost': all(OST),
   ...Object.fromEntries(SUBURBS.map(id => [id, all(SUBURB)])),
+  rebenhain: all(VILLAGE),
 };

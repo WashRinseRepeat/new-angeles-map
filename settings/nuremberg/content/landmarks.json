@@ -155,5 +155,20 @@
       "A cathedral that no chronicle records. Legend says the masons raised it over the cave where a lindworm slept, and that the beast woke when the last spire was set.",
       "It did not leave. It coils round the crossing tower and watches the city, and the chapter pays it in wine and candles."
     ]
+    },
+  "Burg Himmelsfels": {
+    "kicker": "Castle",
+    "category": "civic",
+    "text": [
+      "The castle on the Rebenberg, 300 m over the city. Its pale towers can be seen from every street in Nuremberg, and its outer walls step down the hill toward the vineyards.",
+      "The Burgweg winds once round the summit to its gate. The lords of Himmelsfels take their tithe in wine."
+    ]
+  },
+  "St. Urban": {
+    "kicker": "Church",
+    "category": "civic",
+    "text": [
+      "The vintners' church of Rebenhain, given to St. Urban, who keeps the vines from frost. The village carries his statue through the vineyards each spring."
+    ]
   }
 }

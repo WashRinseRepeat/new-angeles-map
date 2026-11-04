@@ -52,6 +52,8 @@ A town traced from a real plan gives its own outline, streets and sites, and tur
                      round islands, in place of bearing and dist
     cuts [...]       polylines that cut the wall's outline into wards; each of districts then gives at [x, z], a
                      point in its piece, in place of from and to
+    villages [...]   {id, name, poly}: villages past the wall, each a ward of its own whose streets take plots
+    features {...}   copied into city.json as it is, for the pack's kits (such as vineyard outlines)
 """
 
 import json
@@ -382,7 +384,8 @@ if P.get('infill'):
 # A 1 m occupancy grid holds the streets, the square, the sites and the plots laid so far. Main streets take
 # their frontage first, then the ring and the inner lanes, then the minor lanes.
 
-EXT = int(R * 1.4) + 100 + int(SUB['length'])
+VILLAGES = P.get('villages', [])
+EXT = max([int(R * 1.4) + 100 + int(SUB['length'])] + [int(abs(v)) + 60 for g in VILLAGES for p in g['poly'] for v in p])
 taken = bytearray((2 * EXT) ** 2)
 
 
@@ -421,7 +424,7 @@ def clear(fx, fz, tx, tz, nx, nz, w, d, out=False):
             k = cell(px, pz)
             if k is None or taken[k] or in_site(px, pz, 3) or math.hypot(px, pz) < SQ + 3:
                 return False
-            if not (suburb(px, pz) if out else inside(px, pz, 6)):
+            if not (suburb(px, pz) if out else inside(px, pz, 6)) and not any(point_in(px, pz, g['poly']) for g in VILLAGES):
                 return False
     return True
 
@@ -564,6 +567,8 @@ for l in streets['main']:
     deg = str(round(g / DEG) % 360)
     districts.append({'id': f'suburb-{deg}', 'name': SUB['names'].get(deg, 'Suburb'), 'poly': left + right[::-1]})
 
+districts += [{'id': g['id'], 'name': g['name'], 'poly': g['poly'], 'kind': 'village'} for g in VILLAGES]
+
 # Country roads: each gate road runs on from its end, wandering, out to far metres from the centre.
 
 roads = []
@@ -589,6 +594,8 @@ city = {
 }
 if P.get('relief'):
     city['relief'] = P['relief']
+if P.get('features'):
+    city['features'] = P['features']
 if P.get('walls', True):
     city['paths'] = [{'name': 'wall walk', 'line': resample(WALL + WALL[:1], 4), 'lift': 8, 'n': P.get('guards', 24)}]
     city['wall'] = [[round(x, 1), round(z, 1)] for x, z in WALL]

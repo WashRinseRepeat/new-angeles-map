@@ -30,5 +30,6 @@
   "suburb-186": { "kicker": "Suburb", "text": ["Mills and houses outside the Hallertor."] },
   "suburb-215": { "kicker": "Suburb", "text": ["Gardens and houses outside the Neutor."] },
   "suburb-235": { "kicker": "Suburb", "text": ["St. Johannis, with its churchyard where Dürer is buried, out past the Tiergärtnertor."] },
-  "suburb-346": { "kicker": "Suburb", "text": ["Wöhrd, a village of weavers outside the Laufer Tor."] }
+  "suburb-346": { "kicker": "Suburb", "text": ["Wöhrd, a village of weavers outside the Laufer Tor."] },
+  "rebenhain": { "kicker": "Village", "text": ["A vintners’ village on the terraces of the Rebenberg, under Burg Himmelsfels. Its lanes climb the hill in flights of steps."] }
 }

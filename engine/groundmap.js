@@ -20,6 +20,7 @@
 //   wall               on a relief, the retaining walls' colour as [r, g, b]
 
 import * as THREE from 'three';
+import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CENTRE, CENTRE_R, CITY } from './core.js';
 import { SETTING } from './setting.js';
 import { WATER_MAT, scene, surface } from './render.js';
@@ -32,7 +33,7 @@ const G = SETTING.look.groundMap && {
 };
 
 // Four masks, one per channel: R paved, G lots, B the trodden track, A the town at full and the country at 0.6:
-// the gate roads, the lots past the wall (suburb wards, named suburb-…) and, on a relief with a moat, a band round
+// the gate roads, the lots past the wall (suburb wards, named suburb-…, and village wards) and, on a relief with a moat, a band round
 // the wall. The country is grass but for its roads. Each is drawn white on
 // black in its own canvas and blurred a little, so edges blend over a texel or two.
 
@@ -84,7 +85,7 @@ function plan(px = G.px) {
       if (CITY.relief?.moat && CITY.wall?.length) { const m = CITY.relief.moat; line(g, [...CITY.wall, CITY.wall[0]], 2 * ((m.offset ?? 9) + (m.width ?? 12) / 2 + 20)); }
       for (const [kind, lines] of streets) for (const L of lines) line(g, L, (G.paved[kind] ?? G.track) + 2);
       g.fillStyle = '#fff';
-      for (const d of CITY.districts) if (!d.id.startsWith('suburb-')) poly(g, d.poly);
+      for (const d of CITY.districts) if (!d.id.startsWith('suburb-') && d.kind !== 'village') poly(g, d.poly);
       g.fillStyle = '#999';
       for (const P of CITY.blocks) poly(g, P);
     }),
@@ -220,20 +221,44 @@ const GROUND_GLSL = `
   }
 `;
 
-// On a relief the ground is a grid over the bounds of the wards and the streets, each vertex at the ground's height there. Lot edges fall
-// between vertices, so the grid leans across them for a cell; the retaining walls stand over that lean.
+// On a relief the ground is a grid in 48 m tiles, laid only where a ward or a street is near, each vertex at the
+// ground's height there. Lot edges fall between vertices, so the grid leans across them for a cell; the retaining
+// walls stand over that lean.
 
+const TILE = 48;
 function draped() {
-  const ps = [...CITY.districts.flatMap(d => d.poly), ...Object.values(CITY.streets).flat(2)], pad = 45;
-  const x0 = Math.min(...ps.map(p => p[0])) - pad, x1 = Math.max(...ps.map(p => p[0])) + pad;
-  const z0 = Math.min(...ps.map(p => p[1])) - pad, z1 = Math.max(...ps.map(p => p[1])) + pad;
-  const nx = Math.ceil((x1 - x0) / G.mesh), nz = Math.ceil((z1 - z0) / G.mesh);
-  const geo = new THREE.PlaneGeometry(x1 - x0, z1 - z0, nx, nz).rotateX(-Math.PI / 2).translate((x0 + x1) / 2, 0, (z0 + z1) / 2);
+  const keep = new Set(), key = (i, j) => `${i},${j}`, pad = 45;
+  const near = (x, z, r) => {
+    for (let i = Math.floor((x - r) / TILE); i <= Math.floor((x + r) / TILE); i++)
+      for (let j = Math.floor((z - r) / TILE); j <= Math.floor((z + r) / TILE); j++) keep.add(key(i, j));
+  };
+  for (const L of Object.values(CITY.streets).flat()) for (const [x, z] of L) near(x, z, 12);
+  for (const { poly } of CITY.districts) {
+    const xs = poly.map(p => p[0]), zs = poly.map(p => p[1]);
+    for (let i = Math.floor((Math.min(...xs) - pad) / TILE); i <= Math.floor((Math.max(...xs) + pad) / TILE); i++)
+      for (let j = Math.floor((Math.min(...zs) - pad) / TILE); j <= Math.floor((Math.max(...zs) + pad) / TILE); j++) {
+        const cx = (i + .5) * TILE, cz = (j + .5) * TILE;
+        if (inPoly(poly, cx, cz) || poly.some(([x, z]) => Math.abs(x - cx) < TILE / 2 + pad && Math.abs(z - cz) < TILE / 2 + pad)) keep.add(key(i, j));
+      }
+  }
+  const n = Math.round(TILE / G.mesh), tiles = [...keep].map(k => {
+    const [i, j] = k.split(',').map(Number);
+    return new THREE.PlaneGeometry(TILE, TILE, n, n).rotateX(-Math.PI / 2).translate((i + .5) * TILE, 0, (j + .5) * TILE);
+  });
+  const geo = mergeVertices(mergeGeometries(tiles.map(g => { g.deleteAttribute('uv'); return g; })), .01);
   const pos = geo.attributes.position;
   for (let i = 0; i < pos.count; i++) pos.setY(i, terrainAt(pos.getX(i), pos.getZ(i)) + .03);
   geo.computeVertexNormals();
   return geo;
 }
+const inPoly = (P, x, z) => {
+  let a = false;
+  for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+    const [xi, zi] = P[i], [xj, zj] = P[j];
+    if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) a = !a;
+  }
+  return a;
+};
 
 export const ground = G && (() => {
   const [ox, oz] = CITY.origin, [dx, dz] = CITY.dims;

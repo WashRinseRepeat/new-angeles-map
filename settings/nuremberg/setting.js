@@ -15,6 +15,7 @@ const SEBALD = { ...WARD, w: 1, lit: .32, base: [.32, .23, .17], win: [1, .72, .
 const LORENZ = { ...WARD, w: .9, lit: .3, base: [.33, .24, .17], win: [1, .7, .38] };
 const OST = { ...WARD, w: .5, lit: .26, base: [.3, .22, .15], win: [1, .66, .32] };
 const SUBURB = { ...WARD, w: .5, lit: .18, base: [.28, .21, .14], win: [1, .66, .32], h0: 4, h1: 8 };
+const VILLAGE = { ...WARD, w: .5, lit: .2, base: [.3, .23, .15], win: [1, .68, .34], h0: 4, h1: 9 };
 
 // gen/town.py names a suburb's ward suburb-<gate bearing>, so the ids follow town.json's gates.
 
@@ -55,18 +56,18 @@ export default {
   look: {
     ...EMBER.look,
     fogStart: [600, 3200], fogBase: { near: 800, far: 3200 },
-    groundMap: { ...EMBER.look.groundMap, paved: { main: 8, major: 6, minor: 4 }, cobble: [.29, .25, .21],
-      pavedSites: ['square', 'fountain', 'frauenkirche', 'rathaus', 'sebald', 'lorenz', 'church', 'durer', 'towerhouse', 'gatetower', 'inn', 'mauthalle', 'fantasy'] },
+    groundMap: { ...EMBER.look.groundMap, px: 1, paved: { main: 8, major: 6, minor: 4 }, cobble: [.29, .25, .21],
+      pavedSites: ['hillcastle', 'square', 'fountain', 'frauenkirche', 'rathaus', 'sebald', 'lorenz', 'church', 'durer', 'towerhouse', 'gatetower', 'inn', 'mauthalle', 'fantasy'] },
     clouds: [{ ...EMBER.look.clouds[0], y0: 700, y1: 950, tile: 4400 }],
   },
   styles: {
     axis: [BURG, SEBALD],
-    styles: { burg: BURG, sebald: SEBALD, lorenz: LORENZ, 'lorenz-ost': OST, ...Object.fromEntries(SUBURBS.map(id => [id, SUBURB])) },
+    styles: { burg: BURG, sebald: SEBALD, lorenz: LORENZ, 'lorenz-ost': OST, ...Object.fromEntries(SUBURBS.map(id => [id, SUBURB])), rebenhain: VILLAGE },
     quarters: {}, cores: [], blend: 40,
     wallSkins: ['stone', 'timber'], slots: { skin: { stone: [3, .5], timber: [1, 3], plaster: [1, 1.5] } },
   },
   kits: {
-    families: ['town', 'civic', 'churches', 'fortress', 'fantasy'], districts: [], finds: [], ownTiers: ['burg', 'sebald', 'lorenz', 'lorenz-ost', ...SUBURBS],
+    families: ['town', 'civic', 'churches', 'fortress', 'fantasy', 'hillcastle', 'vineyard'], districts: [], finds: [], ownTiers: ['burg', 'sebald', 'lorenz', 'lorenz-ost', ...SUBURBS, 'rebenhain'],
     blockZones: Z => Z.districts.map(Z.districtZone),
     cityTune: EMBER.kits.cityTune,
   },
