@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="setting" content="nuremberg">
+<meta name="robots" content="noindex">
+<title>Nuremberg 1500 · Map engine</title>
+<meta name="standalone">
+<meta name="description" content="The free imperial city of Nuremberg around 1500, inside its double wall, at true scale.">
+<link rel="icon" type="image/svg+xml" href="icons/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="theme-color" content="#05060c">
+<link rel="stylesheet" href="ui.css">
+<link rel="stylesheet" href="settings/nuremberg/theme.css">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="loading"><div class="box">
+  <div class="logo" aria-hidden="true"><div class="orbit a"></div><div class="orbit b"></div><div class="coin"><div class="face">N</div></div></div>
+  <h1>Nuremberg<span>loading…</span></h1>
+  <div class="lines" id="loadLines"></div>
+  <small id="loadMsg">Loading the city</small>
+</div></div>
+<script>
+  (() => {
+    const lines = [
+      'Walking the double wall',
+      'Raising the Hauptmarkt stalls',
+      'Lighting the lanterns at the Tiergärtnertor',
+      'Ringing the bells of St. Sebald',
+    ].sort(() => Math.random() - .5);
+    const slot = 2.4, T = slot * lines.length, on = slot / T * 100;
+    const css = document.createElement('style');
+    css.textContent = `@keyframes nbn-line { 0% { opacity: 0; transform: translateY(6px); } ${on * .15}% { opacity: 1; transform: none; } ${on * .85}% { opacity: 1; transform: none; } ${on}% { opacity: 0; transform: translateY(-6px); } 100% { opacity: 0; } }`;
+    document.head.appendChild(css);
+    const box = document.getElementById('loadLines');
+    lines.forEach((t, i) => {
+      const s = document.createElement('span');
+      s.textContent = t;
+      s.style.animation = `nbn-line ${T}s ${i * slot}s infinite`;
+      box.appendChild(s);
+    });
+  })();
+</script>
+<details id="hud" open>
+  <summary><h1>Nuremberg</h1></summary>
+  <label>Border blend width <small class="def">(230)</small>: <span id="bv">230</span>
+    <input id="blend" type="range" min="5" max="500" value="230">
+  </label>
+  <div class="hint" id="stats"></div>
+  <div class="hint">Quality <select id="quality"><option value="auto">Auto</option><option value="ultra">Ultra</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select> <span id="fps"></span></div>
+  <details id="tune" hidden>
+    <summary>Tuning</summary>
+    <div class="tabs" id="ttabs"></div>
+    <div id="sliders"></div>
+    <div class="row"><button id="tcopy">Copy values</button><button id="treset">Reset</button></div>
+  </details>
+</details>
+<button id="compass" aria-label="Turn north up"><svg viewBox="0 0 44 44">
+  <circle cx="22" cy="22" r="20" fill="rgba(6, 9, 18, .8)" stroke="#23435a"/>
+  <circle cx="22" cy="22" r="15" fill="none" stroke="#1d3546" stroke-dasharray="1 3.71"/>
+  <g id="needle">
+    <path d="M22 9 L26 22 L18 22 Z" fill="#ff5a6e"/><path d="M22 35 L26 22 L18 22 Z" fill="#2c5870"/>
+    <circle cx="22" cy="22" r="1.6" fill="#dfeaf2"/>
+    <text x="22" y="7.6" text-anchor="middle" font-family="system-ui" font-size="6.5" font-weight="700" fill="#ffd0d6">N</text>
+  </g>
+</svg></button>
+<button id="hq" aria-pressed="false" title="Renders more pixels and smooths jagged edges. Use it on a fast graphics card.">Smooth edges</button>
+<button id="help" aria-label="Help" aria-expanded="false" aria-controls="helpPanel">?</button>
+<div id="welcome" class="panel" role="dialog" aria-labelledby="wTitle" hidden>
+  <h2 id="wTitle">Nuremberg</h2>
+  <p>Nuremberg around 1500: the castle, the two great churches, the Pegnitz and some 3,500 houses inside the double wall. A walking tour waits under Tours.</p>
+  <div class="row"><button class="on" id="wTour">▶ Start the audio tour</button><button id="wSkip">Explore on my own</button></div>
+</div>
+<div id="helpPanel" class="panel" hidden>
+  <button id="helpClose" aria-label="Close help">×</button>
+  <h2>Nuremberg</h2>
+  <p>Nuremberg around 1500, traced at true scale from the real wall, river, streets and landmarks. The slider in the corner sets the hour.</p>
+  <p class="desk"><b>Mouse:</b> drag to move, right-drag to turn, scroll to zoom.<br>
+    <b>Trackpad:</b> two fingers to move, pinch to zoom, <kbd>⌥</kbd> and two fingers to turn and tilt.</p>
+  <p class="touch"><b>Touch:</b> drag to move, pinch to zoom, twist to turn. Slide two fingers up or down together to tilt.</p>
+  <p>Click a pin, a landmark or a district name to open its card. <b>Search</b> finds any place, landmark or district.<span class="desk"> <kbd>/</kbd> jumps to it.</span></p>
+  <p><b>Filters</b> show or hide the labels and the kinds of places.</p>
+  <p><b>Atlas</b> lists every district with its places and landmarks.</p>
+  <p><b>Tours</b> replay a session stop by stop, with the camera flying from place to place.</p>
+  <p id="helpGuide" hidden>The <b>audio guide</b> waits under <b>Tours</b> whenever you want it.</p>
+  <a class="back" id="back" hidden></a>
+</div>
+<div id="nav" class="panel">
+  <div class="bar">
+    <span class="qwrap"><input id="q" type="text" placeholder="Search the city" autocomplete="off" aria-label="Search the map"><kbd>/</kbd></span>
+    <div class="tabs"><button data-tab="filters">Filters</button><button data-tab="atlas">Atlas</button><button data-tab="sessions" hidden>Tours</button><button data-tab="ride">Maglev</button></div>
+  </div>
+  <div id="results"></div>
+  <div class="body" id="chips">
+    <!-- The undercity layer stays reachable through ?layer=undercity until it is polished. -->
+    <button class="on" data-f="labels">Labels</button>
+    <span class="sep"></span>
+    <button class="on" data-f="food">Food &amp; drink</button><button class="on" data-f="shop">Shops</button><button class="on" data-f="corp">Corp &amp; industry</button><button class="on" data-f="civic">Civic &amp; sights</button>
+  </div>
+  <div class="body" id="atlas"></div>
+  <div class="body" id="sessions"></div>
+  <div class="body" id="ridePick"></div>
+</div>
+<div id="tour" class="panel" hidden>
+  <button id="tExit" aria-label="End tour">×</button>
+  <div class="kicker" id="tKick"></div>
+  <h2 id="tName"></h2>
+  <h3 id="tHead"></h3>
+  <p id="tText"></p>
+  <a id="tRecap" target="_blank">Read in recap →</a><a id="tLoc" target="_blank">Location page →</a>
+  <div class="row"><button id="tPrev">← Prev</button><button id="tNext">Next →</button></div>
+</div>
+<div id="atSub" hidden></div>
+<div id="atour" class="panel" hidden>
+  <div class="hd">
+    <div><div class="kicker" id="atKick"></div><h2 id="atTitle"></h2><div id="atStop"></div></div>
+    <button id="atClose" aria-label="End audio guide">×</button>
+  </div>
+  <div class="track"><input id="atSeek" type="range" min="0" max="100" step="0.1" value="0" aria-label="Position"><div id="atTicks"></div></div>
+  <div class="row">
+    <button id="atBack" aria-label="Back 15 seconds">↺ 15</button>
+    <button id="atPlay" aria-label="Play or pause">▶</button>
+    <button id="atFwd" aria-label="Forward 15 seconds">15 ↻</button>
+    <span id="atTime">0:00</span>
+    <button id="atSpeed" aria-label="Playback speed">1×</button>
+    <button id="atCC" aria-label="Subtitles" aria-pressed="false">CC</button>
+  </div>
+  <button id="atFollow" hidden>Follow the tour</button>
+</div>
+<div id="ride" class="panel" hidden>
+  <div class="hd">
+    <div><div class="kicker" id="rLine"></div><h2 id="rNext"></h2><div id="rWhere"></div></div>
+    <button id="rExit" aria-label="Leave the train">×</button>
+  </div>
+  <div class="row"><button id="rFlip">⇄ Turn back</button><button id="rSpeed" aria-label="Train speed">1×</button><button id="rMusic" aria-label="Ride music">♪ On</button><button id="rLabels" aria-label="Map labels on the ride">Labels On</button><small>Drag to look around</small></div>
+</div>
+<div id="minimap" class="panel">
+  <button id="mmToggle">Minimap</button>
+  <svg id="mmSvg" preserveAspectRatio="xMidYMid meet"></svg>
+</div>
+<div id="card">
+  <button id="close" aria-label="Close">×</button>
+  <button id="cMin" aria-label="Minimize card">–</button>
+  <img id="cImg" alt="">
+  <div class="body">
+    <div class="kicker" id="cDist"></div>
+    <h2 id="cTitle"></h2>
+    <div class="type" id="cType"></div>
+    <div id="cSum"></div>
+    <a id="cLink" target="_blank">Open location page →</a>
+  </div>
+</div>
+
+<script>
+
+  // A browser without WebGL, a map that fails to start, or a lost graphics context shows a short notice instead of a
+  // loading screen that never ends.
+
+  (() => {
+    const notice = (title, text, again) => {
+      if (!document.getElementById('loading')) document.body.insertAdjacentHTML('beforeend', '<div id="loading"><div class="box"></div></div>');
+      const el = document.getElementById('loading'), box = el.querySelector('.box');
+      if (box.dataset.failed) return;
+      box.dataset.failed = 1;
+      el.classList.remove('done');
+      box.innerHTML = `<h1>NBN Maps<sup>®</sup><span>${title}</span></h1><p class="fail">${text}</p>`
+        + `<p class="fail">${again ? '<a href="" onclick="location.reload(); return false">Reload the map</a>' : ''}</p>`;
+    };
+    const starting = () => !!document.getElementById('loading') && !document.getElementById('loading').classList.contains('done');
+    let gl = false;
+    try { const c = document.createElement('canvas'); gl = !!(c.getContext('webgl2') || c.getContext('webgl')); } catch {}
+    if (!gl) notice('no signal', 'This browser or device cannot show the 3D map, because WebGL is off or not supported. Try another browser, or turn on hardware acceleration in its settings.');
+    addEventListener('error', () => { if (starting()) notice('signal lost', 'The 3D map could not start on this device.', true); });
+    addEventListener('unhandledrejection', () => { if (starting()) notice('signal lost', 'The 3D map could not start on this device.', true); });
+    addEventListener('webglcontextlost', () => notice('signal lost', 'Your device reset its graphics, so the map stopped drawing.', true), true);
+  })();
+</script>
+<script type="module" src="engine/ui.js"></script>
+</body>
+</html>

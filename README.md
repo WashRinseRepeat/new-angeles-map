@@ -25,8 +25,8 @@ browser with no build step.
 - **Search, atlas and minimap.** Search finds any landmark or district, the atlas lists them by district, and the
   minimap jumps anywhere.
 - **Mouse, trackpad and touch.** Phones and tablets work, and quality adapts to the device.
-- **Other settings.** The engine draws any city from a setting pack. Emberford, a medieval market town, ships
-  as a second example.
+- **Other settings.** The engine draws any city from a setting pack. Emberford, a medieval market town, and
+  Nuremberg around 1500, traced at true scale, ship as further examples.
 - **Smooth edges.** A switch in the corner renders at 1.5 times the screen's pixel ratio and adds SMAA, for
   fast graphics cards.
 
@@ -100,6 +100,7 @@ building styles, kits, transport, audio guide and card texts. Each page names it
 |---|---|---|
 | `index.html` | `settings/new-angeles/` | New Angeles, the full city |
 | `emberford.html` | `settings/emberford/` | Emberford, a walled medieval market town with a keep, church, market hall and a walking tour. `?look=day` shows it in daylight |
+| `nuremberg.html` | `settings/nuremberg/` | Nuremberg around 1500 at true scale: the double wall, the Pegnitz, the Kaiserburg, St. Sebald, St. Lorenz, the Hauptmarkt and some 3,700 houses, with a walking tour |
 | `sandbox.html` | `settings/sandbox/` | A minimal test town that shows what the engine needs at least |
 
 To make your own setting, copy `settings/sandbox/` and its page, then change the values. `gen/town.py` writes

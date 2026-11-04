@@ -1,0 +1,34 @@
+{
+  "burg": {
+    "kicker": "Quarter",
+    "text": [
+      "The steep streets under the castle. Patricians and the emperor's officers live in stone houses, and the Tiergärtnertor opens to the north-west."
+    ]
+  },
+  "sebald": {
+    "kicker": "Quarter",
+    "text": [
+      "The north half of the town, round St. Sebald, the town hall and the Hauptmarkt. The richest merchants build their houses here."
+    ]
+  },
+  "lorenz": {
+    "kicker": "Quarter",
+    "text": [
+      "The south half of the town, round St. Lorenz. Königstraße runs down from the river to the Königstor."
+    ]
+  },
+  "lorenz-ost": {
+    "kicker": "Quarter",
+    "text": [
+      "The east of the Lorenz side, with the Mauthalle, St. Klara and the workshops toward the Marientor."
+    ]
+  },
+  "suburb-44": { "kicker": "Suburb", "text": ["Houses and gardens on the road out of the Marientor."] },
+  "suburb-63": { "kicker": "Suburb", "text": ["The road south out of the Königstor, past the gallows hill."] },
+  "suburb-72": { "kicker": "Suburb", "text": ["Houses along the road out of the Frauentor."] },
+  "suburb-135": { "kicker": "Suburb", "text": ["The road west out of the Spittlertor toward Fürth."] },
+  "suburb-186": { "kicker": "Suburb", "text": ["Mills and houses outside the Hallertor."] },
+  "suburb-215": { "kicker": "Suburb", "text": ["Gardens and houses outside the Neutor."] },
+  "suburb-235": { "kicker": "Suburb", "text": ["St. Johannis, with its churchyard where Dürer is buried, out past the Tiergärtnertor."] },
+  "suburb-346": { "kicker": "Suburb", "text": ["Wöhrd, a village of weavers outside the Laufer Tor."] }
+}

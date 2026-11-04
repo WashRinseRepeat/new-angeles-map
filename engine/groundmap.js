@@ -9,6 +9,7 @@
 // look.groundMap keys, with their defaults:
 //   px .75             metres per texel of the plan
 //   paved { main: 7, major: 5 }   street kinds that are paved, and their width in metres; the square is paved too
+//   pavedSites []      kinds of city.json site whose whole footprint, and 2 m round it, is paved
 //   track 3.5          width of the trodden middle of every street, in metres
 //   cobble, earth, yard, grass   their colours as [r, g, b]; country (default grass) for the grass outside the town
 //   mud []             extra mud spots as [x, z, radius]; the gates and the centre have mud already
@@ -21,9 +22,10 @@ import { CENTRE, CENTRE_R, CITY } from './core.js';
 import { SETTING } from './setting.js';
 import { WATER_MAT, scene, surface } from './render.js';
 import { RELIEF, moatWater, terrainAt, walls } from './relief.js';
+import { POOL_SINK, pools } from './instances.js';
 
 const G = SETTING.look.groundMap && {
-  px: .75, paved: { main: 7, major: 5 }, track: 3.5, cell: .38, mesh: 1.25, wall: [.3, .28, .25],
+  px: .75, paved: { main: 7, major: 5 }, pavedSites: [], track: 3.5, cell: .38, mesh: 1.25, wall: [.3, .28, .25],
   cobble: [.24, .22, .2], earth: [.2, .16, .11], yard: [.17, .14, .1], grass: [.1, .15, .06], ...SETTING.look.groundMap,
 };
 
@@ -56,6 +58,10 @@ function plan() {
     mask(g => {
       for (const [kind, lines] of streets) if (G.paved[kind]) for (const L of lines) line(g, L, G.paved[kind]);
       if (CENTRE_R) { g.beginPath(); g.arc(CENTRE.x, CENTRE.y, CENTRE_R, 0, Math.PI * 2); g.fill(); }
+      for (const s of CITY.sites ?? []) if (G.pavedSites.includes(s.kind)) {
+        const c = Math.cos(s.rot ?? 0), n = Math.sin(s.rot ?? 0), hw = s.w / 2 + 2, hd = s.d / 2 + 2;
+        poly(g, [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]].map(([u, v]) => [s.at[0] + u * c - v * n, s.at[1] + u * n + v * c]));
+      }
     }),
     mask(g => { for (const P of CITY.blocks) poly(g, P); }),
     mask(g => { for (const [, lines] of streets) for (const L of lines) line(g, L, G.track); }),
@@ -88,7 +94,7 @@ const MUD_N = Math.max(1, MUD.length);
 
 const GROUND_GLSL = `
   #define MUD_N ${MUD_N}
-  uniform sampler2D uGroundMap; uniform vec4 uGroundBox; uniform vec3 uCobble, uEarth, uYard, uGrass, uCountry; uniform float uCell; uniform vec3 uMud[MUD_N];
+  uniform sampler2D uGroundMap, uPoolMap; uniform vec4 uGroundBox; uniform vec3 uPoolTint; uniform vec3 uCobble, uEarth, uYard, uGrass, uCountry; uniform float uCell; uniform vec3 uMud[MUD_N];
   varying vec3 vGW;
   float gHash(vec2 p) { vec3 q = fract(vec3(p.xyx) * .1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
   float gNoise(vec2 p) {
@@ -182,7 +188,8 @@ export const ground = G && (() => {
   const U = { uGroundMap: { value: plan() }, uGroundBox: { value: new THREE.Vector4(ox, oz, 1 / dx, 1 / dz) },
     uCobble: { value: new THREE.Vector3(...G.cobble) }, uEarth: { value: new THREE.Vector3(...G.earth) },
     uYard: { value: new THREE.Vector3(...G.yard) }, uGrass: { value: new THREE.Vector3(...G.grass) }, uCountry: { value: new THREE.Vector3(...G.country) },
-    uMud: { value: (MUD.length ? MUD : [[1e6, 1e6, 1]]).map(v => new THREE.Vector3(...v)) }, uCell: { value: G.cell } };
+    uMud: { value: (MUD.length ? MUD : [[1e6, 1e6, 1]]).map(v => new THREE.Vector3(...v)) }, uCell: { value: G.cell },
+    uPoolMap: { value: new THREE.DataTexture(new Uint8Array(4), 1, 1) }, uPoolTint: { value: pools.material.color } };
 
   // The surface keeps the hooks surface() gave it (holes), then swaps its flat colour for the ground's.
 
@@ -196,8 +203,44 @@ export const ground = G && (() => {
       .replace('#include <color_fragment>', `#include <color_fragment>
         float inside;
         diffuseColor.rgb = groundColour(vGW, inside);
-        if (inside < .3) discard;`);
+        if (inside < .3) discard;`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        totalEmissiveRadiance += texture2D(uPoolMap, (vGW.xz - uGroundBox.xy) * uGroundBox.zw).rgb * uPoolTint;`);
   };
   mat.customProgramCacheKey = () => 'groundmap';
+  POOL_SINK.take = src => {
+    U.uPoolMap.value.dispose();
+    U.uPoolMap.value = poolMap(src);
+  };
   return mesh;
 })();
+
+// Lamp light pools, painted into a light map at POOL_PX metres a texel, which the ground adds to its own light. On
+// the ground itself a pool follows every slope, step and terrace, where a flat disc would sink into a slope or
+// float over a step. The light falls off as the pools' disc texture does, and the clock dims it through their colour.
+
+const POOL_PX = 2;
+const fall = t => t < .3 ? 1 - t / .6 : t < .65 ? .5 - (t - .3) : .15 * (1 - t) / .35;
+function poolMap(src) {
+  const [ox, oz] = CITY.origin, [dx, dz] = CITY.dims, W = Math.ceil(dx / POOL_PX), H = Math.ceil(dz / POOL_PX);
+  const sum = new Float32Array(W * H * 3), a = src.instanceMatrix.array, rgb = src.instanceColor?.array;
+  for (let i = 0; i < src.count; i++) {
+    const o = i * 16, R = Math.hypot(a[o], a[o + 1], a[o + 2]) / 2 / POOL_PX;
+    const cx = (a[o + 12] - ox) / POOL_PX, cz = (a[o + 14] - oz) / POOL_PX;
+    for (let y = Math.max(0, Math.floor(cz - R)); y <= Math.min(H - 1, Math.ceil(cz + R)); y++)
+      for (let x = Math.max(0, Math.floor(cx - R)); x <= Math.min(W - 1, Math.ceil(cx + R)); x++) {
+        const t = Math.hypot(x + .5 - cx, y + .5 - cz) / R;
+        if (t >= 1) continue;
+        const g = fall(t), k = (y * W + x) * 3;
+        for (let c = 0; c < 3; c++) sum[k + c] += (rgb ? rgb[i * 3 + c] : 1) * g;
+      }
+  }
+  const data = new Uint16Array(W * H * 4);
+  for (let i = 0; i < W * H; i++) {
+    for (let c = 0; c < 3; c++) data[i * 4 + c] = THREE.DataUtils.toHalfFloat(sum[i * 3 + c]);
+    data[i * 4 + 3] = THREE.DataUtils.toHalfFloat(1);
+  }
+  const t = new THREE.DataTexture(data, W, H, THREE.RGBAFormat, THREE.HalfFloatType);
+  t.minFilter = t.magFilter = THREE.LinearFilter; t.needsUpdate = true;
+  return t;
+}

@@ -1,0 +1,151 @@
+{
+  "Hauptmarkt": {
+    "kicker": "Square",
+    "category": "civic",
+    "text": [
+      "The main market of the Sebald side. The council cleared the Jewish quarter in 1349 to lay it out, and the Frauenkirche rose where the synagogue stood.",
+      "Stalls fill it every day, and at Christmas the Christkindlesmarkt."
+    ]
+  },
+  "Schöner Brunnen": {
+    "kicker": "Fountain",
+    "category": "civic",
+    "text": [
+      "A Gothic spire nineteen metres high over an octagonal basin, built around 1390. Forty painted and gilded figures stand in its tiers: the electors, the nine worthies, prophets and the liberal arts."
+    ]
+  },
+  "Frauenkirche": {
+    "kicker": "Church",
+    "category": "civic",
+    "text": [
+      "The emperor's own church on the market, built for Charles IV in the 1350s. Its stepped west gable faces the square.",
+      "Since 1509 the Männleinlaufen plays at noon: seven electors walk round the emperor in the clock oriel."
+    ]
+  },
+  "Altes Rathaus": {
+    "kicker": "Town hall",
+    "category": "civic",
+    "text": [
+      "The seat of the council, where a few dozen patrician families govern the free imperial city. Prison cells lie in the vaults below."
+    ]
+  },
+  "St. Sebald": {
+    "kicker": "Church",
+    "category": "civic",
+    "text": [
+      "The parish church of the north side, with a Romanesque nave, a tall Gothic hall choir and two west towers. Peter Vischer's bronze shrine holds the bones of Saint Sebald, the city's patron."
+    ]
+  },
+  "St. Lorenz": {
+    "kicker": "Church",
+    "category": "civic",
+    "text": [
+      "The great church of the south side. Its west front holds a rose window between two towers, and its hall choir, finished in 1477, holds Adam Kraft's stone tabernacle and Veit Stoss's Angelic Salutation."
+    ]
+  },
+  "Kaiserburg": {
+    "kicker": "Castle",
+    "category": "civic",
+    "text": [
+      "The imperial castle on its sandstone rock, home to every Holy Roman Emperor who visits the city. The round Sinwellturm rises from the inner court, and the long Kaiserstallung, a granary, closes the east side."
+    ]
+  },
+  "Heilig-Geist-Spital": {
+    "kicker": "Hospital",
+    "category": "civic",
+    "text": [
+      "One of the largest hospitals of the empire, founded in 1332 by Konrad Groß. Its halls stand on arches over the Pegnitz. The imperial regalia are kept in its church."
+    ]
+  },
+  "Weinstadel": {
+    "kicker": "Hall",
+    "category": "civic",
+    "text": [
+      "A long hall on the north bank, sandstone below and two floors of timber frame above. It houses lepers and the poor. The covered Henkersteg, the hangman's bridge, crosses the river beside it."
+    ]
+  },
+  "Mauthalle": {
+    "kicker": "Granary",
+    "category": "civic",
+    "text": [
+      "The city's great granary, built in 1498 to 1502. Its huge roof holds five floors of grain behind rows of dormers. Later it serves as the customs house."
+    ]
+  },
+  "Nassauer Haus": {
+    "kicker": "Tower house",
+    "category": "civic",
+    "text": [
+      "A patrician tower house opposite St. Lorenz, with corner turrets and a Chörlein, the small oriel Nuremberg houses are known for."
+    ]
+  },
+  "Albrecht-Dürer-Haus": {
+    "kicker": "House",
+    "category": "civic",
+    "text": [
+      "Albrecht Dürer buys this house by the Tiergärtnertor in 1509 and lives and works here until his death in 1528."
+    ]
+  },
+  "St. Egidien": {
+    "kicker": "Church",
+    "category": "civic",
+    "text": [
+      "The church of the Scots monastery on the hill east of the town hall, with the Gymnasium founded by Melanchthon beside it."
+    ]
+  },
+  "St. Jakob": {
+    "kicker": "Church",
+    "category": "civic",
+    "text": [
+      "The church of the Teutonic Order in the south-west of the town."
+    ]
+  },
+  "St. Klara": {
+    "kicker": "Church",
+    "category": "civic",
+    "text": [
+      "The church of the Poor Clares, whose abbess Caritas Pirckheimer is the sister of the humanist Willibald Pirckheimer."
+    ]
+  },
+  "Weißer Turm": {
+    "kicker": "Gate tower",
+    "category": "civic",
+    "text": [
+      "A gate of the older, inner wall. The town outgrew it, and the street to the Spittlertor now runs under it."
+    ]
+  },
+  "Laufer Schlagturm": {
+    "kicker": "Gate tower",
+    "category": "civic",
+    "text": [
+      "Another gate of the older wall, on the road east to Lauf. Its bell rings when the gates close for the night."
+    ]
+  },
+  "Schuldturm": {
+    "kicker": "Prison",
+    "category": "civic",
+    "text": [
+      "A tower in the river where the city keeps its debtors."
+    ]
+  },
+  "Stadtmauer": {
+    "kicker": "Walls",
+    "category": "civic",
+    "text": [
+      "Five kilometres of wall with a roofed walk and over eighty towers, an outer wall before it and a wide dry moat beyond. Four great round towers guard the main gates."
+    ]
+  },
+  "Zum Bratwurstglöcklein": {
+    "kicker": "Inn",
+    "category": "food",
+    "text": [
+      "A tavern known for small Nuremberg sausages grilled over beech wood."
+    ]
+  },
+  "Goldenes Posthorn": {
+    "kicker": "Inn",
+    "category": "food",
+    "text": [
+      "An old tavern near St. Sebald, where Dürer and Hans Sachs are said to drink."
+    ]
+  }
+}

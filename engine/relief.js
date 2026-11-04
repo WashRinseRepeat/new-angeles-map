@@ -162,7 +162,33 @@ function bridgeAt(x, z) {
 
 export function terrainAt(x, z) {
   if (!R) return 0;
-  return lotAt(x, z)?.level ?? softAt(x, z) + ditchAt(x, z);
+  return lotAt(x, z)?.level ?? channel(x, z, softAt(x, z) + ditchAt(x, z));
+}
+
+// River channels: with relief.river set, the ground under the city file's water sinks to that many metres below the
+// water's surface, and the banks blend back to the land over 3 m. The water is painted once into a canvas at 1 m a
+// pixel and blurred, so each lookup reads one wetness value. Without relief.river the ground keeps its height.
+
+const WET = R?.river && CITY.water?.length ? (() => {
+  const ps = CITY.water.flatMap(w => w.poly), pad = 8;
+  const x0 = Math.min(...ps.map(p => p[0])) - pad, z0 = Math.min(...ps.map(p => p[1])) - pad;
+  const W = Math.ceil(Math.max(...ps.map(p => p[0])) + pad - x0), H = Math.ceil(Math.max(...ps.map(p => p[1])) + pad - z0);
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  g.filter = 'blur(1.5px)';
+  g.translate(-x0, -z0); g.fillStyle = '#fff';
+  for (const w of CITY.water) { g.beginPath(); w.poly.forEach(([x, z], i) => (i ? g.lineTo(x, z) : g.moveTo(x, z))); g.closePath(); g.fill(); }
+  const d = g.getImageData(0, 0, W, H).data;
+  return (x, z) => {
+    const i = Math.round(x - x0), j = Math.round(z - z0);
+    return i < 0 || j < 0 || i >= W || j >= H ? 0 : d[(j * W + i) * 4] / 255;
+  };
+})() : null;
+export function channel(x, z, h) {
+  if (!WET) return h;
+  const wet = smooth(0, .6, WET(x, z));
+  return wet ? h + (Math.min(h, .12 - R.river) - h) * wet : h;
 }
 export function groundAt(x, z) {
   if (!R) return 0;

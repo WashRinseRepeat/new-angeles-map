@@ -25,6 +25,22 @@ Regenerate the town after changing `town.json`:
 python3 spikes/map/gen/town.py spikes/map/settings/emberford
 ```
 
+## Nuremberg
+
+`settings/nuremberg/` is Nuremberg around 1500 at true scale, at `spikes/map/nuremberg.html`. Its `town.json` traces the real plan with the Hauptmarkt at the origin, x east and z south in metres:
+
+- the wall outline, eleven gates and the main streets as polylines
+- the Pegnitz through the middle, with side arms round the Trödelmarkt and Schütt islands, and five bridges
+- the landmarks as sites at their real places
+- four quarters cut from the outline by the river and two lines: Burgviertel, Sebalder Altstadt, Lorenzer Altstadt and Lorenz Ost
+- the castle rock and the Sebald slope as relief, and a river channel 3.5 m below the banks
+
+The generator fills the blocks with infill lanes every 38 m or less and lays 3,736 plots. Its kits build burgher houses with a sandstone ground floor, stone, plaster or timber floors above, steep roofs with hoist dormers, Chörlein oriels and back houses across small courts. Emberford's houses and yards fill out the mix through `parts()` and `kits()` of `settings/emberford/kits/town.js`. Its landmarks are the Kaiserburg, St. Sebald, St. Lorenz, the Frauenkirche, the Schöner Brunnen, the Altes Rathaus, the Heilig-Geist-Spital on arches over the river, the Weinstadel, the Mauthalle, the Nassauer Haus, the Dürer-Haus, three smaller churches, two inner gate towers, the Schuldturm, two inns, and the double wall with its moat and the four great round towers. It shares Emberford's light and clock.
+
+```bash
+python3 spikes/map/gen/town.py spikes/map/settings/nuremberg
+```
+
 ## Make a new pack
 
 1. Copy `settings/sandbox/` to `settings/<id>/` and change the values. Add the optional fields below as the setting needs them. `settings/new-angeles/setting.js` shows every field in use.
@@ -66,7 +82,7 @@ A style holds `h0`, `h1`, `density`, `neon`, `lit`, `grime`, `w` and the colours
 
 ### Buildings and decoration
 
-- **Skins.** `H.SKINS` holds five window skins for towers (`grid`, `bands`, `fins`, `curtain`, `sparse`) and five material skins: `plaster`, `timber`, `stone` for walls, `tile` and `thatch` for roofs. Material skins draw small shuttered windows that light sparsely and skip floor bands, glass and edge glow.
+- **Skins.** `H.SKINS` holds five window skins for towers (`grid`, `bands`, `fins`, `curtain`, `sparse`) and five material skins: `plaster`, `timber`, `stone` for walls, `tile` and `thatch` for roofs. Material skins draw small shuttered windows that light sparsely and skip floor bands, glass and edge glow. Seven more material skins serve old towns: `ashlar` (coursed sandstone), `rubble`, `braced` (timber frame with cross braces), `redframe` (red-painted timber frame), `quoins` (plaster with stone corners and window surrounds), and `slate` and `tiles` for roofs. `blindAshlar` and `blindRubble` draw ashlar and rubble without windows, for churches, walls and towers.
 - **Roofs.** `bld(…, { shape: 'gable', skin: H.SKINS.tile, base: [r, g, b] })` builds a pitched roof with its ridge along local x. `base` gives the roof its own colour.
 - **Defaults.** `styles.wallSkins` sets the skins `bld()` uses when a kit names none, and `styles.slots.skin` the skins the tower grammar and the engine's infill pick.
 - **Decoration.** `look.decor` switches off engine decoration: `roof` (rooftop plant, tanks, masts, dishes), `kibble` (facade boxes), `neon`, `signs`, `holo`, `helipads`, `beacons` `markings` (road centre dashes), `harvesters` and `fieldExtras` (fish ponds and greenhouses on fields). Each defaults to on, and a switch also silences kit calls to that helper.
@@ -113,7 +129,7 @@ Each page links `ui.css`, the shared interface stylesheet, and then its pack's `
 - `engine/hills.js` keeps the city's rectangle flat and raises hills beyond it, with woods on them. `look.land` sets `size`, `height`, `pad`, `rise`, the colours `low`, `high` and `rock`, `trees` and `tree`.
 - `look.clouds` lists cloud decks over the centre. Each takes `y0`, `y1` (the deck's floor and top), `cell` (noise size), `tile` (cluster spacing), `cover` (0 to 1), and optional `glow`, `dome`, `stretch`, `erode`, `near`, `reach` and `above`, as `engine/clouds.js` describes. A terrain module can build its own decks with `cloudLayer`, as New Angeles' does.
 - `look.water` is the water's base colour under its reflections, for a lighter river by day.
-- `look.groundMap` replaces the flat street and lot surfaces with one detailed, lit ground (`engine/groundmap.js`). The engine paints the town plan into a texture at `px` metres per texel (default 0.75): paved streets (`paved`, street kinds and their widths, default `{ main: 7, major: 5 }`) and the square, the lots, a trodden track down every street (`track` metres wide, default 3.5) and the town's extent with every street, so roads run on out of the gates. The shader draws cobbles with dark joints on paving (`cell` metres, default 0.38), packed earth with a lighter worn track and puddles on lanes, grassy verges along the lot edges with a few tufts, earth yards with patches of grass, a dark gutter along each edge of the paving, wheel ruts along the trodden track, and mud with puddles round the gates and the centre's well (`mud` adds more spots as `[x, z, radius]`), each in its colour (`cobble`, `earth`, `yard`, `grass`). Mask edges wander with noise, and detail smaller than a pixel fades to its average. It takes sun, sky light and shadows, and draws nothing outside the town. Emberford paves its gate streets and square, and its `?look=night` mode sets darker colours.
+- `look.groundMap` replaces the flat street and lot surfaces with one detailed, lit ground (`engine/groundmap.js`). The engine paints the town plan into a texture at `px` metres per texel (default 0.75): paved streets (`paved`, street kinds and their widths, default `{ main: 7, major: 5 }`), the square and the footprints of the site kinds in `pavedSites`, the lots, a trodden track down every street (`track` metres wide, default 3.5) and the town's extent with every street, so roads run on out of the gates. The shader draws cobbles with dark joints on paving (`cell` metres, default 0.38), packed earth with a lighter worn track and puddles on lanes, grassy verges along the lot edges with a few tufts, earth yards with patches of grass, a dark gutter along each edge of the paving, wheel ruts along the trodden track, and mud with puddles round the gates and the centre's well (`mud` adds more spots as `[x, z, radius]`), each in its colour (`cobble`, `earth`, `yard`, `grass`). Mask edges wander with noise, and detail smaller than a pixel fades to its average. It takes sun, sky light and shadows, and draws nothing outside the town. Emberford paves its gate streets and square, and its `?look=night` mode sets darker colours. Nuremberg paves every street, its squares and the ground round its landmarks.
 
 ### Towns
 

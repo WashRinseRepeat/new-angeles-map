@@ -3,8 +3,11 @@
 
 const HALF_PI = Math.PI / 2;
 
-export function kits(H) {
-  const { bld, prop, glow, puff, flickerGlow, SKINS } = H;
+// The parts every house kit shares: the strip a house fills, the house itself, the yard behind it, a tree and the
+// roof colours. Other medieval packs build on them too.
+
+export function parts(H) {
+  const { bld, prop, glow, SKINS } = H;
   const ROOFS = { tile: [SKINS.tile, [.34, .13, .07]], brown: [SKINS.tile, [.24, .11, .07]], thatch: [SKINS.thatch, [.3, .24, .13]],
     slate: [SKINS.tile, [.15, .15, .16]] };
 
@@ -105,6 +108,12 @@ export function kits(H) {
     }
   }
 
+  return { ROOFS, strip, house, pick, tree, yard };
+}
+
+export function kits(H) {
+  const { bld, prop, glow, flickerGlow, puff, SKINS } = H;
+  const { ROOFS, strip, house, pick, tree, yard } = parts(H);
   return {
 
     // Two storeys of timber frame or plaster under tile or thatch.

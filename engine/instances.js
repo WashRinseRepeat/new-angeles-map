@@ -48,6 +48,20 @@ export const B_FS = `
   ${FOCUS_GLSL}
   ${SHADOW_GLSL}
   float h21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+
+  // Roof skins 15 slate and 16 tile: staggered rows with a shadow at each row's lower edge, mottled per piece and
+  // in patches. Rows fade to their average where they get smaller than a pixel.
+
+  vec3 roofTex(vec3 col, vec2 q, float slate, vec2 salt){
+    vec2 t = q / (slate > .5 ? vec2(.34, .22) : vec2(.2, .28));
+    t.x += .5 * mod(floor(t.y), 2.);
+    vec2 tf = fract(t);
+    float h = h21(floor(t) + salt);
+    float k = slate > .5 ? (1. - .3 * step(tf.y, .12)) * (1. - .2 * step(tf.x, .05)) : .74 + .34 * smoothstep(0., .7, tf.y);
+    k = mix(k * (.86 + .26 * h), .95, smoothstep(.3, .9, max(fwidth(t.x), fwidth(t.y))));
+    vec3 tint = slate > .5 ? mix(vec3(1.), vec3(.92, .96, 1.08), h) : vec3(1.);
+    return col * k * tint * (.88 + .24 * h21(floor(q / vec2(1.8, 1.3)) + salt * 1.3));
+  }
   void main(){
     if (vW.y > uClipTop || focusCut(vW)) discard;
     if (!gl_FrontFacing) { gl_FragColor = vec4(fogged(vBase * 1.8 + vec3(.012, .014, .02), vW), 1.); return; }
@@ -60,9 +74,11 @@ export const B_FS = `
     vec3 col = vBase * diff * (.6 + .4 * clamp(vW.y / 50., 0., 1.));
 
     // Material skins (plaster, timber, stone, and the roof skins tile and thatch) skip the tower look: floor bands,
-    // glass and edge glow.
+    // glass and edge glow. Skins 17 and 18 are ashlar and rubble without windows, so they draw as 10 and 11 blind.
 
-    bool mat = vSkin > 4.5;
+    bool blind = vSkin > 16.5;
+    float sk = blind ? vSkin - 7. : vSkin;
+    bool mat = sk > 4.5, roofS = (sk > 7.5 && sk < 9.5) || sk > 14.5;
     if (abs(vN.y) < .5) {
       #if defined(MERGED)
         float u = vU;
@@ -76,7 +92,7 @@ export const B_FS = `
       // Skins: 0 grid, 1 ribbon bands, 2 vertical fins, 3 glass curtain, 4 sparse. Materials: 5 plaster, 6 timber
       // frame, 7 stone, and on walls under a roof 8 tile and 9 thatch, which take no windows.
 
-      vec2 cell = vSkin > 4.5 ? vec2(3.4, 3.2) : vSkin > 3.5 ? vec2(4.6, 3.6) : vSkin > 2.5 ? vec2(1.7, 3.6) : vec2(3.2, 3.6);
+      vec2 cell = sk > 4.5 ? vec2(3.4, 3.2) : sk > 3.5 ? vec2(4.6, 3.6) : sk > 2.5 ? vec2(1.7, 3.6) : vec2(3.2, 3.6);
       vec2 g = vec2(u, vW.y) / cell;
       vec2 c = floor(g), f = fract(g);
 
@@ -84,21 +100,21 @@ export const B_FS = `
 
       vec2 salt = vec2(floor(vP.x) * 1.7, 0.) + floor(vN.xz + .5) * 3.1;
       float win, r, litP = vP.y;
-      if (vSkin < .5) {
+      if (sk < .5) {
         win = step(.18, f.x) * step(f.x, .82) * step(.28, f.y) * step(f.y, .78);
         r = h21(c + salt);
-      } else if (vSkin < 1.5) {
+      } else if (sk < 1.5) {
         win = step(.3, f.y) * step(f.y, .74);
         r = h21(vec2(floor(c.x / 5.), c.y) + salt);
-      } else if (vSkin < 2.5) {
+      } else if (sk < 2.5) {
         win = step(.38, f.x) * step(f.x, .62) * step(.05, f.y);
         r = h21(vec2(c.x, floor(c.y / 7.)) + salt);
-      } else if (vSkin < 3.5) {
+      } else if (sk < 3.5) {
         win = step(.06, f.x) * step(.08, f.y);
         r = h21(c + salt);
         litP *= .7;
         col = mix(col, vec3(.03, .06, .09) + vec3(.01, .03, .04) * fract(vW.y / 90.), .7 * win);
-      } else if (vSkin < 4.5) {
+      } else if (sk < 4.5) {
         win = step(.35, f.x) * step(f.x, .65) * step(.35, f.y) * step(f.y, .7);
         r = h21(c + salt);
         litP *= .6;
@@ -107,31 +123,71 @@ export const B_FS = `
         // Small shuttered windows in a plain wall. Plaster takes a soft grain. Timber frame draws posts every 1.7 m,
         // a beam at each floor and braces. Stone draws courses 0.55 m high with staggered joints.
 
-        win = vSkin > 7.5 ? 0. : step(.38, f.x) * step(f.x, .62) * step(.38, f.y) * step(f.y, .72);
+        win = roofS ? 0. : step(.38, f.x) * step(f.x, .62) * step(.38, f.y) * step(f.y, .72);
         r = h21(c + salt);
         litP *= .5;
         vec2 q = vec2(u, vW.y);
         float n = h21(floor(q * 1.3) + salt);
-        if (vSkin < 6.5 && vSkin > 5.5) {
+        if (sk < 6.5 && sk > 5.5) {
           vec2 t = q / vec2(1.7, 3.2), tf = fract(t);
           float frame = clamp(step(tf.x, .09) + step(.91, tf.x) + step(tf.y, .07) + step(.93, tf.y)
             + step(abs(tf.x - tf.y), .05) * step(.5, h21(floor(t) + salt)), 0., 1.) * (1. - win);
           col = mix(col * (.95 + .1 * n), vec3(.035, .022, .014), frame);
-        } else if (vSkin < 7.5 && vSkin > 6.5) {
+        } else if (sk < 7.5 && sk > 6.5) {
           vec2 t = q / vec2(.9, .55);
           t.x += .5 * mod(floor(t.y), 2.);
           vec2 tf = fract(t);
           col *= (.8 + .35 * h21(floor(t) + salt)) * (1. - .45 * clamp(step(tf.x, .04) + step(tf.y, .07), 0., 1.));
+        } else if (sk > 14.5) {
+          col = roofTex(col, q, step(sk, 15.5), salt);
+        } else if (sk > 9.5) {
+
+          // Skins 10 ashlar, 11 rubble, 12 braced timber frame, 13 red-painted timber frame and 14 plaster with
+          // sandstone quoins. All but rubble take larger windows.
+
+          if (sk < 10.5 || sk > 11.5) win = step(.35, f.x) * step(f.x, .65) * step(.33, f.y) * step(f.y, .75);
+          if (sk < 10.5) {
+            vec2 t = q / vec2(1.25, .62);
+            t.x += .5 * mod(floor(t.y), 2.);
+            vec2 tf = fract(t);
+            col *= (.9 + .18 * h21(floor(t) + salt)) * (1. - .35 * clamp(step(tf.x, .025) + step(tf.y, .05), 0., 1.));
+          } else if (sk < 11.5) {
+            vec2 t = q / vec2(.55, .38);
+            t.x += h21(vec2(floor(t.y), 3.) + salt);
+            vec2 tf = fract(t);
+            float s = h21(floor(t) + salt);
+            col *= (.7 + .5 * s) * mix(vec3(1.), vec3(1.08, .95, .85), h21(floor(t) * 1.3 + salt)) * (1. - .5 * clamp(step(tf.x, .07) + step(tf.y, .1), 0., 1.));
+          } else if (sk < 13.5) {
+            float red = step(12.5, sk);
+            vec2 t = q / (red > .5 ? vec2(1.7, 3.2) : vec2(1.15, 3.2)), tf = fract(t);
+            float b = h21(floor(t) + salt);
+            float brace = step(abs(tf.x - tf.y), .05) * step(b, .7) + step(abs(tf.x + tf.y - 1.), .05) * step(b, .4);
+            float frame = clamp(step(tf.x, .1) + step(.9, tf.x) + step(tf.y, .07) + step(.93, tf.y) + step(abs(tf.y - .3), .03) * (1. - red)
+              + brace, 0., 1.) * (1. - win);
+            col = mix(col * (.95 + .1 * n), diff * (red > .5 ? vec3(.15, .04, .025) : vec3(.05, .032, .02)), frame);
+          } else {
+            #if defined(MERGED) || defined(CYL)
+              float ed = 9.;
+            #else
+              float ed = (.5 - abs(abs(vN.x) > .5 ? vL.z : vL.x)) * (abs(vN.x) > .5 ? vS.z : vS.x);
+            #endif
+            float course = fract(vW.y / .42), qw = mod(floor(vW.y / .42), 2.) > .5 ? .85 : .5;
+            float quoin = step(ed, qw) * step(.06, course);
+            float sur = step(.31, f.x) * step(f.x, .69) * step(.29, f.y) * step(f.y, .8) * (1. - win);
+            vec3 sand = diff * vec3(.24, .17, .12) * (.85 + .2 * h21(vec2(floor(vW.y / .42), ed > 1. ? 1. : 0.) + salt));
+            col = mix(col * (.9 + .2 * n), sand, clamp(quoin + sur, 0., 1.));
+          }
         } else {
           col *= .9 + .2 * n;
         }
       }
+      if (blind) win = 0.;
       float lit = step(1. - litP, r) * win * step(1., c.y);
       float lvl = .25 + .55 * h21(c * 1.7 + floor(vP.x));
 
       // Windows smaller than a pixel fade into their average brightness instead of shimmering.
 
-      float cover = vSkin < .5 ? .32 : vSkin < 1.5 ? .44 : vSkin < 2.5 ? .23 : vSkin < 3.5 ? .85 : vSkin < 4.5 ? .1 : vSkin > 7.5 ? 0. : .07;
+      float cover = sk < .5 ? .32 : sk < 1.5 ? .44 : sk < 2.5 ? .23 : sk < 3.5 ? .85 : sk < 4.5 ? .1 : roofS || blind ? 0. : sk > 9.5 ? .1 : .07;
       float sharp = 1. - smoothstep(.35, .9, max(fwidth(g.x), fwidth(g.y)));
       if (mat) col *= 1. - .7 * mix(cover, win, sharp);
       col += vWin * mix(litP * cover * .65, lit * lvl, sharp) * uWin;
@@ -150,8 +206,9 @@ export const B_FS = `
 
       // Roof skins: tile rows every 0.32 m up the slope, thatch in coarse streaks.
 
-      if (vSkin > 8.5) col *= .8 + .3 * h21(floor(vW.xz * vec2(2., .4)) + floor(vP.x));
-      else if (vSkin > 7.5) col *= .75 + .35 * step(.2, fract(vW.y / .32));
+      if (sk > 14.5) col = roofTex(col, vec2(vW.x + vW.z, vW.y), step(sk, 15.5), vec2(floor(vP.x), 0.));
+      else if (sk > 8.5 && sk < 9.5) col *= .8 + .3 * h21(floor(vW.xz * vec2(2., .4)) + floor(vP.x));
+      else if (sk > 7.5 && sk < 8.5) col *= .75 + .35 * step(.2, fract(vW.y / .32));
     }
     col *= 1. - vP.z * .3;
     gl_FragColor = vec4(fogged(col, vW), 1.);
@@ -249,6 +306,9 @@ export const pools = new THREE.InstancedMesh(new THREE.CircleGeometry(.5, 10).ro
   map: poolTexture(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
   polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
 }), 80000);
+// A ground that lights itself takes the pools in POOL_SINK.take(pools) after each build, and the discs stay hidden.
+
+export const POOL_SINK = { take: null };
 export const pool = (x, z, rad, rgb) => put(pools, x, .25, z, rad * 2, 1, rad * 2, 0, 0, rgb);
 export const INSTANCED = [...Object.values(SHAPES), ...Object.values(PROPS), ...Object.values(GLOWS), helipads, signs, glows, billboards, pools];
 for (const m of INSTANCED) { m.frustumCulled = false; m.count = 0; scene.add(m); }
@@ -434,7 +494,7 @@ export function tileAll() {
   TILES = [];
   const detail = new Set([...Object.values(PROPS), puffs, texts, helipads]);
   const tiled = [...Object.values(SHAPES), ...Object.values(PROPS), ...Object.values(GLOWS), helipads, signs, glows, billboards, puffs, texts];
-  if (RELIEF) drapePools(); else tiled.push(pools);
+  if (POOL_SINK.take) { pools.visible = false; POOL_SINK.take(pools); } else tiled.push(pools);
 
   // Kit-owned instanced meshes tile too when they sit in world space and are not animated (userData.noTile).
   // userData.massing keeps one out of the detail range, for cover that must read from afar.
@@ -487,48 +547,6 @@ export function tileAll() {
       TILES.push({ mesh: m, detail: kind === 'd', x: (+kx + .5) * T, z: (+kz + .5) * T, half: T / 2 });
     }
   }
-}
-
-// On a relief a flat pool sinks into the slope on its uphill side, and the cut draws a hard line across the street.
-// There the pools drape over the ground as one mesh: each pool is a disc of rings 2 m apart, and every vertex sits
-// on the ground beneath it. The mesh shares the pools' colour, so the clock dims it with them.
-
-const POOL_RINGS = 8, POOL_SEGS = 24, POOL_VERTS = 1 + POOL_RINGS * POOL_SEGS;
-let draped = null;
-function drapePools() {
-  pools.visible = false;
-  if (draped) { scene.remove(draped); draped.geometry.dispose(); draped.material.dispose(); }
-  const n = pools.count, a = pools.instanceMatrix.array, rgb = pools.instanceColor?.array;
-  const pos = new Float32Array(n * POOL_VERTS * 3), uv = new Float32Array(n * POOL_VERTS * 2), col = new Float32Array(n * POOL_VERTS * 3).fill(1);
-  const index = [];
-  for (let i = 0; i < n; i++) {
-    const o = i * 16, x = a[o + 12], z = a[o + 14], r = Math.hypot(a[o], a[o + 1], a[o + 2]) / 2, v0 = i * POOL_VERTS;
-    for (let v = 0; v < POOL_VERTS; v++) {
-      const t = v ? (Math.floor((v - 1) / POOL_SEGS) + 1) / POOL_RINGS : 0, ang = (v - 1) % POOL_SEGS / POOL_SEGS * Math.PI * 2;
-      const px = x + Math.cos(ang) * r * t, pz = z + Math.sin(ang) * r * t, k = v0 + v;
-      pos.set([px, groundAt(px, pz) + .25, pz], k * 3);
-      uv.set([.5 + Math.cos(ang) * t / 2, .5 + Math.sin(ang) * t / 2], k * 2);
-      if (rgb) col.set(rgb.subarray(i * 3, i * 3 + 3), k * 3);
-    }
-    for (let s = 0; s < POOL_SEGS; s++) {
-      const s1 = (s + 1) % POOL_SEGS;
-      index.push(v0, v0 + 1 + s1, v0 + 1 + s);
-      for (let ring = 0; ring < POOL_RINGS - 1; ring++) {
-        const p = v0 + 1 + ring * POOL_SEGS, q = p + POOL_SEGS;
-        index.push(p + s, p + s1, q + s, p + s1, q + s1, q + s);
-      }
-    }
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  g.setIndex(index);
-  const mat = Object.assign(pools.material.clone(), { vertexColors: true });
-  mat.color = pools.material.color;
-  draped = new THREE.Mesh(g, mat);
-  draped.renderOrder = pools.renderOrder;
-  scene.add(draped);
 }
 
 // ---------- shared kit helpers: beams, smoke puffs, text signs ----------
@@ -703,4 +721,5 @@ export function textSign(text, x, y, z, w, h, ry, rgb) {
 }
 
 
-export const SKINS = { grid: 0, bands: 1, fins: 2, curtain: 3, sparse: 4, plaster: 5, timber: 6, stone: 7, tile: 8, thatch: 9 };
+export const SKINS = { grid: 0, bands: 1, fins: 2, curtain: 3, sparse: 4, plaster: 5, timber: 6, stone: 7, tile: 8, thatch: 9,
+  ashlar: 10, rubble: 11, braced: 12, redframe: 13, quoins: 14, slate: 15, tiles: 16, blindAshlar: 17, blindRubble: 18 };

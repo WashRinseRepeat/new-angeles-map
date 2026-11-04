@@ -14,7 +14,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { vnoise } from './core.js';
-import { ditchAt, moatSink, reliefAt, softAt } from './relief.js';
+import { channel, ditchAt, moatSink, reliefAt, softAt } from './relief.js';
 
 export function build(H, group) {
   const L = { size: 7000, height: 150, pad: 40, rise: 700, low: [.05, .07, .04], high: [.07, .09, .05], rock: [.1, .1, .09],
@@ -47,12 +47,13 @@ export function build(H, group) {
     }
     return best;
   };
-  const height = (x, z) => {
+  const land = (x, z) => {
     const h = hills(x, z) + reliefAt(x, z) - moatSink(x, z);
     if (!wards.length) return h;
     const k = H.smooth(0, 16, inside(x, z));
     return k ? h + (Math.min(h - 2.5, softAt(x, z) + ditchAt(x, z) - 3.5) - h) * k : h;
   };
+  const height = (x, z) => channel(x, z, land(x, z));
 
   const N = wards.length ? 440 : 220, geo = new THREE.PlaneGeometry(L.size, L.size, N, N).rotateX(-Math.PI / 2).translate(cx, 0, cz);
   const pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
