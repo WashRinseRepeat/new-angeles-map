@@ -101,7 +101,13 @@ export function movePeople(dt) {
       if (p.u < 0) { p.u = 0; p.dir = 1; }
       const k = Math.floor(p.u), f = p.u - k, a = p.st.path[k], b = p.st.path[k + 1], sd = p.st.side[k];
       const x = a.x + (b.x - a.x) * f + sd.x * p.side, z = a.z + (b.z - a.z) * f + sd.z * p.side;
-      o.position.set(x, groundAt(x, z) + (p.st.lift ?? 0) + Math.abs(Math.sin(time * 7 + p.phase)) * .05, z);
+
+      // The ground is sampled once at each end of the walker's 4 m step and blended between, as groundAt is slow on a
+      // relief. A step whose ends differ by more than half a metre, such as onto a bridge, follows the ground exactly.
+
+      if (p.k !== k) { p.k = k; p.ga = groundAt(a.x + sd.x * p.side, a.z + sd.z * p.side); p.gb = groundAt(b.x + sd.x * p.side, b.z + sd.z * p.side); }
+      const g = Math.abs(p.gb - p.ga) > .5 ? groundAt(x, z) : p.ga + (p.gb - p.ga) * f;
+      o.position.set(x, g + (p.st.lift ?? 0) + Math.abs(Math.sin(time * 7 + p.phase)) * .05, z);
       o.rotation.set(0, Math.atan2((b.x - a.x) * p.dir, (b.z - a.z) * p.dir), 0);
     } else {
       o.position.set(p.x, p.y ??= groundAt(p.x, p.z), p.z);
