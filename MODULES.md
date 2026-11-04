@@ -1,6 +1,6 @@
 # Map spike modules
 
-The engine (`engine/`) is generic. Everything that belongs to New Angeles lives in the setting pack `settings/new-angeles/`. `SETTINGS.md` says how to make another pack.
+The engine (`engine/`) is generic. Everything that belongs to New Angeles lives in the setting pack `settings/new-angeles/`. `SETTINGS.md` says how to make another pack. `LESSONS.md` collects what building New Angeles, Emberford and Nuremberg taught: performance, graphic errors, art direction, terrain, infrastructure and workflow. Read it before building or extending a pack.
 
 ## Run and preview
 

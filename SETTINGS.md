@@ -1,5 +1,7 @@
 # Setting packs
 
+Before building a pack, read `LESSONS.md`: the lessons and pitfalls from the packs so far.
+
 The engine in `engine/` draws a city. A setting pack says which city: its look, scale, styles, kits, transport, audio guide and card texts. New Angeles is the first pack, in `settings/new-angeles/`. `MODULES.md` covers the module API that kits and places use.
 
 ## How the engine finds a pack

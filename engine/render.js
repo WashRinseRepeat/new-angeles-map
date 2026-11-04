@@ -403,6 +403,12 @@ composer.addPass(clouds);
 export const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), ...LOOK.bloom);
 composer.addPass(bloom);
 
+// Bloom is a wide blur, so it renders at CSS pixels whatever the pixel ratio. At full device pixels it took half
+// the frame on a large high-DPI screen.
+
+const bloomSize = bloom.setSize.bind(bloom);
+bloom.setSize = (w, h) => bloomSize(w / renderer.getPixelRatio(), h / renderer.getPixelRatio());
+
 // Bloom's blur spreads one NaN or Inf pixel into a black box, so its bright-pass turns any such pixel to 0.
 // The test is written so a NaN fails it.
 
