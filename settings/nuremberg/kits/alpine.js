@@ -87,12 +87,13 @@ export function kits(H) {
     wall(0, gf, gSkin, gBlind, gC, st.lit * 1.2);
     if (n) wall(gf, n * fh, uSkin, uBlind, uC, st.lit);
 
-    // The wide low roof: 20 to 25 degrees, deep eaves at the sides and further out over the gable front. A house
+    // The wide low roof: 20 to 25 degrees, deep eaves at the sides and further out over the gable front. Houses in a
+    // row keep short side eaves, so their roofs meet without overlapping. A house
     // wider than 12.5 m turns its eaves to the street instead, with its balconies under them. The wall's gable stands
     // just proud of the roof's end, so the end shows timber framed by a thin band of roof. P(t, c) places a point t
     // along the ridge and c across it.
 
-    const eaves = w > 12.5, os = o.side ?? .8 + r() * .4, of = o.front ?? 1.2 + r() * .5, ob = .5;
+    const eaves = w > 12.5, os = o.side ?? (o.part ? .18 : .8 + r() * .4), of = o.front ?? 1.2 + r() * .5, ob = .5;
     const span = eaves ? d : w, run = eaves ? w : d, oa = eaves ? of * .9 : os, [l1, l2] = eaves ? [os, os] : [ob, of];
     const W = span + 2 * oa, rh = W / 2 * (o.pitch ?? .36 + r() * .1), L = run + l1 + l2, cl = (l2 - l1) / 2, F = run / 2 + l2;
     const P = (t, c) => eaves ? [t, c] : [c, t], rry = eaves ? ry : ry + HALF_PI;
@@ -103,11 +104,12 @@ export function kits(H) {
     fbox(...P(cl, 0), top + rh - .02, ...(eaves ? [L + .1, .14, .3] : [.3, .14, L + .1]), tone(roofC, .7));
     const gv = F + .1, gy = top + hw * .32;
 
-    // A half-hip clips each gable's top. Its side faces lie in the roof's planes and its end leans out over the gable.
+    // A half-hip clips each gable's top. It is 4 % narrower than the roof there, so its sides stay under the roof's
+    // planes and only its end shows, leaning out over the gable.
 
     if (r() < (o.hip ?? .3)) {
       const k = .35 + r() * .1, hd = .7 + r() * .3;
-      for (const t of eaves ? [-F, F] : [F]) block(...P(t, 0), top + rh * (1 - k), ...(eaves ? [2 * hd, W * k] : [W * k, 2 * hd]), rh * k, roofS, roofC, { shape: 'pyr', lit: 0 });
+      for (const t of eaves ? [-F, F] : [F]) block(...P(t, 0), top + rh * (1 - k), ...(eaves ? [2 * hd, W * k * .96] : [W * k * .96, 2 * hd]), rh * k, roofS, roofC, { shape: 'pyr', lit: 0 });
     }
 
     // Stones and weighting poles hold down a shingle roof.

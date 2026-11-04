@@ -467,12 +467,10 @@ function buildLot(f, g, blend, k = 1, bare = false, slab = 0) {
   // Small lots get one infill building that fills the lot. Big lots get a kit.
 
   // Small lots mostly get small district kits: the pack's small-lot kits in their style, tier 0 in a district family.
-  // In a pack whose wards have their own mixes, a lot in the blend band takes its mix from one of the wards there, by
-  // their weights, so neighbouring styles interleave across the border instead of switching at it.
+  // A family's tier 0 comes from the style picked by blend weight (D), as a big lot's tiers do, so styles interleave
+  // across a border.
 
-  let kid = st.id;
-  if (OWN_TIERS.has(st.id)) { let roll = nr(); for (const [id, k] of st.mix) if ((roll -= k) <= 0) { if (OWN_TIERS.has(id)) kid = id; break; } }
-  const own = STYLES[kid], smallKits = own === SETTING.kits.smallLots?.style ? SMALL_LOTS : OWN_TIERS.has(kid) ? own.tiers[0] : null;
+  const own = STYLES[st.id], smallKits = own === SETTING.kits.smallLots?.style ? SMALL_LOTS : OWN_TIERS.has(st.id) ? D.tiers[0] : null;
   const small = smallKits?.length && r() < (own.smallShare ?? .8) * CITYTUNE.small;
   if (size < SC.smallLot && small) KITS[smallKits[Math.floor(kitPick * smallKits.length)]]?.(g.cx, g.cz, size, st, boost, r);
   else if (size < SC.smallLot) {

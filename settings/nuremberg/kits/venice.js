@@ -77,7 +77,10 @@ export function kits(H) {
       else if (Wr <= D + .5) block(0, 0, top + .3, Wr, D, rh, roofM, { shape: 'pyr', lit: 0 });
       else {
         block(0, 0, top + .3, Wr - D, D, rh, roofM, { shape: 'gable', lit: 0 });
-        for (const e of [-1, 1]) block(e * (Wr - D) / 2, 0, top + .3, D, D, rh, roofM, { shape: 'pyr', lit: 0 });
+
+        // The hip ends sit 3 % lower than the gable between them, so their front and back faces stay under its slopes.
+
+        for (const e of [-1, 1]) block(e * (Wr - D) / 2, 0, top + .3, D, D, rh * .97, roofM, { shape: 'pyr', lit: 0 });
       }
     }
     if (r() < (o.merlons ?? 0)) for (let m = Math.floor(w / 1.2), i = 0; i < m; i++) fbox((i + .5 - m / 2) * w / m, vf + .05, top + .8, .5, .9, .3, ISTRIA);
