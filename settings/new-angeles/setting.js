@@ -186,7 +186,9 @@ export default {
       tours: [
         { name: 'Beanstalk Circle', music: 'beanstalk-line', via: [['The Beanstalk', 'Beanstalk South Line'], ['Rutherford', 'City Loop'],
           ['Base de Cayambe', 'City Loop'], ['The Beanstalk', 'Beanstalk West Line']] },
-        { name: 'Beanstalk to the Malecón', music: 'esmeraldas-line', via: [['The Beanstalk', 'Beanstalk West Line'], ['The Malecón']] },
+        { name: 'Esmeraldas Coast Circle', music: 'guayaquil-line', via: [['Base de Cayambe', 'City Loop'], ['Rutherford', 'Esmeraldas Line'],
+          ['The Streets'], ['Historic Esmeraldas'], ['The Malecón'], ['Base de Cayambe', 'Chakana Line']] },
+        { name: 'Beanstalk to the Malecón', music: 'esmeraldas-line', via: [['The Beanstalk', 'Beanstalk West Line'], ['The Streets'], ['The Malecón']] },
         { name: 'Beanstalk to Guayaquil', music: 'guayaquil-loop', via: [['The Beanstalk', 'Beanstalk Southwest Line'], ['Quinde'],
           ['Nuevo Guayaquil', 'Guayaquil Loop'], ['Las Peñas', 'Guayaquil Loop']] },
         { name: 'Beanstalk to the Coast', music: 'la-costa-line', via: [['The Beanstalk', 'Beanstalk West Line'], ['Manta'], ['Quinde'],
