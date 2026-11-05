@@ -3,6 +3,7 @@
 // Kit signature: (x, z, s, st, b, r) in the lot frame. Kits read H.frame() and fall back to an s × s square.
 
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 export function kits(H) {
   const { SKINS, beacon, beam, bld, glow, pool, prop, puff, stringLights, textSign } = H;
@@ -1176,6 +1177,156 @@ export function landmarks(H) {
     pool(lx, lz, 5, MERC.map(c => c * .1));
   };
 
+  // Kistochka, after the Bierpinsel: a ribbed concrete stem with a cantilevered stair carries a red crown.
+  // The crown has a flared underside, three staggered tiers of angled bay windows, a flat wing on one side,
+  // a louvre band and a dome. Worn paint, holo-ad bays, an LED ticker and a pirate radio mast make it cyberpunk.
+  // The stem rises from a raised deck with the night market on top and the pivnaya underneath.
+
+  const KIST = {};
+  const kistochka = (x, z, w, d, st, r) => {
+    const red = new THREE.MeshStandardMaterial({ color: 0x8a2416, roughness: .85, emissive: 0x340704 });
+    const louvre = new THREE.MeshStandardMaterial({ color: 0x1c1b1d, roughness: .5, metalness: .6, emissive: 0x060607 });
+    const AMBER = [1.5, .8, .25], NEON = [1.6, .1, .5], CYAN = [.2, 1.1, 1.4], GLASS = [.03, .04, .05];
+    const louvreRGB = [.02, .02, .022];
+    const ADS = [NEON, CYAN, [1.3, .9, .2], [.6, 1.4, .35]], STEEL = [.07, .068, .065], CON = [.17, .16, .15], RUST = [.06, .025, .015];
+    const at = (a, rad, y = 0) => [x + Math.sin(a) * rad, y, z + Math.cos(a) * rad];
+    const ring = (y, rad, rgb) => put(GLOWS.ring, x, y, z, rad * 2, 1, rad * 2, 0, 0, rgb);
+    const pick = a => a[Math.floor(r() * a.length)];
+    const C0 = 45, N = 16, DY = 7;
+
+    // Stem: a concrete shaft with eight ribs, from the deck up into the crown.
+
+    const S = [new THREE.CylinderGeometry(5.2, 5.8, C0 + 2, 24).translate(x, (C0 + 2) / 2, z)];
+    for (let k = 0; k < 8; k++) S.push(new THREE.BoxGeometry(1.4, C0, 2).translate(0, C0 / 2, 5.6).rotateY((k + .5) / 8 * Math.PI * 2).translate(x, 0, z));
+    solid(S);
+
+    // Crown: flared underside, three drums with bays staggered by half a bay, and a wing on local -x.
+    // Each bay is a box with sloped plates above and below, which gives the chunky angled frames.
+    // K scales the whole crown. Two bays hold a failing tube and flicker.
+
+    const K = 1.4;
+    const R = [new THREE.CylinderGeometry(13 * K, 5.5, 8 * K, N).translate(x, C0 + 4 * K, z)];
+    const tiers = [[8, 6.5, 12.5, 0], [14.5, 6.5, 14, .5], [21, 6, 13, 0]].map(([y, h, rad, off]) => [C0 + y * K, h * K, rad * K, off]);
+    const BAD = { '0,0': [.45, .5, .48], '2,4': NEON.map(v => v * .7) };
+    tiers.forEach(([y0, h, rad, off], ti) => {
+      R.push(new THREE.CylinderGeometry(rad, rad, h, N).translate(x, y0 + h / 2, z));
+      const bw = 2 * rad * Math.sin(Math.PI / N) * .86, bh = h * .78, yc = y0 + h / 2;
+      for (let k = 0; k < N; k++) {
+        const a = (k + off) / N * Math.PI * 2;
+        if (Math.abs(Math.sin(a) + 1) < .2) continue;
+        const bay = g => g.translate(0, 0, rad + 1.6 * K).rotateY(a).translate(x, 0, z);
+        R.push(bay(new THREE.BoxGeometry(bw, bh, 3.6 * K).translate(0, yc, 0)));
+        R.push(bay(new THREE.BoxGeometry(bw, .6 * K, 4.2 * K).rotateX(-.7).translate(0, yc - bh / 2 - .3 * K, 0)));
+        R.push(bay(new THREE.BoxGeometry(bw, .6 * K, 4.2 * K).rotateX(.7).translate(0, yc + bh / 2 + .3 * K, 0)));
+        prop('box', ...at(a + Math.PI / N, rad + 1.4 * K, yc), .45 * K, bh + K, 3 * K, louvreRGB, a);
+
+        // Bad tubes sit on bays at 0 or 90 degrees, because flickerGlow takes no turn.
+
+        const bad = BAD[`${ti},${k}`], [gx, gy, gz] = at(a, rad + 3.45 * K, yc + .2 * K);
+        if (bad) H.flickerGlow(gx, gy, gz, k ? .1 : bw * .7, bh * .5, k ? bw * .7 : .1, bad, r);
+        else {
+          const q = r(), c = q < .14 ? pick(ADS).map(v => v * .45) : q < .65 ? AMBER.map(v => v * (.1 + .08 * r())) : GLASS;
+          glow(gx, gy, gz, bw * .7, bh * .5, .1, c, a);
+        }
+        if (r() < .35) prop('box', ...at(a, rad + .05, y0 - 1.2 * K), .35 * K, (2.4 + r() * 2) * K, .1, RUST, a);
+      }
+      ring(y0 + .2, rad + 3.5 * K, NEON.map(v => v * .3));
+    });
+    R.push(new THREE.BoxGeometry(9 * K, 22 * K, 10 * K).translate(-11.5 * K, C0 + 14 * K, 0).translate(x, 0, z));
+    solid(R, red);
+
+    // Wing windows in four rows, a pivnaya sign and neon edges.
+
+    const wx = x - 16 * K - .05;
+    for (let i = 0; i < 4; i++) for (let j = -1; j <= 1; j++) {
+      const y = C0 + (7 + i * 4.6) * K, c = r() < .7 ? AMBER.map(v => v * (.2 + .15 * r())) : GLASS;
+      glow(wx, y, z + j * 3 * K, .1, 1.8 * K, 2.4 * K, c, 0);
+      for (const g of [-1, 1]) glow(x + (-11.5 + j * 2.6) * K, y, z + g * (5 * K + .05), 2 * K, 1.8 * K, .1, c);
+    }
+    textSign('ПИВНАЯ', wx - .1, C0 + 4.4 * K, z, 8 * K, 1.8 * K, -Math.PI / 2, NEON);
+    for (const g of [-1, 1]) glow(wx - .05, C0 + 14 * K, z + g * 5 * K, .15, 21 * K, .15, NEON.map(v => v * .6));
+
+    // Louvre band with the LED ticker, the dome and the pirate radio farm.
+
+    const yt = C0 + 27 * K, top = yt + 4 * K, rb = 11.6 * K;
+    const L = [new THREE.CylinderGeometry(rb, rb, 4 * K, N).translate(x, yt + 2 * K, z)];
+    for (let k = 0; k < N * 2; k++) L.push(new THREE.BoxGeometry(.25 * K, 4 * K, .8 * K).translate(0, yt + 2 * K, rb + .2 * K).rotateY(k / N / 2 * Math.PI * 2).translate(x, 0, z));
+    solid(L, louvre);
+    ring(yt + .4 * K, rb + .3 * K, CYAN.map(v => v * .5));
+    textSign('РАДИО КИСТОЧКА 101.7', x, yt + 2.4 * K, z + rb + .7 * K, 12 * K, 1.4 * K, 0, CYAN);
+    textSign('ПИВО · КВАС · 24/7', x, yt + 2.4 * K, z - rb - .7 * K, 12 * K, 1.4 * K, Math.PI, AMBER);
+    solid([new THREE.SphereGeometry(7 * K, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2).translate(x, top, z)]);
+    beam([x, top + 6 * K, z], [x, top + 30, z], .3, STEEL);
+    for (let k = 0; k < 3; k++) beacon(x, top + 16 + k * 6, z, r);
+    for (let k = 0; k < 5; k++) { const a = r() * Math.PI * 2; beam(at(a, 7.5 * K, top), at(a, 7.5 * K, top + 5 + r() * 8), .08, STEEL); }
+    for (const a of [.8, 2.6, 4.4]) prop('dish', ...at(a, 9 * K, top + 1), 2.6 * K, 2.6 * K, 2.6 * K, [.2, .2, .2]);
+    for (let k = 0; k < 3; k++) puff(...at(1.5 + k * 1.8, rb + .2 * K, yt + 3 * K), (2 + r() * 1.5) * K, [.1, .11, .12]);
+
+    // Cables hang from the louvre band down to the deck, and old murals cover the stem.
+
+    for (const a of [.4, 2.1, 3.7]) beam(at(a, rb, yt), at(a + .25, 6.2, DY + .5), .07, [.03, .03, .03]);
+    for (const a of [.3, 1.9, 3.1]) glow(...at(a, 5.95, DY + 6 + r() * 16), 2.6, 5, .1, pick(ADS).map(v => v * .18), a);
+
+    // Cantilevered stair on local -x under the wing: solid flights and landings that reach back to the stem.
+
+    const FL = 8, rise = (C0 - DY) / FL;
+    for (let i = 0; i < FL; i++) {
+      const s = i % 2 ? -1 : 1, y = DY + i * rise;
+      ramp([x - 8.5, y, z - 3 * s], [x - 8.5, y + rise, z + 3 * s], 2.4, 1.1, CON);
+      prop('box', x - 6.6, y + rise, z + 4.2 * s, 6, .8, 2.6, CON);
+    }
+
+    // Glass lift on local +x, with a lit car that rides between the deck and the crown.
+
+    const lx = x + 8, lh = C0 - DY;
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(2.6, lh, 2.6), new THREE.MeshBasicMaterial({ color: new THREE.Color(.35, .55, .7), transparent: true, opacity: .14, depthWrite: false }));
+    glass.position.set(lx, DY + lh / 2, z);
+    H.decor.add(glass);
+    for (const [a, b] of [[-1, -1], [-1, 1], [1, -1], [1, 1]]) prop('box', lx + a * 1.3, DY + lh / 2, z + b * 1.3, .2, lh, .2, STEEL);
+    KIST.lo = DY + 1.5; KIST.hi = C0 - 2;
+    KIST.lift = [
+      mover(H.PROPS.box.material, lx, KIST.lo, z, [[0, -1.2, 0, 2.3, .2, 2.3, [.12, .12, .12]], [0, 1.2, 0, 2.3, .3, 2.3, [.12, .12, .12]]]),
+      mover(GLOWS.sphere.material, lx, KIST.lo, z, [[0, 0, 0, 2, 2.2, 2, AMBER.map(v => v * .6)]]),
+    ];
+
+    // Raised deck on pillars, a broad stair down at the front, beer medallions on the fascia.
+
+    const Dw = Math.min(w - 6, 56), Dd = Math.min(d - 22, 34);
+    prop('box', x, DY - .6, z, Dw, 1.2, Dd, [.09, .087, .082]);
+    for (const g of [-1, 1]) {
+      prop('box', x, DY + .5, z + g * (Dd / 2 - .2), Dw, 1, .4, CON);
+      prop('box', x + g * (Dw / 2 - .2), DY + .5, z, .4, 1, Dd, CON);
+      glow(x, DY - 1.25, z + g * Dd / 2, Dw * .95, .1, .1, MERC.map(v => v * .4));
+    }
+    for (let u = -Dw / 2 + 4; u <= Dw / 2 - 4; u += 12) for (let v = -Dd / 2 + 4; v <= Dd / 2 - 4; v += 12) {
+      if (Math.hypot(u, v) > 11) prop('cyl', x + u, (DY - 1.2) / 2, z + v, 1.4, DY - 1.2, 1.4, CON);
+    }
+    ramp([x + Dw / 2 - 9, 0, z + Dd / 2 + 9], [x + Dw / 2 - 9, DY, z + Dd / 2], 6, .6, CON);
+    ['ПИВО', 'КВАС', '24/7'].forEach((t, k) => textSign(t, x - 12 + k * 6, DY - .6, z + Dd / 2 + .05, 4, 1, 0, ADS[k + 1].map(v => v * .8)));
+
+    // Night market on the deck: stalls with lit awnings and a crowd, clear of the stair and the lift.
+
+    for (let k = 0; k < 12; k++) {
+      const u = (r() * 2 - 1) * (Dw / 2 - 4), v = (r() * 2 - 1) * (Dd / 2 - 4);
+      if (Math.hypot(u, v) < 12) continue;
+      const c = ADS[k % ADS.length];
+      prop('box', x + u, DY + 1, z + v, 2.6, 2, 2, [.08, .07, .06]);
+      glow(x + u, DY + 2.1, z + v, 2.8, .12, 2.2, c.map(q => q * .5));
+      pool(x + u, z + v, 4, c.map(q => q * .05));
+    }
+    for (let k = 0; k < 30; k++) {
+      const a = r() * Math.PI * 2, rad = 10 + r() * Math.min(Dw, Dd) * .3;
+      prop('cyl', ...at(a, rad, DY + .85), .55, 1.7, .55, [.08 + .1 * r(), .07, .06]);
+    }
+
+    // Pivnaya under the deck round the stem's foot, with its queue on the street.
+
+    bld(x, z, 20, 20, 5, { ...raw, base: [.12, .05, .04], win: WARM, lit: .5 }, r, { shape: 'cyl', roof: false, kibble: false, skin: SKINS.bands });
+    textSign('ПИВО 24', x, 3.6, z + 10.3, 6, 1.4, 0, AMBER);
+    for (let k = 0; k < 14; k++) prop('cyl', x - 6 + r() * 12, .85, z + 12 + r() * 4, .55, 1.7, .55, [.08 + .1 * r(), .07, .06]);
+    pool(x, z, 34, AMBER.map(v => v * .07));
+  };
+
   return {
     rab_atsuzawa: { at: [662, 1000], label: 'Atsuzawa Arcology', labelY: 750, scaleY: .6, minSide: 56, reach: 500, face: [0, 1], build: atsuzawa },
     rab_olesya: { at: [612, 1012], label: 'Saint Olesya', labelY: 75, minSide: 62, reach: 500, face: [0, 1], build: olesya },
@@ -1185,6 +1336,14 @@ export function landmarks(H) {
     rab_trellick: { at: [560, 948], label: 'Sky-Street Bloc', labelY: 160, minSide: 50, reach: 300, face: [0, 1], build: trellick },
     rab_watertower: { at: [690, 1012], label: 'Vodokanal Tower', labelY: 110, minSide: 40, reach: 200, build: watertower },
     rab_ministry: { at: [562, 1050], label: 'Ministry of Labour', labelY: 105, minSide: 50, reach: 300, face: [0, 1], build: ministry },
+    rab_kistochka: { at: [718, 990], label: 'Kistochka', labelY: 125, minSide: 50, reach: 300, face: [0, 1], build: kistochka, update(t) {
+      if (!KIST.lift) return;
+
+      // The lift rides up and down every 20 s.
+
+      const p = (t / 20) % 1, s = Math.min(1, Math.max(0, ((p < .5 ? p * 2 : 2 - p * 2) - .12) / .76));
+      for (const m of KIST.lift) m.position.y = KIST.lo + (KIST.hi - KIST.lo) * s * s * (3 - 2 * s);
+    } },
     rab_clonetel: { at: SP9, label: 'SafePod 9 Clone-Tel', labelY: 75, minSide: 40, reach: 200, face: [0, 1], build: clonetel, update(t) {
       if (!LIFT.parts) return;
 

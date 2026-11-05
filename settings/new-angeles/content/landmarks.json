@@ -335,6 +335,15 @@
       "The planners wanted the sky streets to replace the busy streets below, and in a way they do. Residents sell food, fix gear and settle feuds along the corridors. The Mafiya collects rent floor by floor. A crew comes here to find a fixer, to hide in a crowded flat, or to run a long way down a very narrow hall."
     ]
   },
+  "Kistochka": {
+    "kicker": "A rusting red crown over a beer-hall deck",
+    "category": "food",
+    "text": [
+      "Kistochka is a restaurant tower in Rabotgorod. A ribbed concrete stem rises from a raised deck, with a stair of solid concrete flights stepping up one side and a glass lift on the other. On top sits a red crown of three tiers of angled bay windows and a flat wing, capped by a louvre band and a grey dome. The paint has gone the colour of dried blood. Some bays glow amber, some show holo ads, and an LED ticker runs round the band under a forest of pirate antennas.",
+      "The A14 planners built it in the Beanstalk boom as Restaurant Tower No. 3, a sky canteen where construction shifts could drink above the trucks and watch the Root climb. The workers called it Kistochka, the little brush, after its shape. When the boom ended the canteen closed and the paint began to flake. Street painters, human and bioroid, covered the stem in murals.",
+      "Today a Mafiya-licensed pivnaya fills the deck's undercroft and the wing, and pours the cheapest beer in the city. Radio Kistochka broadcasts old Soviet pop and labour news from the top tier, and a night market fills the deck after dark. A crew comes here to meet a contact over a cheap glass, to get a message on the pirate airwaves, or to buy something off a stall that should not exist."
+    ]
+  },
   "Vodokanal Tower": {
     "kicker": "A ribbed water tower with a radar crown",
     "category": "civic",

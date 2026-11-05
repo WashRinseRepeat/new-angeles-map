@@ -6,7 +6,7 @@
 //   node spikes/map/gen/regress.mjs compare <a> <b>  compare two captures
 //
 // Options: --page=<file in the map folder> (default index.html), --views=default,ride, --out=<dir>, --tolerance=<pixels>,
-// --gpu (use the machine's GPU instead of SwiftShader, faster but less portable).
+// MAP_GL picks the renderer as in harness.mjs: the machine's GPU by default, swiftshader for a machine without one.
 //
 // Each tree is served by a small static server. three.js comes from gen/node_modules (npm install in gen/), so the
 // check runs offline. The page runs on a frozen clock with a seeded Math.random, and three's UUIDs draw from their
@@ -20,7 +20,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve, sep } from 'node:path';
-import { MAP, INIT, playwright, routeThree, serve } from './harness.mjs';
+import { MAP, INIT, LAUNCH, playwright, routeThree, serve } from './harness.mjs';
 
 // The map folder is the parent of gen/. It sits at spikes/map in the archive and at the root of the public copy.
 
@@ -58,7 +58,7 @@ const VIEWS = [
 async function capture(root, dir) {
   const { chromium } = await playwright();
   const { server, url } = await serve(root);
-  const browser = await chromium.launch({ args: opt.gpu ? [] : ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+  const browser = await chromium.launch(LAUNCH);
   mkdirSync(dir, { recursive: true });
   const result = { views: {}, runs: {} };
   try {

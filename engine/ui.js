@@ -236,6 +236,11 @@ export function flyTo(target, dist = 150, dir = null, dur = 1.2) {
 export const FOCUS = PLACES.find(p => p.slug === QUERY.get('focus'));
 if (FOCUS) { controls.target.set(FOCUS.x, 10, FOCUS.z); camera.position.set(FOCUS.x + 110, 190, FOCUS.z + 150); select(FOCUS); }
 
+// ?view=x,y,z,tx,ty,tz opens the map at a camera pose, as Copy values writes it (pos, then target).
+
+const VIEW = QUERY.get('view')?.split(',').map(Number);
+if (VIEW?.length === 6 && VIEW.every(Number.isFinite)) { camera.position.set(...VIEW.slice(0, 3)); controls.target.set(...VIEW.slice(3)); }
+
 window.spike = { setLayer, look: (x, y, z, d = 60) => { controls.target.set(x, y, z); camera.position.set(x - d * .5, y + d * .8, z + d * .6); controls.update(); }, H, generate, renderer, composer, TILES: () => TILES, getSites: () => SITES, scene, CITY, density, styleAt, STYLES, getMerged: () => merged, TALLY, ARCHETYPES, SHAPES, select, PLACES, CENTRE_PLACE, camera, controls, track, FRAMES, nearHighway, CENTRE, CENTRE_R, SETTING };
 
 export const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
