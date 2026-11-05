@@ -5,7 +5,7 @@ import { S } from './state.js';
 import { SETTING } from './setting.js';
 import { CITY, STANDALONE, hash, rng, sdPoly, smooth } from './core.js';
 import { camera, controls, labels, renderer, scene } from './render.js';
-import { ROUTES, STATIONS, STATION_LEN, TRAFFIC, carriage, routeU, sweep, uploadTrains } from './transport.js';
+import { ROUTES, STATIONS, STATION_LEN, TRAFFIC, carriage, footOn, routeU, sweep, uploadTrains } from './transport.js';
 import { TUNNELS, portalWidth } from './generator.js';
 import { GLOWS, beam, glow, glows, prop, puff, put, textSign } from './instances.js';
 
@@ -14,12 +14,13 @@ const districtAt = (x, z) => CITY.districts.find(d => sdPoly(x, z, d.poly) > 0);
 const short = d => d?.name.replace(/\s+District$/i, '');
 
 // The loop route takes the pack's loop name. A line takes the name of the district at its far end, a ring the
-// district it circles. A centre spur takes the pack's name for it, in city.json's spur order.
+// district it circles. A centre spur takes the pack's name for it, in city.json's spur order. A route that
+// already has a name keeps it.
 
 const MAGLEV = SETTING.transport.maglev;
 const districtOf = R => short(districtAt(R.curve.getPointAt(1).x, R.curve.getPointAt(1).z)) ?? 'Outer';
-export const routeName = R => R.loop ? MAGLEV.loopName : R.root ? MAGLEV.spurNames[ROUTES.indexOf(R) - 1]
-  : `${districtOf(R)} ${R.closed ? 'Loop' : 'Line'}`;
+export const routeName = R => R.name ?? (R.loop ? MAGLEV.loopName : R.root ? MAGLEV.spurNames[ROUTES.indexOf(R) - 1]
+  : `${districtOf(R)} ${R.closed ? 'Loop' : 'Line'}`);
 for (const R of ROUTES) { R.name = routeName(R); R.stops = STATIONS.filter(st => st.route === R).sort((a, b) => a.s - b.s); }
 
 // ---------- stations ----------
@@ -49,25 +50,33 @@ const KITS = MAGLEV.stations?.(A, { HALF, LEN: STATION_LEN, SIDES, along }) ?? {
 
 // Boards at the back of each platform carry the station name, facing the track below the rider's eye line.
 
-function nameBoards(name, rgb, board) {
-  for (const s of SIDES) for (const z of [-16, 16]) {
+function nameBoards(name, rgb, board, sides) {
+  for (const s of sides) for (const z of [-16, 16]) {
     A.box(s * 9.15, 3, z, .15, 1.9, 7.6, board);
     A.text(name.toUpperCase(), s * 9.05, 3, z, 7, rgb, -s * Math.PI / 2);
   }
 }
+
+// A platform side that would lie over another route's guideway, within 10 m of its deck, leaves out its deck, edge
+// light, pillars and name boards, so double track keeps its middle clear.
+
+const overTrack = (R, p, c, sn, s) => ROUTES.some(Q => Q !== R && [-HALF, -HALF / 2, 0, HALF / 2, HALF].some(z => {
+  const f = footOn(Q.path, { x: p.x + s * 6.4 * c + z * sn, z: p.z - s * 6.4 * sn + z * c });
+  return f.d < 6.2 && Math.abs(f.y - p.y) < 10;
+}));
 
 export function buildStations() {
   for (const st of STATIONS) {
     const R = st.route, u = st.u, p = R.curve.getPointAt(u), t = R.curve.getTangentAt(u), a = Math.atan2(t.x, t.z), K = KITS[st.id] ?? KITS[MAGLEV.defaultStation];
     y0 = p.y;
     S.FRAME = { cx: 0, cz: 0, tx: p.x, tz: p.z, a, c: Math.cos(a), s: Math.sin(a) };
-    const r = rng(hash(Math.round(p.x), 77));
-    for (const s of SIDES) {
+    const r = rng(hash(Math.round(p.x), 77)), sides = SIDES.filter(s => !overTrack(R, p, S.FRAME.c, S.FRAME.s, s));
+    for (const s of sides) {
       A.box(s * 6.4, .2, 0, 6, 1.6, STATION_LEN, K.deck);
       A.glw(s * 3.5, 1.03, 0, .12, .05, STATION_LEN, K.edge.map(v => v * .45));
       along(16, z => A.cyl(s * 7, -y0 / 2 - .3, z, 1.4, y0 - .6, [.06, .065, .075]));
     }
-    nameBoards(st.name, K.sign, K.board);
+    nameBoards(st.name, K.sign, K.board, sides);
     K.build(r);
     S.FRAME = null;
   }
@@ -95,7 +104,7 @@ function timetable(R) {
   if (R.closed) {
     R.stops.forEach((st, i) => {
       const nx = R.stops[(i + 1) % R.stops.length];
-      segs.push({ T: DWELL, at: st.s, st }, { from: st.s, D: ((nx.s - st.s) % L + L) % L || L, dir: 1, to: { st: nx } });
+      segs.push({ T: DWELL, at: st.s, st }, { from: st.s, fromSt: st, D: ((nx.s - st.s) % L + L) % L || L, dir: 1, to: { st: nx } });
     });
   } else {
 
@@ -279,7 +288,13 @@ export const TOURS = (() => {
   const nodes = network();
   return TOURS_DEF.map(d => buildTour(nodes, d) ?? console.warn('tour without a path', d.name)).filter(Boolean);
 })();
-const trainState = (R, k) => state(R, R.t + k * R.P / R.trains.length);
+// A closed route runs backwards when R.sign is -1. The heading flips with it.
+
+const trainState = (R, k) => {
+  const o = state(R, R.t + k * R.P / R.trains.length);
+  if (R.closed) o.dir *= R.sign ?? 1;
+  return o;
+};
 // The traffic slider's default, 0.3, runs the timetables at their own pace.
 // The rider's line holds still while the camera flies in to board.
 
@@ -295,7 +310,7 @@ function moveTrains(dt) {
     onTour = tour;
   }
   for (const R of tour ? [tour] : RUNS) {
-    R.t += dt * TRAFFIC.speed / .3 * (ride?.R === R ? (ride.boarding ? 0 : ride.mul) : 1);
+    R.t += dt * TRAFFIC.speed / .3 * (ride?.R === R ? (ride.boarding ? 0 : ride.mul) : 1) * (R.closed ? R.sign ?? 1 : 1);
     R.trains.forEach((cars, k) => {
       const { c, dir } = trainState(R, k);
       cars.forEach((m, j) => {
@@ -431,18 +446,28 @@ export function startRide(st) {
   let t0 = 0;
   for (const g of R.segs) { if (g.st === st && g.dir === dir) { t0 += g.T - 1; break; } t0 += g.T; }
   R.t = t0 + .01;
+  if (ride) ride.R.sign = 1;
+  R.sign = 1;
   ride = { R, dir: 0, boarding: true, yaw: 0, pitch: 0, mul: ride?.mul ?? 1, blend: { fromC: camera.position.clone(), fromT: controls.target.clone(), t: 0, dur: 2.4 } };
   controls.enabled = false;
   setNear(.4);
   $('rSpeed').textContent = `${ride.mul}×`;
-  $('rFlip').hidden = R.closed;
+  $('rFlip').hidden = false;
   document.body.classList.add('focus');
   $('ride').hidden = false;
   showLabels();
   music(R);
 }
+// The rider's train centre along its route, or null when not riding.
+
+export const rideInfo = () => {
+  if (!ride) return null;
+  const { c, dir } = trainState(ride.R, 0);
+  return { route: ride.R.name, s: c, dir };
+};
 export function stopRide() {
   if (!ride) return;
+  ride.R.sign = 1;
   pose(_e, _T);
   const f = _f.clone(), toT = V(_e.x + f.x * 60, Math.max(0, _e.y - 20), _e.z + f.z * 60);
   exit = { fromC: camera.position.clone(), fromT: controls.target.clone(), toT, toC: toT.clone().addScaledVector(f, -240).setY(toT.y + 200), t: 0 };
@@ -529,6 +554,7 @@ function hud() {
   const { g } = trainState(ride.R, 0), here = short(districtAt(camera.position.x, camera.position.z));
   const name = g.st?.name, next = g.D == null
     ? (g.end ? (name ? `${name} station · end of the line` : 'End of the line · turning back') : `${name} station`)
+    : ride.R.closed && ride.R.sign < 0 ? `Next: ${g.fromSt.name}`
     : g.to.st ? `Next: ${g.to.st.name}` : 'Next: end of the line';
   const txt = `${ride.R.name}|${next}|${here ? `Passing through ${here}` : 'Over open ground'}`;
   if (txt === shown) return;
@@ -537,7 +563,12 @@ function hud() {
 }
 
 $('rExit').onclick = stopRide;
-$('rFlip').onclick = () => { if (ride && !ride.R.closed) ride.R.t = END_DWELL - ride.R.t % ride.R.P; };
+$('rFlip').onclick = () => {
+  if (!ride) return;
+  const R = ride.R;
+  if (R.closed) R.sign = -(R.sign ?? 1);
+  else R.t = END_DWELL - R.t % R.P;
+};
 $('rMusic').onclick = () => {
   muted = !muted;
   try { localStorage.setItem('rideMusic', muted ? 'off' : 'on'); } catch {}

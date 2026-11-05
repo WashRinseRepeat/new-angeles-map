@@ -9,6 +9,10 @@ export const BDC = {
   signs: [[1.6, .7, .12], [1.5, .16, .1], [1.4, .35, .08]],
   tiers: [['tenement', 'warehouse', 'cargo', 'park'], ['block', 'tenement', 'stack', 'warehouse'], ['tower', 'block']],
   street: [1.0, .45, .1],
+
+  // Tunnel mouths in Base de Cayambe are heavy concrete collars with a sodium strip under the lintel.
+
+  portal: { depth: 2.4, bar: 1.8, shade: 2.6, light: [1.5, .75, .2], strip: 'lintel' },
 };
 export const RUT = {
   h0: 14, h1: 80, density: .97, neon: .8, lit: .2, grime: .2,
@@ -16,13 +20,19 @@ export const RUT = {
   signs: [[1.8, .15, 1.2], [.18, 1.4, 1.8], [.2, 1.6, 1.3], [1.2, .2, 1.6]],
   tiers: [['stack', 'block', 'park'], ['stack', 'tower', 'block', 'stack'], ['tower', 'twin', 'stack'], ['mega', 'tower', 'tower', 'twin', 'stack']],
   street: [.55, .6, 1.0],
+
+  // Rutherford's corporate towers take a thin bright steel frame with a cold cyan light all round.
+
+  portal: { depth: .35, bar: .4, shade: 6, light: [.4, 1.3, 1.8], strip: 'frame' },
 };
 
 // Every district has a style. Dials come from design/districts/<id>.md. w places a style on the old
 // Base de Cayambe (0) to Rutherford (1) axis, which kits read for palettes and massing. zones lists
 // the block zones a district allows. Tiers use existing kits until a district gets its own family.
+// A district without its own portal look gets a plain frame in its facade colour, lit along the lintel in
+// its window colour.
 
-const STYLE = (o) => ({ zones: [], ...o });
+const STYLE = (o) => ({ zones: [], portal: { depth: 1, bar: .9, shade: 1.6, light: 'win', strip: 'lintel' }, ...o });
 export const STYLES = {
   chakana: BDC,
   'base-de-cayambe': BDC,
@@ -51,7 +61,11 @@ export const STYLES = {
     tiers: [['warehouse', 'cargo', 'tenement'], ['warehouse', 'tenement', 'block'], ['block', 'tower', 'tenement']] }),
   guayaquil: STYLE({ w: .4, h0: 10, h1: 60, density: .95, neon: .35, lit: .18, grime: .8, base: [.09, .08, .07], win: [1, .62, .32],
     signs: [[1.6, .2, .3], [1.5, .8, .2], [1.2, .2, 1.4], [.2, 1.2, .5]], street: [.85, .45, .15],
-    tiers: [['tenement', 'block', 'stack'], ['block', 'stack', 'tower'], ['tower', 'twin', 'mega']] }),
+    tiers: [['tenement', 'block', 'stack'], ['block', 'stack', 'tower'], ['tower', 'twin', 'mega']],
+
+    // Guayaquil's glass towers take a slim dark mullion frame, lit round the opening in the tower's window colour.
+
+    portal: { depth: .6, bar: .5, shade: .6, light: 'win', strip: 'frame' } }),
 };
 BDC.w = 0; BDC.zones = ['industry', 'housing'];
 RUT.w = 1; RUT.zones = [];

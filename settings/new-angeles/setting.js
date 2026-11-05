@@ -106,15 +106,15 @@ export default {
     // Block zones, in the order they pick blocks. Each district zone takes up to 16 of its own blocks. Chakana
     // kits reach every corner of the district, and the ring rank fills the Root side first when the slider is
     // low. Industry spreads over Base de Cayambe and the border, and a 120 m gap keeps one patch from taking
-    // every site. Mega-housing fills whole blocks in Base de Cayambe and Chakana.
+    // every site. Mega-housing fills whole blocks in Base de Cayambe and Chakana, and a maglev may tunnel through one.
 
     blockZones: Z => [
       ...Z.districts.filter(d => d.id !== 'chakana').map(Z.districtZone),
       { zone: 'chakana', cap: () => 160 * Z.tune.chakana, gap: 0, minSide: 30, test: Z.inCentre, rank: Z.ringRank },
-      { zone: 'industry', cap: () => 28 * Z.tune.industry, gap: 120,
+      { zone: 'industry', cap: () => 30 * Z.tune.industry, gap: 120,
         test: (b, blend) => Z.allows(b, 'industry', blend) && Z.vnoise(b.cx / 420 + 11, b.cz / 420 + 5) > .45,
         rank: b => Z.vnoise(b.cx / 420 + 11, b.cz / 420 + 5) + .3 * Z.vnoise(b.cx / 90 + 3, b.cz / 90 + 8) },
-      { zone: 'housing', cap: () => 10 * Z.tune.mega, gap: 240, builders: [Z.megaHousing],
+      { zone: 'housing', cap: () => 10 * Z.tune.mega, gap: 240, builders: [Z.megaHousing], tunnel: true,
         test: (b, blend) => Z.allows(b, 'housing', blend), rank: b => Z.vnoise(b.cx / 350 + 41, b.cz / 350 + 17) },
     ],
 
@@ -162,8 +162,9 @@ export default {
 
     // The maglev loop's deck runs from height[0] at style weight 0 to height[1] at 1. Spurs run from the plaza
     // edge at spur[0] down to spur[1]. Lines and rings run at 26 m. A spur is a Beanstalk line. It starts at the
-    // centre station and plays centreMusic. stops are hand-placed stations in map px. A district without them
-    // gets one station where a route runs deepest inside it, dressed by its kit in stations.js.
+    // centre station and plays centreMusic. stops are hand-placed stations in map px. Each snaps to a route within
+    // 150 m, and double track gets one on each guideway. A district without them gets one station where a route
+    // runs deepest inside it, dressed by its kit in stations.js.
 
     maglev: {
       height: [16, 64], spur: [40, 22], line: 26, ring: 26, loopName: 'City Loop',
@@ -171,13 +172,14 @@ export default {
       centreStation: { id: 'chakana', name: 'The Beanstalk' }, centreMusic: 'beanstalk-line', defaultStation: 'chakana',
       stations: stationKits,
       stops: [
+        { id: 'chakana', name: 'The Beanstalk', at: [852.2, 184.4] },
+        { id: 'base-de-cayambe', name: 'Base de Cayambe', at: [744.4, 324.7] },
+        { id: 'laguna-velasco', name: 'Laguna Velasco', at: [649.7, 966.1] },
         { id: 'guayaquil', name: 'Nuevo Guayaquil', at: [960, 1495] },
         { id: 'guayaquil', name: 'Florine Ojeda Bank', at: [1190, 1542] },
-        { id: 'guayaquil', name: 'Beyond the Daule', at: [1218, 1400] },
+        { id: 'guayaquil', name: 'Beyond the Daule', at: [1218, 1370] },
         { id: 'guayaquil', name: 'Las Peñas', at: [1060, 1240] },
         { id: 'guayaquil', name: 'Antiguo Guayaquil', at: [930, 1415] },
-        { id: 'esmeraldas', name: 'The Streets', at: [262, 500] },
-        { id: 'esmeraldas', name: 'Historic Esmeraldas', at: [232, 442] },
         { id: 'esmeraldas', name: 'The Malecón', at: [207, 372] },
       ],
 
@@ -186,13 +188,6 @@ export default {
       tours: [
         { name: 'Beanstalk Circle', music: 'beanstalk-line', via: [['The Beanstalk', 'Beanstalk South Line'], ['Rutherford', 'City Loop'],
           ['Base de Cayambe', 'City Loop'], ['The Beanstalk', 'Beanstalk West Line']] },
-        { name: 'Esmeraldas Coast Circle', music: 'guayaquil-line', via: [['Base de Cayambe', 'City Loop'], ['Rutherford', 'Esmeraldas Line'],
-          ['The Streets'], ['Historic Esmeraldas'], ['The Malecón'], ['Base de Cayambe', 'Chakana Line']] },
-        { name: 'Beanstalk to the Malecón', music: 'esmeraldas-line', via: [['The Beanstalk', 'Beanstalk West Line'], ['The Streets'], ['The Malecón']] },
-        { name: 'Beanstalk to Guayaquil', music: 'guayaquil-loop', via: [['The Beanstalk', 'Beanstalk Southwest Line'], ['Quinde'],
-          ['Nuevo Guayaquil', 'Guayaquil Loop'], ['Las Peñas', 'Guayaquil Loop']] },
-        { name: 'Beanstalk to the Coast', music: 'la-costa-line', via: [['The Beanstalk', 'Beanstalk West Line'], ['Manta'], ['Quinde'],
-          ['Antiguo Guayaquil', 'Guayaquil Line']] },
       ],
     },
   },

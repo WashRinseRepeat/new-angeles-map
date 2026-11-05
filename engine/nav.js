@@ -9,6 +9,7 @@ import { FIND_FAMILIES, LANDMARK_SITES } from './api.js';
 import { DISTRICT_LABELS, LOCAL, card, flyTo, hideCard, pins, select, viewPlace } from './ui.js';
 import { fireworks } from './fireworks.js';
 import { EPISODES, initAudioTour, resumeAt, startAudioTour, stopAudioTour } from './audiotour.js';
+import { ROUTES } from './transport.js';
 import { TOURS, startRide, stopRide } from './ride.js';
 
 const $ = id => document.getElementById(id);
@@ -327,9 +328,9 @@ function endTour() {
 // ---------- maglev ride: pick a station, then ride the train from there ----------
 
 const ridePick = $('ridePick');
-// The picker offers the tours, which together pass every station. The single lines still run on the map.
+// The picker offers the data loops first, then the tours, which together pass every station. Lines and spurs run on the map but have no picker entry.
 
-const RIDES = TOURS;
+const RIDES = [...ROUTES.filter(R => R.music && R.closed && !R.loop), ...TOURS];
 rail.querySelector('[data-tab=ride]').hidden = !RIDES.length;
 ridePick.innerHTML = RIDES.map((R, i) => `<details class="d"${i ? '' : ' open'}><summary><span>${esc(R.name)}</span><b>${R.stops.length}</b></summary>
   <div class="stns">${R.stops.map(st => `<button data-r="${i}" data-s="${R.stops.indexOf(st)}">${esc(st.name)}</button>`).join('')}</div></details>`).join('');

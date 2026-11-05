@@ -214,12 +214,18 @@ export function blockSites(blend) {
     const X = b.cx - p.cx, Z = b.cz - p.cz, pad = Math.min(b.w, b.d) / 2;
     return Math.abs(X * p.c - Z * p.s) < p.size[0] / 2 + pad && Math.abs(X * p.s + Z * p.c) < p.size[1] / 2 + pad;
   });
+
+  // A block a corridor crosses stays free of kits, except that a zone with tunnel: true may take one that only
+  // a maglev crosses. Its kit then tunnels.
+
   const free = ALL_BLOCK_FRAMES.filter(b => Math.min(b.w, b.d) >= SC.blockMin && !b.used && !quarterAt(b.cx, b.cz) && (!CENTRE_R || toCentre(b) > CENTRE_R + 40)
-    && !corridorIn(b, 4, Math.min(b.w, BLOCK_MAX), Math.min(b.d, BLOCK_MAX)).length && !underPlace(b));
+    && !underPlace(b));
+  for (const b of free) b.cross = corridorIn(b, 4, Math.min(b.w, BLOCK_MAX), Math.min(b.d, BLOCK_MAX)).map(h => h.q.line.kind);
+  const open = (b, z) => !b.cross.length || z.tunnel && b.cross.every(k => k === 'maglev');
   for (const z of BLOCK_ZONES) {
     if (!BLOCK_KITS[z.zone].length) continue;
     const cap = Math.round(z.cap()), mine = [];
-    for (const b of free.filter(b => Math.min(b.w, b.d) >= (z.minSide ?? SC.siteMin) && z.test(b, blend)).sort((p, q) => z.rank(q) - z.rank(p))) {
+    for (const b of free.filter(b => open(b, z) && Math.min(b.w, b.d) >= (z.minSide ?? SC.siteMin) && z.test(b, blend)).sort((p, q) => z.rank(q) - z.rank(p))) {
       if (mine.length >= cap) break;
       if (out.some(s => s.f === b) || mine.some(m => Math.hypot(m.f.cx - b.cx, m.f.cz - b.cz) < z.gap)) continue;
       mine.push({ f: b, zone: z.zone });
@@ -595,11 +601,12 @@ function trim(f, near) {
 }
 
 // A tall tower may keep a maglev passing through it, or a highway when the tower is very wide.
-// Its crossed boxes stay. Lights, signs and props in the band go, and a lit portal frames each point
-// where the line enters or leaves a box. Returns false when the lot does not qualify.
+// Its crossed boxes stay. Lights, signs and props in the band go, and a portal frames each point
+// where the line enters or leaves a box, in the look of the building's style st. Returns false when the lot
+// does not qualify. A block site (site true) needs no tall tower. Each crossed box only has to rise 12 m above the deck.
 
 export const TUNNELS = [];
-function tunnel(k, hits) {
+function tunnel(k, hits, st, site = false) {
   if (hits.some(h => h.q.line.kind === 'station')) return false;
   if (hits.some(h => !h.m || (h.m !== SHAPES.box && Object.values(SHAPES).includes(h.m)))) return false;
   const boxes = [...new Set(hits.filter(h => h.m === SHAPES.box).map(h => h.i))];
@@ -618,29 +625,36 @@ function tunnel(k, hits) {
   for (let i = j0; i < SHAPES.box.count; i++) all.push(box(i));
 
   // Small low boxes in the band (fins, add-on rooms) go with the props. Every other crossed box must be
-  // tall and wide enough to hold the line.
+  // tall and wide enough to hold the line, or the line must run there inside another box that holds it,
+  // or the box must stand inside the plan of such a box.
 
+  const holds = (b, q) => b.y1 >= q.y + q.line.hi + (site ? 12 : 0) && Math.min(b.sx, b.sz) >= (q.line.kind === 'maglev' ? 11 : 36);
+  const within = (b, o) => [[-1, -1], [1, -1], [-1, 1], [1, 1]].every(([u, v]) => {
+    _p.set(b.e[12] + (u * b.e[0] + v * b.e[8]) / 2, o.e[13], b.e[14] + (u * b.e[2] + v * b.e[10]) / 2).applyMatrix4(o.inv);
+    return Math.abs(_p.x) <= .501 && Math.abs(_p.z) <= .501;
+  });
   const thin = new Set();
   for (const i of boxes) {
     const b = all.find(o => o.i === i), mine = hits.filter(h => h.m === SHAPES.box && h.i === i);
     for (const { q } of mine) {
-      const L = q.line;
-      if (top < Math.max(2 * q.y, q.y + 40)) return false;
+      if (!site && top < Math.max(2 * q.y, q.y + 40)) return false;
       if (Math.min(b.sx, b.sz) < 10 && b.y1 - b.y0 < 15) { thin.add(i); continue; }
-      if (b.y1 < q.y + L.hi) return false;
-      if (Math.min(b.sx, b.sz) < (L.kind === 'maglev' ? 11 : 36)) return false;
+      if (!holds(b, q) && !all.some(o => o !== b && holds(o, q) && (inside(o, q.x, q.y, q.z) || o.y0 <= b.y0 && within(b, o)))) return false;
     }
   }
-  const portals = [];
+  const portals = [], attr = SHAPES.box.geometry.attributes, look = STYLES[st.id].portal ?? null;
+  const lit = look && (look.light === 'win' ? st.win : look.light);
   for (const i of boxes) {
     if (thin.has(i)) continue;
     const b = all.find(o => o.i === i), mine = hits.filter(h => h.m === SHAPES.box && h.i === i);
+    const frame = look && [attr.aBase.getX(i), attr.aBase.getY(i), attr.aBase.getZ(i)].map(v => v * look.shade);
 
     // Walk each crossed line past the box and mark where it goes in or out.
 
     for (const L of new Set(mine.map(h => h.q.line))) {
       const n = L.s.length, idx = mine.filter(h => h.q.line === L).map(h => h.q.i), span = Math.ceil((b.sx + b.sz) / 3) + 4;
       const at = i => L.s[L.closed ? ((i % n) + n) % n : Math.max(0, Math.min(n - 1, i))];
+      let last = null;
       for (let s = Math.min(...idx) - span; s < Math.max(...idx) + span; s++) {
         let p0 = at(s), p1 = at(s + 1);
         if (inside(b, p0.x, p0.y, p0.z) === inside(b, p1.x, p1.y, p1.z)) continue;
@@ -660,8 +674,14 @@ function tunnel(k, hits) {
         // A portal that would overhang the facade's corner means the line clips the corner, so the lot does not tunnel.
 
         const along = lx ? Math.abs(_p.z) * b.sz : Math.abs(_p.x) * b.sx, half = (lx ? b.sz : b.sx) / 2;
-        if (along + portalWidth(cos, L.kind) / 2 + .8 > half) return false;
-        portals.push({ x, y, z, nx: nx / nl, nz: nz / nl, cos, kind: L.kind });
+        if (along + portalWidth(cos, L.kind) / 2 + Math.max(.8, look?.bar ?? 0) > half) return false;
+
+        // On a block site, a line that goes in and out through two neighbouring faces within 15 m cuts the
+        // corner off, so the site does not tunnel there.
+
+        if (site && last && !!last.lx !== !!lx && Math.hypot(x - last.x, z - last.z) < 15) return false;
+        last = { x, z, lx };
+        portals.push({ x, y, z, nx: nx / nl, nz: nz / nl, cos, kind: L.kind, style: st.id, look, frame, lit });
       }
     }
   }
@@ -674,38 +694,108 @@ function tunnel(k, hits) {
 
 // A lit frame round the line's section on the facade. A highway's frame holds a dark inset that hides the windows
 // behind it. A maglev opening gets a one-sided inset and a lining from ride.js, so riders see out the far end.
+// A style with a portal key dresses the opening in its building's look instead, see SETTINGS.md, Styles.
+// It adds a lintel and two jambs that stand out of the facade in the pierced box's colour (frame), with strips lit in lit.
 
 export const portalWidth = (cos, kind) => Math.min(2, 1 / Math.max(cos, .5)) * (kind === 'maglev' ? 7.2 : 18);
-function portal({ x, y, z, nx, nz, cos, kind }) {
+function portal({ x, y, z, nx, nz, cos, kind, look, frame, lit }) {
   const mag = kind === 'maglev', W = portalWidth(cos, kind);
   const y0 = y - (mag ? 3.6 : 2.4), y1 = y + (mag ? 6.2 : 3.4), H = y1 - y0, yc = (y0 + y1) / 2, ry = Math.atan2(nx, nz);
   const rgb = mag ? [.4, 1.3, 1.8] : [1.6, .9, .35], ex = nz, ez = -nx;
   if (!mag) prop('box', x + nx * .12, yc, z + nz * .12, W, H, .24, [.012, .014, .02], ry);
+  if (look) {
+    const { depth: D, bar: B } = look, c = frame;
+    const at = (o, s) => [x + nx * o + ex * s, z + nz * o + ez * s], [mx, mz] = at(D / 2, 0), [fx, fz] = at(D + .06, 0);
+    prop('box', mx, y1 + B / 2, mz, W + 2 * B, B, D, c, ry);
+    for (const s of [-1, 1]) {
+      const [jx, jz] = at(D / 2, s * (W + B) / 2);
+      prop('box', jx, (y0 + y1 + B) / 2, jz, B, H + B, D, c, ry);
+    }
+
+    // A lintel strip lights the opening. A frame strip also runs up both jambs and along the lintel's top.
+
+    glow(fx, y1 + .2, fz, W, .3, .1, lit, ry);
+    if (look.strip === 'frame') {
+      glow(fx, y1 + B - .2, fz, W + 2 * B, .2, .1, lit, ry);
+      for (const s of [-1, 1]) {
+        const [gx, gz] = at(D + .06, s * (W / 2 + .2));
+        glow(gx, yc, gz, .3, H, .1, lit, ry);
+      }
+    }
+    return;
+  }
   for (const s of [-1, 1]) {
     glow(x + nx * .35, yc + s * (H / 2 + .3), z + nz * .35, W + 1.2, .6, .3, rgb, ry);
     glow(x + nx * .35 + ex * s * (W / 2 + .3), yc, z + nz * .35 + ez * s * (W / 2 + .3), .6, H, .3, rgb, ry);
   }
 }
 
-// Builds on frame f so nothing it adds reaches into a corridor. build(g, k, bare, slab) builds in frame g.
-// The tries run in order: the full frame (a tall tower may tunnel), a tall lot rebuilt as one tower over
-// the whole lot so the line can tunnel through its middle, the frame trimmed off the corridor, the full frame
-// kept under the deck, then a bare yard. A lot that fits none of them stays empty.
+// A tall tower that a maglev only passes beside keeps its place when the deck edge clears each of its boxes
+// by 1 m. Props in the band go. Returns false when the line enters a box or something else stands in the way.
 
-function clearOf(f, build) {
+function beside(k, hits) {
+  const top = topSince(k), a = SHAPES.box.instanceMatrix.array, m = new THREE.Matrix4();
+  for (const { m: mesh, i, q } of hits) {
+    if (q.line.kind !== 'maglev' || top < Math.max(2 * q.y, q.y + 40)) return false;
+    if (mesh === SHAPES.box) {
+      m.fromArray(a, i * 16).invert();
+      const sx = Math.hypot(a[i * 16], a[i * 16 + 2]), sz = Math.hypot(a[i * 16 + 8], a[i * 16 + 10]), L = q.line, n = L.s.length;
+      const at = j => L.s[L.closed ? ((j % n) + n) % n : Math.max(0, Math.min(n - 1, j))];
+      for (let j = q.i - 4; j < q.i + 4; j++) for (const t of [0, .5]) {
+        const p0 = at(j), p1 = at(j + 1);
+        _p.set(lerp(p0.x, p1.x, t), a[i * 16 + 13], lerp(p0.z, p1.z, t)).applyMatrix4(m);
+        if (Math.hypot(Math.max(Math.abs(_p.x) - .5, 0) * sx, Math.max(Math.abs(_p.z) - .5, 0) * sz) < 4.4) return false;
+      }
+    } else if (!mesh || Object.values(SHAPES).includes(mesh)) return false;
+  }
+  for (const h of hits) if (h.m !== SHAPES.box) h.m.setMatrixAt(h.i, ZERO);
+  return true;
+}
+
+// One major block in style st takes the line through block site f where the kit's own boxes cannot hold it.
+// The block covers the crossed boxes and the line's path across them, 6 m round, inside the kit's footprint.
+// It rises from the ground to 12 m above the deck. Crossed boxes stay and rise out of it. Boxes it swallows go.
+// Returns false when no box was crossed.
+
+function major(k, f, hits, st, r) {
+  const a = SHAPES.box.instanceMatrix.array, j0 = k.n[INSTANCED.indexOf(SHAPES.box)], hw = Math.min(f.w, BLOCK_MAX) / 2 - 2, hd = Math.min(f.d, BLOCK_MAX) / 2 - 2;
+  const loc = (x, z) => [(x - f.cx) * f.c - (z - f.cz) * f.s, (x - f.cx) * f.s + (z - f.cz) * f.c];
+  const corners = i => [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([p, q]) => loc(a[i * 16 + 12] + (p * a[i * 16] + q * a[i * 16 + 8]) / 2, a[i * 16 + 14] + (p * a[i * 16 + 2] + q * a[i * 16 + 10]) / 2));
+  const crossed = [...new Set(hits.filter(h => h.m === SHAPES.box).map(h => h.i))];
+  if (!crossed.length) return false;
+  const pts = [...crossed.flatMap(corners), ...hits.map(h => loc(h.q.x, h.q.z))];
+  const u0 = Math.max(-hw, Math.min(...pts.map(p => p[0])) - 6), u1 = Math.min(hw, Math.max(...pts.map(p => p[0])) + 6);
+  const v0 = Math.max(-hd, Math.min(...pts.map(p => p[1])) - 6), v1 = Math.min(hd, Math.max(...pts.map(p => p[1])) + 6);
+  const H = Math.max(...hits.map(h => h.q.y + h.q.line.hi + 12));
+  for (let i = j0; i < SHAPES.box.count; i++) {
+    const top = a[i * 16 + 13] + Math.abs(a[i * 16 + 5]) / 2;
+    if (top <= H && corners(i).every(([u, v]) => u >= u0 - .5 && u <= u1 + .5 && v >= v0 - .5 && v <= v1 + .5)) SHAPES.box.setMatrixAt(i, ZERO);
+  }
+  S.FRAME = f;
+  bld(f.cx + (u0 + u1) / 2, f.cz + (v0 + v1) / 2, u1 - u0, v1 - v0, H, st, r, { skin: SKINS.grid, lit: .3 });
+  S.FRAME = null;
+  return true;
+}
+
+// Builds on frame f in style st so nothing it adds reaches into a corridor. build(g, k, bare, slab) builds in frame g.
+// The tries run in order: the full frame (a tall tower may tunnel, or stand beside a maglev), a tall lot rebuilt
+// as one tower over the whole lot so the line can tunnel through its middle, the frame trimmed off the corridor,
+// the full frame kept under the deck, then a bare yard. A lot that fits none of them stays empty.
+
+function clearOf(f, build, st) {
   const qs = corridorIn(f, 30).map(h => h.q);
   if (!qs.length) return build(f, 1, false);
   const k = mark();
   build(f, 1, false);
   let hit = clash(k, qs);
-  if (!hit.length || tunnel(k, hit)) return;
+  if (!hit.length || tunnel(k, hit, st) || beside(k, hit)) return;
   const near = corridorIn(f, 2), top = topSince(k), g = near.length ? trim(f, near) : null;
   const yMax = Math.max(...hit.map(h => h.q.y)), wide = hit.every(h => h.q.line.kind === 'maglev') ? 16 : 40;
   if (top >= Math.max(2 * yMax, yMax + 40) && Math.min(f.w, f.d) >= wide) {
     undo(k);
     build(f, 1, false, top);
     hit = clash(k, qs);
-    if (!hit.length || tunnel(k, hit)) return;
+    if (!hit.length || tunnel(k, hit, st)) return;
   }
   const low = Math.min(...[...hit.map(h => h.q), ...near.map(h => h.q)].map(q => q.y - q.line.lo)) - 1;
   const tries = [];
@@ -730,15 +820,23 @@ export function generate(blend) {
   if (!FRAMES[0]?.front) for (const f of [...FRAMES, ...ALL_BLOCK_FRAMES]) f.front = frontOf(f);
   TUNNELS.length = 0;
 
-  // A block kit that spills into a corridor gives its block back to the lots.
+  // A block kit that spills into a corridor gives its block back to the lots. A maglev may tunnel through the
+  // kit instead, or through one major block that takes the place of the boxes it crosses. s.tunnel says which.
 
-  SITES = blockSites(blend).filter(({ f, zone }) => {
+  SITES = blockSites(blend).filter(s => {
+    const { f, zone } = s;
     if (edgeAt(f.cx, f.cz) < .15) return false;
-    const r = rng(hash(Math.round(f.cx), Math.round(f.cz) + 99)), kits = BLOCK_KITS[zone], k = mark();
+    const r = rng(hash(Math.round(f.cx), Math.round(f.cz) + 99)), kits = BLOCK_KITS[zone], k = mark(), st = styleAt(f.cx, f.cz, blend);
+    const qs = corridorIn(f, 40).map(h => h.q);
     S.FRAME = f;
-    kits[Math.floor(r() * kits.length)](f.cx, f.cz, Math.min(f.w, BLOCK_MAX) - 4, Math.min(f.d, BLOCK_MAX) - 4, styleAt(f.cx, f.cz, blend), r);
+    kits[Math.floor(r() * kits.length)](f.cx, f.cz, Math.min(f.w, BLOCK_MAX) - 4, Math.min(f.d, BLOCK_MAX) - 4, st, r);
     S.FRAME = null;
-    if (!clash(k, corridorIn(f, 40).map(h => h.q)).length) return true;
+    const hit = clash(k, qs);
+    if (!hit.length) return true;
+    if (hit.every(h => h.q.line.kind === 'maglev')) {
+      if (tunnel(k, hit, st, true)) return s.tunnel = 'kit';
+      if (major(k, f, hit, st, r) && tunnel(k, clash(k, qs), st, true)) return s.tunnel = 'block';
+    }
     undo(k);
     return false;
   });
@@ -749,7 +847,7 @@ export function generate(blend) {
     // Lots thin out toward the frayed edge, so the city ends in scattered buildings.
 
     if (edgeAt(f.cx, f.cz) < .08 + .3 * rng(hash(Math.round(f.cx), Math.round(f.cz) + 41))()) continue;
-    for (const p of lotPieces(f, STYLES[styleAt(f.cx, f.cz, blend).id].lotMax)) clearOf(p, (g, k, bare, slab) => buildLot(p, g, blend, k, bare, slab));
+    for (const p of lotPieces(f, STYLES[styleAt(f.cx, f.cz, blend).id].lotMax)) clearOf(p, (g, k, bare, slab) => buildLot(p, g, blend, k, bare, slab), styleAt(p.cx, p.cz, blend));
   }
   FILL ??= fillCells();
 
@@ -762,7 +860,7 @@ export function generate(blend) {
       S.FRAME = f;
       KITS[STYLES[st.id].edgeKit ?? 'grove'](f.cx, f.cz, Math.min(f.w, f.d), st, 1, r);
       S.FRAME = null;
-    } else clearOf(f, (g, k, bare, slab) => buildLot(f, g, blend, k, bare, slab));
+    } else clearOf(f, (g, k, bare, slab) => buildLot(f, g, blend, k, bare, slab), styleAt(f.cx, f.cz, blend));
   }
   for (const c of BAND) {
     const st = styleAt(c.x, c.z, blend);

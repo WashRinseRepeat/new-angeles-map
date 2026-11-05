@@ -5,7 +5,8 @@ export function sights(G) {
   const { SKINS, FACES, GLOWS, bld, glow, prop, put, pool, roof, beacon, holo, textSign, flickerGlow, stringLights, helipad } = H;
   const { NSIGNS, GOLD, LED, FOAM, WORDS_N } = PAL;
 
-  // Maglev lines in world metres: the Guayaquil Loop and the Guayaquil Line. Anything above 18 m keeps clear of them.
+  // The Guayaquil Loop and the corridor of the old Guayaquil Line in world metres. Anything above 18 m keeps clear of both.
+  // No track runs on the corridor now, and the towers keep the clearance the old line gave them.
 
   const LOOP = [[958, 1490], [985, 1555], [1060, 1574], [1140, 1566], [1192, 1538], [1220, 1470], [1218, 1390], [1198, 1310],
     [1155, 1252], [1095, 1232], [1030, 1245], [975, 1275], [940, 1320], [928, 1380], [935, 1440]].map(W2);

@@ -95,12 +95,17 @@ for (const h of HIGHWAYS) {
 // Where the maglev crosses a highway its deck rises to 10 m above the highway's deck, on an 8% grade each side.
 
 const HW_PTS = HIGHWAYS.flatMap(h => h.path.filter((_, k) => k % 2 === 0));
-function clearHighways(path, closed) {
-  const n = path.length, ds = path[0].distanceTo(path[1]), ys = path.map(p => {
-    let y = 0;
-    for (const q of HW_PTS) if (q.y > 5 && Math.abs(q.x - p.x) < 16 && Math.abs(q.z - p.z) < 16 && Math.hypot(q.x - p.x, q.z - p.z) < 16) y = Math.max(y, q.y + 10);
-    return y;
-  });
+const overHighway = path => path.map(p => {
+  let y = 0;
+  for (const q of HW_PTS) if (q.y > 5 && Math.abs(q.x - p.x) < 16 && Math.abs(q.z - p.z) < 16 && Math.hypot(q.x - p.x, q.z - p.z) < 16) y = Math.max(y, q.y + 10);
+  return y;
+});
+const clearHighways = (path, closed) => rise(path, closed, overHighway(path));
+
+// Each deck rises to at least ys, and its neighbours rise to meet it on an 8% grade.
+
+function rise(path, closed, ys) {
+  const n = path.length, ds = path[0].distanceTo(path[1]);
   for (let pass = 0; pass < (closed ? 2 : 1); pass++) for (const dir of [1, -1]) for (let k = 1; k < n; k++) {
     const i = dir > 0 ? k : n - 1 - k, j = closed ? (i - dir + n) % n : i - dir;
     if (j >= 0 && j < n) ys[i] = Math.max(ys[i], ys[j] - .08 * ds);
@@ -114,12 +119,16 @@ export const HAS_LOOP = (CITY.maglev?.length ?? 0) >= 3;
 export const flat = HAS_LOOP ? new THREE.CatmullRomCurve3(CITY.maglev.map(([x, z]) => new THREE.Vector3(x, 0, z)), true, 'centripetal') : null;
 export const pts = HAS_LOOP ? flat.getSpacedPoints(1000).slice(0, -1) : [];
 const MAGLEV = SETTING.transport.maglev;
-export let ys = pts.map(p => lerp(...MAGLEV.height, styleAt(p.x, p.z, 200).w));
-for (let pass = 0; pass < 3; pass++) ys = ys.map((_, i) => {
-  let s = 0;
-  for (let k = -30; k <= 30; k++) s += ys[(i + k + ys.length) % ys.length];
-  return s / 61;
-});
+const heightRule = P => {
+  let ys = P.map(p => lerp(...MAGLEV.height, styleAt(p.x, p.z, 200).w));
+  for (let pass = 0; pass < 3; pass++) ys = ys.map((_, i) => {
+    let s = 0;
+    for (let k = -30; k <= 30; k++) s += ys[(i + k + ys.length) % ys.length];
+    return s / 61;
+  });
+  return ys;
+};
+export const ys = heightRule(pts);
 pts.forEach((p, i) => { p.y = ys[i]; });
 if (HAS_LOOP) clearHighways(pts, true);
 export const track = HAS_LOOP ? new THREE.CatmullRomCurve3(pts, true) : null;
@@ -187,6 +196,89 @@ const ringTrack = l => {
   curve.arcLengthDivisions = 2000;
   return { path, curve, len: curve.getLength(), closed: true };
 };
+
+// A loop is a closed route on its own guideway, laid after every other track. Where it runs within 12 m of a track
+// and within 30° of its heading, it lies 6.8 m beside that track at its deck height, on the side most of that stretch lies.
+// Elsewhere it takes the City Loop's height rule. The pull eases out over 60 m, and each sample keeps its weight in w.
+// The loop clears highways and every other track it crosses at more than 30° by 10 m, over or under it, and climbs
+// no more than 8%. Loops have no ends, so they never merge onto or lift other track. ?loops=0 skips them.
+
+export const footOn = (P, p) => {
+  const n = P.length;
+  let best = { d: Infinity };
+  for (let i = 0; i < (P.closed ? n : n - 1); i++) {
+    const a = P[i], b = P[(i + 1) % n], ex = b.x - a.x, ez = b.z - a.z, L = Math.hypot(ex, ez) || 1;
+    const t = Math.max(0, Math.min(1, ((p.x - a.x) * ex + (p.z - a.z) * ez) / (L * L)));
+    const x = a.x + ex * t, z = a.z + ez * t, d = Math.hypot(p.x - x, p.z - z);
+    if (d < best.d) best = { d, x, z, y: lerp(a.y, b.y, t), tx: ex / L, tz: ez / L, i, t };
+  }
+  return best;
+};
+const COS30 = Math.cos(Math.PI / 6);
+const loopTrack = l => {
+  const flatC = new THREE.CatmullRomCurve3(l.pts.map(([x, z]) => new THREE.Vector3(x, 0, z)), true, 'centripetal');
+  const n = Math.round(flatC.getLength() / 4), raw = flatC.getSpacedPoints(n).slice(0, -1), ds = flatC.getLength() / n;
+  const at = i => (i % n + n) % n;
+  const head = raw.map((_, i) => new THREE.Vector3().subVectors(raw[at(i + 1)], raw[at(i - 1)]).normalize());
+  const free = heightRule(raw);
+  const aligned = (f, h) => Math.abs(f.tx * h.x + f.tz * h.z) > COS30;
+
+  // Each sample takes the nearest aligned track within 12 m. A run of samples on one track keeps one side of it.
+
+  const pull = raw.map((p, i) => {
+    let best = null;
+    for (const P of laid) { const f = footOn(P, p); if (f.d < 12 && aligned(f, head[i]) && (!best || f.d < best.f.d)) best = { P, f }; }
+    return best && { ...best, s: (p.x - best.f.x) * -best.f.tz + (p.z - best.f.z) * best.f.tx };
+  });
+  for (let i = 0; i < n; i++) {
+    if (!pull[i] || pull[at(i - 1)]?.P === pull[i].P && i) continue;
+    let j = i, sum = 0;
+    for (; j < i + n && pull[at(j)]?.P === pull[i].P; j++) sum += pull[at(j)].s;
+    for (let k = i; k < j; k++) pull[at(k)].side = Math.sign(sum) || 1;
+  }
+
+  // A sample takes the pull of the nearest pulled sample within 60 m, weighted by its distance along the loop.
+
+  const reach = Math.ceil(60 / ds), path = raw.map((p, i) => {
+    let k = 0;
+    while (k <= reach && !pull[at(i + k)] && !pull[at(i - k)]) k++;
+    if (k > reach) return Object.assign(new THREE.Vector3(p.x, free[i], p.z), { w: 0 });
+    const { P, side } = pull[at(i + k)] ?? pull[at(i - k)], f = pull[i]?.f ?? footOn(P, p), w = 1 - smooth(0, 60, k * ds);
+    const x = f.x - f.tz * side * 6.8, z = f.z + f.tx * side * 6.8;
+    return Object.assign(new THREE.Vector3(lerp(p.x, x, w), lerp(free[i], f.y, w), lerp(p.z, z, w)), { w, beside: P });
+  });
+
+  // A fully pulled sample keeps its partner's deck. Highways set floors 10 m over them. A crossing deck sets a
+  // floor 10 m over it, or a ceiling 10 m under it where the loop runs well below it and its pinned decks let it
+  // stay there. Between these the loop takes its eased height and climbs no more than 8%.
+
+  const span = (i, j) => flat2(path[i], path[j]);
+  const grade = (ys, way) => {
+    for (let pass = 0; pass < 2; pass++) for (const dir of [1, -1]) for (let k = 0; k < n; k++) {
+      const i = dir > 0 ? k : n - 1 - k, j = at(i - dir), y = ys[j] - way * G * span(i, j);
+      if (way * (y - ys[i]) > 0 && path[i].w < 1) ys[i] = y;
+    }
+    return ys;
+  };
+  const lo = overHighway(path).map(y => y || -Infinity), hi = path.map(() => Infinity);
+  path.forEach((p, i) => { if (p.w === 1) lo[i] = hi[i] = footOn(p.beside, p).y; });
+  const least = grade([...lo], 1);
+  path.forEach((p, i) => {
+    if (p.w < 1) for (const P of laid) {
+      const f = P !== p.beside && footOn(P, p);
+      if (!f || f.d >= 16 || aligned(f, head[i])) continue;
+      if (f.y < Math.max(p.y, least[i]) + 10) lo[i] = Math.max(lo[i], f.y + 10); else hi[i] = Math.min(hi[i], f.y - 10);
+    }
+  });
+  const floor = grade(lo, 1), ceil = grade(hi, -1);
+  const ys = grade(path.map((p, i) => Math.max(floor[i], Math.min(ceil[i], p.y))), -1);
+  path.forEach((p, i) => { p.y = Math.max(floor[i], ys[i]); });
+  path.closed = true;
+  laid.push(path);
+  const curve = new THREE.CatmullRomCurve3(path, true);
+  curve.arcLengthDivisions = 2 * n;
+  return { path, curve, len: curve.getLength(), closed: true, name: l.name, music: l.music, lap: true };
+};
 export const SPURS = [...(CITY.spurs ?? []).map(l => openTrack(l, ...MAGLEV.spur)), ...(CITY.rings ?? []).map(ringTrack),
   ...(CITY.lines ?? []).map(l => openTrack(l, MAGLEV.line, MAGLEV.line))];
 
@@ -220,6 +312,10 @@ for (let pass = 0; pass < 4; pass++) {
   for (const { path } of SPURS) path.into?.forEach((T, end) => T && level(path, T, !end));
   if (laid.flatMap(P => P.map(q => q.y)).join() === before) break;
 }
+
+// Loops lay once every other deck is level, so the decks they run beside keep their final heights.
+
+if (new URLSearchParams(location.search).get('loops') !== '0') SPURS.push(...(CITY.loops ?? []).map(loopTrack));
 for (const S of SPURS) { S.curve.updateArcLengths(); S.len = S.curve.getLength(); }
 track?.updateArcLengths();
 export const trackLen = track?.getLength() ?? 0;
@@ -243,29 +339,46 @@ export function sweep(path, profile, closed = true) {
   return g;
 }
 // ---------- maglev stations: one per district, where a ride route runs deepest inside it ----------
-// Routes are the loop, the centre spurs, the rings and the lines. A station clears a wider, taller band than the line, so platforms and canopies stay free of buildings.
+// Routes are the City Loop, the centre spurs, the rings, the lines and the data loops. A station clears a wider, taller band than the line, so platforms and canopies stay free of buildings.
 
 export const ROUTES = [...HAS_LOOP ? [{ curve: track, path: pts, len: trackLen, closed: true, loop: true }] : [],
   ...SPURS.map((l, i) => ({ ...l, closed: !!l.closed, root: i < (CITY.spurs ?? []).length }))];
 export const STATION_LEN = 64;
 export const routeU = (R, u) => R.closed ? ((u % 1) + 1) % 1 : Math.min(1, Math.max(0, u));
 
-// Hand-placed stops from the pack, in map px, snap to the nearest track. A district listed there gets these instead
-// of its one station at the deepest point.
+// Hand-placed stops from the pack, in map px, snap to the nearest route within 150 m, or drop. st.snap keeps that
+// distance. Every other route within 12 m of the snapped point gets a twin station there, so double track stops on
+// each guideway. A twin keeps its master in st.of. Centre spurs take no hand stops, because each has its terminus.
+// A district listed there gets these instead of its one station at the deepest point.
 
 const STOPS = MAGLEV.stops ?? [];
-export const STATIONS = STOPS.map(({ id, name, at: [px, pz] }) => {
-  const [x, z] = mapToWorld([px, pz]);
+const nearestU = (R, x, z) => {
   let best = null;
-  for (const R of ROUTES) for (let u = 0; u <= 1; u += 3 / R.len) {
+  for (let u = 0; u <= 1; u += 3 / R.len) {
     const p = R.curve.getPointAt(u), k = Math.hypot(p.x - x, p.z - z);
     if (!best || k < best.k) best = { k, R, u };
   }
-  return best && { id, name, route: best.R, u: best.u, s: best.u * best.R.len };
-}).filter(Boolean);
-STATIONS.push(...CITY.districts.filter(d => !STOPS.some(s => s.id === d.id)).flatMap(d => {
+  return best;
+};
+const OPEN = ROUTES.filter(R => !R.root);
+export const STATIONS = STOPS.flatMap(({ id, name, at: [px, pz] }) => {
+  const [x, z] = mapToWorld([px, pz]), best = OPEN.map(R => nearestU(R, x, z)).sort((a, b) => a.k - b.k)[0];
+  if (!best || best.k > 150) return [];
+  const st = { id, name, route: best.R, u: best.u, s: best.u * best.R.len, snap: best.k }, p = best.R.curve.getPointAt(best.u);
+  return [st, ...OPEN.filter(R => R !== best.R).map(R => nearestU(R, p.x, p.z)).filter(t => t.k < 12)
+    .map(t => ({ id, name, route: t.R, u: t.u, s: t.u * t.R.len, of: st }))];
+});
+
+// Loop routes and the other routes each take their own district stations. A hand stop whose stations all lie on
+// loop routes leaves the other routes their station in that district.
+
+const isLoop = R => !!R.lap;
+const ofStop = s => STATIONS.filter(st => st.id === s.id && st.name === s.name);
+const loopOnly = s => ofStop(s).length > 0 && ofStop(s).every(st => isLoop(st.route));
+const stopped = (d, loops) => STOPS.some(s => s.id === d.id && (loops || !loopOnly(s)));
+STATIONS.push(...[true, false].flatMap(loops => CITY.districts.filter(d => !stopped(d, loops)).flatMap(d => {
   let best = null;
-  for (const R of ROUTES.filter(R => !R.root)) {
+  for (const R of ROUTES.filter(R => !R.root && isLoop(R) === loops)) {
     const m = R.closed ? 0 : 50 / R.len;
     for (let u = m; u <= 1 - m; u += 6 / R.len) {
       if (clearOf(R, u * R.len) < 30) continue;
@@ -274,7 +387,7 @@ STATIONS.push(...CITY.districts.filter(d => !STOPS.some(s => s.id === d.id)).fla
     }
   }
   return best?.k > 0 ? [{ id: d.id, name: d.name.replace(/\s+District$/i, ''), route: best.R, u: best.u, s: best.u * best.R.len }] : [];
-}));
+})));
 
 // Each centre spur starts at the centre's terminus on the plaza edge, 90 m in from its end.
 
@@ -282,8 +395,8 @@ for (const R of ROUTES) if (R.root) STATIONS.push({ ...MAGLEV.centreStation, rou
 
 // A line end that joins another track gets an interchange 90 m in. Where the end merges, it sits at least
 // 150 m in and 30 m clear of the track it merges onto, so the platform stays off the ramp. It takes the name of
-// the nearest station on another track within 500 m, or its district's name with Junction. Two lines that meet end
-// to end run on as one track, so that end gets no interchange.
+// the nearest station on another track within 500 m, loop routes aside, or its district's name with Junction.
+// Two lines that meet end to end run on as one track, so that end gets no interchange.
 
 const lineEnds = ROUTES.filter(R => !R.closed).flatMap(R => [R.path[0], R.path.at(-1)]);
 for (const R of ROUTES) if (!R.closed) for (const [k, s0, way] of [[0, 90, 1], [R.path.length - 1, R.len - 90, -1]]) {
@@ -294,7 +407,7 @@ for (const R of ROUTES) if (!R.closed) for (const [k, s0, way] of [[0, 90, 1], [
   if (R.path.into?.[k ? 1 : 0]) for (s = s0 + way * 60; clearOf(R, s) < 30 && Math.abs(s - s0) < R.len / 3; s += way * 10);
   const q = R.curve.getPointAt(s / R.len), inD = v => CITY.districts.find(d => sdPoly(v.x, v.z, d.poly) > 0), d = inD(q) ?? inD(p);
   if (!d) continue;
-  const near = STATIONS.filter(o => o.route !== R).map(o => { const c = o.route.curve.getPointAt(o.u); return { o, d: Math.hypot(c.x - q.x, c.z - q.z) }; })
+  const near = STATIONS.filter(o => o.route !== R && !isLoop(o.route)).map(o => { const c = o.route.curve.getPointAt(o.u); return { o, d: Math.hypot(c.x - q.x, c.z - q.z) }; })
     .sort((a, b) => a.d - b.d)[0];
   STATIONS.push({ id: d.id, name: near?.d < 500 ? near.o.name : `${d.name.replace(/\s+District$/i, '')} Junction`, route: R, u: s / R.len, s });
 }
@@ -315,7 +428,15 @@ function sag(R, s) {
   return m;
 }
 for (const st of STATIONS) {
+  if (st.of) continue;
   const R = st.route, edge = s => R.closed ? Infinity : Math.min(s, R.len - s), end = edge(st.s) < 120;
+
+  // A stop with twins slides only along level double track, so each pair of platforms sits side by side.
+
+  const twins = STATIONS.filter(o => o.of === st), paired = s => [-HALF, 0, HALF].every(d => {
+    const p = atS(R, s + d);
+    return twins.every(o => { const f = footOn(o.route.path, p); return f.d < 12 && Math.abs(f.y - p.y) < .5; });
+  });
 
   // A stop that lands on a merge ramp moves along the line until it is clear.
 
@@ -323,30 +444,86 @@ for (const st of STATIONS) {
     const s = [st.s + d, st.s - d].find(s => edge(s) >= HALF + EASE && clearOf(R, s) >= 30);
     if (s !== undefined) st.s = s;
   }
-  let best = st.s, score = sag(R, st.s);
+  let best = st.s, score = paired(st.s) ? sag(R, st.s) : Infinity;
   for (let d = -100; d <= 100; d += 4) {
     const s = st.s + d;
-    if (edge(s) < HALF + EASE || (end && edge(s) > 115) || clearOf(R, s) < 30) continue;
+    if (edge(s) < HALF + EASE || (end && edge(s) > 115) || clearOf(R, s) < 30 || !paired(s)) continue;
     const k = sag(R, s) + Math.abs(d) * .005;
     if (k < score) { score = k; best = s; }
   }
   st.s = best;
+  const p = atS(R, st.s);
+  for (const o of twins) o.s = nearestU(o.route, p.x, p.z).u * o.route.len;
 }
+
+// Track of another route within 12 m of a station's moved track, and within 30° of its heading, moves with it unless
+// its own station moves it. The move fades out from 8 m to 12 m, so double track keeps its spacing through the
+// station and twins ride on their master's chord.
+
+const headOf = (P, i) => { const a = flatAt(P, i - 1), b = flatAt(P, i + 1), L = flat2(a, b) || 1; return [(b.x - a.x) / L, (b.z - a.z) / L]; };
+const PULL = new Map();
 for (const R of ROUTES) {
   const P = R.path, step = R.len / (R.closed ? P.length : P.length - 1);
-  const own = STATIONS.filter(st => st.route === R).map(st => ({ s: st.s, a: atS(R, st.s - HALF), b: atS(R, st.s + HALF) }));
+  const own = STATIONS.filter(st => st.route === R && !st.of).map(st => ({ s: st.s, a: atS(R, st.s - HALF), b: atS(R, st.s + HALF) }));
   if (!own.length) continue;
-  P.forEach((p, i) => {
+  PULL.set(R, { own, D: P.map((p, i) => {
+    let x = p.x, z = p.z;
     for (const { s, a, b } of own) {
       let d = Math.abs(i * step - s);
       if (R.closed) d = Math.min(d, R.len - d);
       const w = 1 - smooth(HALF, HALF + EASE, d);
       if (w <= 0) continue;
-      const dx = b.x - a.x, dz = b.z - a.z, t = ((p.x - a.x) * dx + (p.z - a.z) * dz) / (dx * dx + dz * dz);
-      p.x += (a.x + t * dx - p.x) * w;
-      p.z += (a.z + t * dz - p.z) * w;
+      const dx = b.x - a.x, dz = b.z - a.z, t = ((x - a.x) * dx + (z - a.z) * dz) / (dx * dx + dz * dz);
+      x += (a.x + t * dx - x) * w;
+      z += (a.z + t * dz - z) * w;
     }
+    return [x - p.x, z - p.z];
+  }) });
+}
+const shift = new Map(ROUTES.map(R => [R, PULL.get(R)?.D.map(v => [...v]) ?? R.path.map(() => [0, 0])]));
+for (const [R, { own, D }] of PULL) {
+  const P = R.path, mid = own.map(({ s }) => atS(R, s));
+  for (const Q of ROUTES) if (Q !== R) Q.path.forEach((q, j) => {
+    const mine = PULL.get(Q)?.D[j];
+    if (mine && (mine[0] || mine[1]) || !mid.some(c => flat2(c, q) < HALF + EASE + 30)) return;
+    const f = footOn(P, q), h = headOf(Q.path, j);
+    if (f.d >= 12 || Math.abs(h[0] * f.tx + h[1] * f.tz) <= COS30) return;
+    const [ax, az] = D[f.i], [bx, bz] = D[(f.i + 1) % P.length], k = 1 - smooth(8, 12, f.d), v = shift.get(Q)[j];
+    v[0] += lerp(ax, bx, f.t) * k;
+    v[1] += lerp(az, bz, f.t) * k;
   });
+}
+
+// A station on a route its partner moved keeps its place on the ground, not its distance along the route.
+
+const nudged = new Set(), moveAt = new Map();
+for (const R of ROUTES) if (shift.get(R).some((v, i) => v[0] !== (PULL.get(R)?.D[i][0] ?? 0) || v[1] !== (PULL.get(R)?.D[i][1] ?? 0))) nudged.add(R);
+for (const st of STATIONS) if (nudged.has(st.route)) {
+  const p = atS(st.route, st.s), v = shift.get(st.route)[nearestOn(st.route.path, p).k];
+  moveAt.set(st, [p.x + v[0], p.z + v[1]]);
+}
+for (const R of ROUTES) {
+  const v = shift.get(R);
+  if (v.every(([x, z]) => !x && !z)) continue;
+  R.path.forEach((p, i) => { p.x += v[i][0]; p.z += v[i][1]; });
+  R.curve.updateArcLengths();
+  R.len = R.curve.getLength();
+}
+for (const [st, [x, z]] of moveAt) {
+  const { R, u } = nearestU(st.route, x, z);
+  let best = { k: Infinity };
+  for (let d = -3; d <= 3; d += .25) { const v = routeU(R, u + d / R.len), p = R.curve.getPointAt(v), k = Math.hypot(p.x - x, p.z - z); if (k < best.k) best = { k, v }; }
+  st.s = best.v * R.len;
+}
+
+// A station's pull shortens some loop spans. Each loop eases back under the 8% grade by lowering the higher end.
+
+for (const R of ROUTES) if (isLoop(R)) {
+  const P = R.path, n = P.length;
+  for (let pass = 0; pass < 2; pass++) for (const dir of [1, -1]) for (let k = 0; k < n; k++) {
+    const i = dir > 0 ? k : n - 1 - k, j = (i - dir + n) % n;
+    P[i].y = Math.min(P[i].y, P[j].y + G * flat2(P[i], P[j]));
+  }
   R.curve.updateArcLengths();
   R.len = R.curve.getLength();
 }

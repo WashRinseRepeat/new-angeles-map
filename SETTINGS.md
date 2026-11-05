@@ -46,7 +46,7 @@ python3 spikes/map/gen/town.py spikes/map/settings/nuremberg
 ## Make a new pack
 
 1. Copy `settings/sandbox/` to `settings/<id>/` and change the values. Add the optional fields below as the setting needs them. `settings/new-angeles/setting.js` shows every field in use.
-2. Write a city file with the shape `gen/gen.ts` writes: `dims`, `origin`, `placeHalf`, `districts`, `streets` (`main`, `major`, `minor`), `lots` and `blocks`. Optional lists are `root` (the centre point), `highways`, `maglev` (a loop of three or more points), `spurs`, `lines`, `rings`, `water`, `parks`, `coast`, `quarters`, `subareas`, `places` and `keep` (`[x, z, r]` circles that hold the frayed edge solid). Name the file in `data.city`.
+2. Write a city file with the shape `gen/gen.ts` writes: `dims`, `origin`, `placeHalf`, `districts`, `streets` (`main`, `major`, `minor`), `lots` and `blocks`. Optional lists are `root` (the centre point), `highways`, `maglev` (a loop of three or more points), `loops` (closed routes `{ id, name, music, pts }` in world metres, laid after every other track; `gen/loops.py` writes them from `gen/loops.json`), `spurs`, `lines`, `rings`, `water`, `parks`, `coast`, `quarters`, `subareas`, `places` and `keep` (`[x, z, r]` circles that hold the frayed edge solid). Name the file in `data.city`.
 3. Give every district id in the city file a style in `styles.styles`. Pick two of them as the style axis ends.
 4. Add kit families under `kits/` and list them in `kits`. Every kit name the styles' tiers use must exist.
 5. Add station kits for the maglev, or one default kit.
@@ -80,7 +80,9 @@ An engine change for a new pack must leave New Angeles as it was. `node spikes/m
 
 ### Styles
 
-A style holds `h0`, `h1`, `density`, `neon`, `lit`, `grime`, `w` and the colours `base`, `win`, `street`, plus `signs` (a palette), `tiers` (kit names from low to high density) and `zones` (block zones it allows). Optional: `yardKit`, `yardBlocks` (the yard kit also fills every block that holds no lots), `lotMax` (lots wider than this many metres build as a grid of smaller lots), `fillKit`, `noFill`, `blockCap`, `blockGap`, `blockMin`, `smallShare`. `w` places the style between the two axis ends. The engine's own buildings read the axis ends for window colours and sign palettes.
+A style holds `h0`, `h1`, `density`, `neon`, `lit`, `grime`, `w` and the colours `base`, `win`, `street`, plus `signs` (a palette), `tiers` (kit names from low to high density) and `zones` (block zones it allows). Optional: `yardKit`, `yardBlocks` (the yard kit also fills every block that holds no lots), `lotMax` (lots wider than this many metres build as a grid of smaller lots), `fillKit`, `noFill`, `blockCap`, `blockGap`, `blockMin`, `smallShare`, `portal`. `w` places the style between the two axis ends. The engine's own buildings read the axis ends for window colours and sign palettes.
+
+`portal` dresses each tunnel mouth in a building of that style: `{ depth, bar, shade, light, strip }`. A lintel and two jambs `bar` metres thick stand `depth` metres out of the facade, in the pierced box's colour times `shade`. `light` is an `[r, g, b]` or `'win'` for the building style's window colour. `strip: 'lintel'` lights the lintel only, and `'frame'` also the jambs and the lintel's top. The look follows the style the building was built in. Without `portal` a tunnel mouth gets the engine's lit frame. New Angeles gives every district a look: its `STYLE()` helper sets a default that each district may replace.
 
 ### Buildings and decoration
 
@@ -171,7 +173,7 @@ Emberford's town hill rises about 25 m from the south wall to the square, then s
 
 ### Block zones
 
-`kits.blockZones(Z)` returns the zones in the order they pick blocks. `Z` holds `districts`, `districtZone(d)`, `ringRank`, `allows(b, zone, blend)`, `vnoise`, `megaHousing`, `tune` (the city dials) and `inCentre(b)`. A zone is `{ zone, cap(), gap, minSide, test(b, blend), rank(b), builders }`. Kit files add builders to a zone through `blocks(H)`.
+`kits.blockZones(Z)` returns the zones in the order they pick blocks. `Z` holds `districts`, `districtZone(d)`, `ringRank`, `allows(b, zone, blend)`, `vnoise`, `megaHousing`, `tune` (the city dials) and `inCentre(b)`. A zone is `{ zone, cap(), gap, minSide, test(b, blend), rank(b), builders, tunnel }`. With `tunnel: true` a zone may take a block that only a maglev crosses. Its kit then tunnels, or one major block in the site's style replaces the boxes the line crosses. The engine drops the site when neither fits. Kit files add builders to a zone through `blocks(H)`.
 
 ### Station kits
 

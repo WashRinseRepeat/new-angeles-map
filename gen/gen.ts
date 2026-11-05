@@ -99,7 +99,7 @@ for (const a of TRACE.arterials) {
 HIGHWAYS.push({ y: 26, pts: [[810, 1561.33], [810.56, 1584.44], [824.44, 1609.44], [874.44, 1617.78], [943.89, 1616.39], [993.89, 1612.22], [1124.44, 1612.22], [1166.11, 1615], [1221.67, 1617.78], [1263.33, 1615]].map(w) });
 
 // Maglev loop through the first three districts. Spurs run from the Root plaza edge out to the loop.
-// Lines carry the maglev west to the coast and south to Guayaquil.
+// The Grand and Centre loops (gen/loops.py) carry the maglev west to the coast and south to Guayaquil.
 
 const MAGLEV = [[650, 150], [800, 180], [780, 330], [700, 450], [650, 600], [540, 660], [470, 520], [520, 380], [570, 250]].map(w);
 const SPURS = [
@@ -109,16 +109,6 @@ const SPURS = [
 ].map(l => l.map(w));
 const RINGS = [
   [[958, 1490], [985, 1555], [1060, 1574], [1140, 1566], [1192, 1538], [1220, 1470], [1218, 1390], [1198, 1310], [1155, 1252], [1095, 1232], [1030, 1245], [975, 1275], [940, 1320], [928, 1380], [935, 1440]],
-].map(l => l.map(w));
-const LINES = [
-  [[470, 520], [380, 560], [300, 520], [250, 492], [232, 442], [214, 398], [205, 365], [214, 348]],
-  [[540, 660], [510, 790], [600, 900], [650, 1000], [640, 1120], [760, 1250], [860, 1320], [928, 1380]],
-  [[510, 790], [420, 900], [450, 1060], [500, 1200], [563.3, 1176.1], [624.4, 1165], [679.4, 1177.7]],
-
-  // The coast line runs on from the Esmeraldas line's end at the Malecón, on stilts off the north coast, to the
-  // loop in Base de Cayambe. gen/esm-coast-line.py adds it to the city files.
-
-  [[214, 348], [226.9, 323.3], [263.3, 315], [318.9, 316.7], [380, 313.3], [438.3, 314.4], [467.5, 309.4], [482.2, 292.8], [493.9, 267.8], [513.3, 259.4], [563.3, 263.1]],
 ].map(l => l.map(w));
 
 // The whole map frame, 1272 × 1600 px.
@@ -293,7 +283,7 @@ console.log(`coast roads: ${coastRoads.length}, lots dropped: ${lots.length - ke
 const OUT = VARIANT ? `city-${VARIANT}.json` : 'city.json';
 const rest = VARIANT ? JSON.parse(readFileSync(new URL('../../city.json', import.meta.url), 'utf8')) : {
   seed: SEED, origin: [ORIGIN.x, ORIGIN.y], dims: [DIMS.x, DIMS.y],
-  districts: DISTRICTS, root: ROOT, places: PLACES, placeHalf: PLACE_HALF, quarters: QUARTERS, highways: HIGHWAYS, maglev: MAGLEV, spurs: SPURS, rings: RINGS, lines: LINES,
+  districts: DISTRICTS, root: ROOT, places: PLACES, placeHalf: PLACE_HALF, quarters: QUARTERS, highways: HIGHWAYS, maglev: MAGLEV, spurs: SPURS, rings: RINGS, lines: [],
   subareas: SUBAREAS, water: WATER, parks: PARKS, coast: COAST,
 };
 writeFileSync(new URL(`../../${OUT}`, import.meta.url), JSON.stringify({ ...rest, streets, blocks, lots: keptLots }));
