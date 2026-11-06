@@ -222,7 +222,7 @@ export function buildStations() {
 // the stem, round the balloon the same way every trip, back down the stem and reverses at the root.
 // Every train stops at each station with its centre on the platform's centre.
 
-const CAR = 11.8, CARS = 5, TL = CAR * CARS, VMAX = 41.6, ACC = 2.8, DWELL = 3, END_DWELL = 12, SPEEDS = [1, 3, 8];
+const CAR = 11.8, CARS = 5, TL = CAR * CARS, VMAX = 41.6, ACC = 2.8, DWELL = 3, END_DWELL = 12, SPEEDS = [.5, 1, 3, 8];
 const DA = VMAX * VMAX / (2 * ACC), TA = VMAX / ACC;
 
 // A pack stop's dwell, in seconds, replaces DWELL at its stations.
@@ -464,7 +464,7 @@ function moveTrains(dt) {
     onTour = tour;
   }
   for (const R of tour ? [tour] : RUNS) {
-    R.t += dt * TRAFFIC.speed / .3 * (ride?.R === R ? (ride.boarding ? 0 : ride.mul) : 1) * (cyc(R) ? R.sign ?? 1 : 1);
+    R.t += dt * TRAFFIC.speed / .3 * (ride?.R === R ? (ride.boarding || ride.paused ? 0 : ride.mul) : 1) * (cyc(R) ? R.sign ?? 1 : 1);
     R.trains.forEach((cars, k) => {
       const { c, dir } = trainState(R, k), e = dir * carEnd(R, R.t + k * R.P / R.trains.length);
       cars.forEach((m, j) => {
@@ -614,6 +614,7 @@ export function startRide(st) {
   controls.enabled = false;
   setNear(.4);
   $('rSpeed').textContent = `${ride.mul}×`;
+  $('rPause').textContent = '❚❚ Pause';
   $('rFlip').hidden = false;
   document.body.classList.add('focus');
   $('ride').hidden = false;
@@ -840,6 +841,10 @@ $('rLabels').onclick = () => {
   showLabels();
 };
 $('rSpeed').onclick = () => { if (!ride) return; ride.mul = SPEEDS[(SPEEDS.indexOf(ride.mul) + 1) % SPEEDS.length]; $('rSpeed').textContent = `${ride.mul}×`; };
+
+// Pause stops the ridden line's trains, for screenshots. Other traffic keeps moving.
+
+$('rPause').onclick = () => { if (!ride) return; ride.paused = !ride.paused; $('rPause').textContent = ride.paused ? '▶ Resume' : '❚❚ Pause'; };
 
 // Dragging turns the view like grabbing the world. A press passes on to the map, so a tap still selects.
 // Past 5 px it is a drag, which frees the view from a clicked place and keeps its release from the map.

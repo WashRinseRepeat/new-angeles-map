@@ -708,6 +708,20 @@ try {
     const b = await moved(7, FAST);
     return a.dir === -b.dir && Math.abs(a.ds) > 1 && Math.abs(b.ds) > 1 && Math.sign(a.ds) === -Math.sign(b.ds) || JSON.stringify({ a, b });
   }));
+  await check('pause holds the train, half speed moves it half as far', inPage(async () => {
+    const { ride, moved, pump, speed, FAST, $ } = window.__ride;
+    await ride('Centre Loop');
+    await pump(51, FAST);
+    const full = await moved(7, FAST);
+    await speed(0.5);
+    const half = await moved(7, FAST);
+    $('rPause').click();
+    const held = await moved(7, FAST);
+    $('rPause').click();
+    await speed(1);
+    const r = Math.abs(half.ds / full.ds);
+    return held.ds === 0 && r > .4 && r < .6 || JSON.stringify({ full, half, held });
+  }));
   await check('reverse at a dwell keeps position', inPage(async () => {
     const { toStop, rideInfo, pump, ROUTES, $ } = window.__ride;
     if (!await toStop('Grand Loop', ROUTES.find(R => R.name === 'Grand Loop').stops[1].name)) return 'the train never reached a dwell';
