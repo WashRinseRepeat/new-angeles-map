@@ -550,6 +550,16 @@ export const waving = [];
 decor.traverse(m => { if (m.userData.wave) waving.push(m); });
 const fpsEl = document.getElementById('fps');
 
+// The tuning panel shows the camera as ?view=x,y,z,tx,ty,tz. The target sits 50 m ahead along the view,
+// so the pose holds on a ride too, where the orbit target is not used. A click copies the link.
+
+const tune = document.getElementById('tune'), viewEl = document.getElementById('tview'), _d = new THREE.Vector3();
+const viewText = () => {
+  const r = n => Math.round(n * 10) / 10, t = camera.getWorldDirection(_d).multiplyScalar(50).add(camera.position);
+  return [...camera.position.toArray(), ...t.toArray()].map(r).join(',');
+};
+viewEl.onclick = () => { const u = new URL(location.href); u.searchParams.set('view', viewText()); navigator.clipboard.writeText(u.href); };
+
 // Auto quality: four slow half-second windows in a row step down a level; twelve fast ones step back up,
 // never above the level auto started at. Hidden tabs are skipped, because the browser throttles them.
 
@@ -642,6 +652,7 @@ renderer.setAnimationLoop(now => {
   if (fpsT > .5) {
     const fps = fpsN / fpsT;
     fpsEl.textContent = `${Math.round(fps)} fps · ${QUALITY.level}`;
+    if (tune.open) viewEl.textContent = viewText();
     autoQuality(fps);
     fpsN = 0; fpsT = 0;
   }
