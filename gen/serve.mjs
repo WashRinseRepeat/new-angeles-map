@@ -9,6 +9,7 @@ import { createServer } from 'node:http';
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { validPlaces } from './places-shape.mjs';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const MAP = join(ROOT, 'spikes', 'map');
@@ -19,20 +20,7 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/jav
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.glb': 'model/gltf-binary',
   '.wasm': 'application/wasm', '.woff2': 'font/woff2', '.md': 'text/plain; charset=utf-8', '.txt': 'text/plain; charset=utf-8' };
 
-const num = v => typeof v === 'number' && Number.isFinite(v);
-const pair = v => Array.isArray(v) && v.length === 2 && v.every(num);
-const SLUG = /^[a-z0-9][a-z0-9-]{0,80}$/;
 const REQ_ID = /^\d{4}-\d{2}-\d{2}-[a-z0-9-]{1,60}$/;
-
-function validPlaces(o) {
-  if (!o || typeof o !== 'object' || Array.isArray(o)) return false;
-
-  // Landmark seats (`lm:<name>`) carry only a world point.
-
-  return Object.entries(o).every(([slug, p]) => slug.startsWith('lm:') ? /^lm:[a-z0-9_]+$/.test(slug) && pair(p?.at) : SLUG.test(slug) && existsSync(join(MAP, 'places', `${slug}.js`))
-    && pair(p?.at) && pair(p.size) && p.size.every(v => v >= 8 && v <= 600)
-    && (p.rot === null || num(p.rot)) && typeof p.snap === 'boolean');
-}
 
 const send = (res, code, body, type = 'application/json') => {
   res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-store' });

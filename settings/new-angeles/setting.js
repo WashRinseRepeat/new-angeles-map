@@ -163,31 +163,47 @@ export default {
     // The maglev loop's deck runs from height[0] at style weight 0 to height[1] at 1. Spurs run from the plaza
     // edge at spur[0] down to spur[1]. Lines and rings run at 26 m. A spur is a Beanstalk line. It starts at the
     // centre station and plays centreMusic. stops are hand-placed stations in map px. Each snaps to a route within
-    // 150 m, and double track gets one on each guideway. A district without them gets one station where a route
-    // runs deepest inside it, dressed by its kit in stations.js.
+    // 150 m, and double track gets one on each guideway. A spur takes only the stops spurStops lists for it. A
+    // district without stops gets one station where a route runs deepest inside it, dressed by its kit in stations.js.
+    // A stop's dwell, in seconds, holds trains there longer. hall is the Beanstalk station below the Root. Its at is
+    // the Root centre in map px, y the platform deck in world metres and r the hall's plan radius. The loops ramp
+    // down into it, and a loop stop inside it stands on the hall deck.
 
     maglev: {
       height: [16, 64], spur: [40, 22], line: 26, ring: 26, loopName: 'City Loop',
-      spurNames: ['Beanstalk Southwest Line', 'Beanstalk West Line', 'Beanstalk South Line'],
+      spurNames: ['Beanstalk Southwest Line'], spurStops: [['Haas Central', 'Oak Lane']],
       centreStation: { id: 'chakana', name: 'The Beanstalk' }, centreMusic: 'beanstalk-line', defaultStation: 'chakana',
       stations: stationKits,
+      hall: { at: [860, 115], y: -14, r: 260 },
       stops: [
-        { id: 'chakana', name: 'The Beanstalk', at: [852.2, 184.4] },
+        { id: 'chakana', name: 'The Beanstalk', at: [824.5, 150.5], dwell: 20 },
         { id: 'base-de-cayambe', name: 'Base de Cayambe', at: [744.4, 324.7] },
-        { id: 'laguna-velasco', name: 'Laguna Velasco', at: [649.7, 966.1] },
+        { id: 'laguna-velasco', name: 'Laguna Velasco', at: [639.7, 843.9] },
         { id: 'guayaquil', name: 'Nuevo Guayaquil', at: [960, 1495] },
         { id: 'guayaquil', name: 'Florine Ojeda Bank', at: [1190, 1542] },
-        { id: 'guayaquil', name: 'Beyond the Daule', at: [1218, 1370] },
-        { id: 'guayaquil', name: 'Las Peñas', at: [1060, 1240] },
-        { id: 'guayaquil', name: 'Antiguo Guayaquil', at: [930, 1415] },
-        { id: 'esmeraldas', name: 'The Malecón', at: [207, 372] },
+        { id: 'guayaquil', name: 'Antiguo Guayaquil', at: [958.6, 1222] },
+        { id: 'esmeraldas', name: 'The Malecón', at: [191.7, 428.8] },
+        { id: 'la-costa', name: 'Machalilla Park', at: [694.7, 1260.9] },
+        { id: 'manta', name: 'Haas Central', at: [498.4, 1093.2] },
+        { id: 'manta', name: 'Manta', at: [419.2, 865.2] },
+        { id: 'rutherford', name: 'Rutherford', at: [527.7, 655] },
+        { id: 'rabotgorod', name: 'Rabotgorod', at: [644, 1020.3], auto: true },
+        { id: 'la-costa', name: 'La Costa', at: [696.4, 1150.3], auto: true },
+        { id: 'quinde', name: 'Quinde', at: [788.7, 1377.7] },
+        { id: 'chakana', name: 'Chakana', at: [725.8, 147.7] },
+        { id: 'nihongai', name: 'Nihongai', at: [400.5, 620.7] },
+        { id: 'stop', name: 'Oak Lane', at: [780.6, 858.4] },
+        { id: 'base-de-cayambe', name: 'Centro Mercado', at: [532.2, 343.6] },
+        { id: 'chakana', name: 'Hopper Park', at: [531.1, 14.1] },
+        { id: 'guayaquil', name: 'Parque Industríal', at: [1234.7, 1155.1] },
       ],
 
-      // Ride tours name the stations they pass, each optionally on a given route. music is the track key.
+      // Ride tours name the stations they pass, each optionally on a given route. music is the track key. The
+      // Beanstalk Circle rides the Southwest Line out its stem, round its balloon and home.
 
       tours: [
-        { name: 'Beanstalk Circle', music: 'beanstalk-line', via: [['The Beanstalk', 'Beanstalk South Line'], ['Rutherford', 'City Loop'],
-          ['Base de Cayambe', 'City Loop'], ['The Beanstalk', 'Beanstalk West Line']] },
+        { name: 'Beanstalk Circle', music: 'beanstalk-line', via: [['The Beanstalk', 'Beanstalk Southwest Line'],
+          ['Haas Central', 'Beanstalk Southwest Line'], ['Oak Lane', 'Beanstalk Southwest Line'], ['The Beanstalk', 'Beanstalk Southwest Line']] },
       ],
     },
   },

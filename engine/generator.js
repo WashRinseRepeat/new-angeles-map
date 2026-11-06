@@ -204,7 +204,7 @@ export const BLOCK_ZONES = SETTING.kits.blockZones({ districts: CITY.districts, 
 export const BLOCK_KITS = Object.fromEntries(CITY.districts.map(d => [d.id, []]));
 for (const z of BLOCK_ZONES) BLOCK_KITS[z.zone] = [...BLOCK_KITS[z.zone] ?? [], ...z.builders ?? []];
 export let SITES = [];
-export function blockSites(blend) {
+export function blockSites(blend, place = () => true) {
   const out = [];
 
   // Blocks under a place's footprint stay free, because large places reach past their own block.
@@ -228,7 +228,15 @@ export function blockSites(blend) {
     for (const b of free.filter(b => open(b, z) && Math.min(b.w, b.d) >= (z.minSide ?? SC.siteMin) && z.test(b, blend)).sort((p, q) => z.rank(q) - z.rank(p))) {
       if (mine.length >= cap) break;
       if (out.some(s => s.f === b) || mine.some(m => Math.hypot(m.f.cx - b.cx, m.f.cz - b.cz) < z.gap)) continue;
-      mine.push({ f: b, zone: z.zone });
+
+      // place(s, min) builds site s and says whether it stands. min is the zone's smallest block side. A failed site
+      // keeps its slot and carries lost: true. A zone with tunnel: true tries its next block instead.
+
+      const s = { f: b, zone: z.zone };
+      const n0 = SHAPES.box.count;
+      if (!place(s, z.minSide ?? SC.siteMin)) s.lost = true;
+      own(n0);
+      if (!s.lost || !z.tunnel) mine.push(s);
     }
     out.push(...mine);
   }
@@ -510,7 +518,7 @@ const ZERO = new THREE.Matrix4().makeScale(0, 0, 0), SEETHROUGH = new Set([pools
 const inBand = (q, y0, y1) => y1 > q.y - q.line.lo && y0 < q.y + q.line.hi;
 
 // Everything added since k that reaches into the band of a sample in qs, as { m, i, q }.
-// Lot prisms and decor meshes come back with m null.
+// An instance comes back once for each line it reaches. Lot prisms and decor meshes come back with m null.
 
 function clash(k, qs) {
   const out = [];
@@ -525,11 +533,12 @@ function clash(k, qs) {
       const e = _m.elements, cy = bb.getCenter(_p).applyMatrix4(_m).y;
       const ey = Math.abs(e[1]) * hx + Math.abs(e[5]) * hy + Math.abs(e[9]) * hz;
       _inv.copy(_m).invert(); _n.setFromMatrix4(_m);
+      const seen = new Set();
       for (const q of qs) {
-        if (!inBand(q, cy - ey, cy + ey)) continue;
+        if (seen.has(q.line) || !inBand(q, cy - ey, cy + ey)) continue;
         _p.set(q.x, cy, q.z).applyMatrix4(_inv);
         _q.copy(_p).clamp(bb.min, bb.max);
-        if (_p.sub(_q).applyMatrix3(_n).length() < q.line.r) { out.push({ m, i, q }); break; }
+        if (_p.sub(_q).applyMatrix3(_n).length() < q.line.r) { out.push({ m, i, q }); seen.add(q.line); }
       }
     }
   });
@@ -602,11 +611,15 @@ function trim(f, near) {
 
 // A tall tower may keep a maglev passing through it, or a highway when the tower is very wide.
 // Its crossed boxes stay. Lights, signs and props in the band go, and a portal frames each point
-// where the line enters or leaves a box, in the look of the building's style st. Returns false when the lot
-// does not qualify. A block site (site true) needs no tall tower. Each crossed box only has to rise 12 m above the deck.
+// where the line enters or leaves a box, in the look of the building's style st. Lines that enter one face
+// side by side share one wide portal. Returns false when the lot does not qualify. A block site (site true)
+// needs no tall tower. Each crossed box only has to rise 12 m above the deck. A line must meet each facade
+// with cos minCos or more. A line that passes beside a box must clear it by graze metres past the deck edge.
+// A graze of null drops that test. A standing tower (stand true) tunnels at any height and width, takes lines
+// down to cos .4, and a tier above may roof the line where a lower tier ends inside the band.
 
 export const TUNNELS = [];
-function tunnel(k, hits, st, site = false) {
+function tunnel(k, hits, st, { site = false, stand = false, minCos = stand ? .4 : .7, graze = 1 } = {}) {
   if (hits.some(h => h.q.line.kind === 'station')) return false;
   if (hits.some(h => !h.m || (h.m !== SHAPES.box && Object.values(SHAPES).includes(h.m)))) return false;
   const boxes = [...new Set(hits.filter(h => h.m === SHAPES.box).map(h => h.i))];
@@ -628,7 +641,8 @@ function tunnel(k, hits, st, site = false) {
   // tall and wide enough to hold the line, or the line must run there inside another box that holds it,
   // or the box must stand inside the plan of such a box.
 
-  const holds = (b, q) => b.y1 >= q.y + q.line.hi + (site ? 12 : 0) && Math.min(b.sx, b.sz) >= (q.line.kind === 'maglev' ? 11 : 36);
+  const holds = (b, q) => b.y1 >= q.y + q.line.hi + (site ? 12 : 0) && (stand || Math.min(b.sx, b.sz) >= (q.line.kind === 'maglev' ? 11 : 36));
+  const roofs = (o, q) => stand && o.y0 <= q.y + q.line.hi && inside(o, q.x, o.y0, q.z);
   const within = (b, o) => [[-1, -1], [1, -1], [-1, 1], [1, 1]].every(([u, v]) => {
     _p.set(b.e[12] + (u * b.e[0] + v * b.e[8]) / 2, o.e[13], b.e[14] + (u * b.e[2] + v * b.e[10]) / 2).applyMatrix4(o.inv);
     return Math.abs(_p.x) <= .501 && Math.abs(_p.z) <= .501;
@@ -637,16 +651,16 @@ function tunnel(k, hits, st, site = false) {
   for (const i of boxes) {
     const b = all.find(o => o.i === i), mine = hits.filter(h => h.m === SHAPES.box && h.i === i);
     for (const { q } of mine) {
-      if (!site && top < Math.max(2 * q.y, q.y + 40)) return false;
+      if (!site && !stand && top < Math.max(2 * q.y, q.y + 40)) return false;
       if (Math.min(b.sx, b.sz) < 10 && b.y1 - b.y0 < 15) { thin.add(i); continue; }
-      if (!holds(b, q) && !all.some(o => o !== b && holds(o, q) && (inside(o, q.x, q.y, q.z) || o.y0 <= b.y0 && within(b, o)))) return false;
+      if (!holds(b, q) && !all.some(o => o !== b && holds(o, q) && (inside(o, q.x, q.y, q.z) || roofs(o, q) || o.y0 <= b.y0 && within(b, o)))) return false;
     }
   }
   const portals = [], attr = SHAPES.box.geometry.attributes, look = STYLES[st.id].portal ?? null;
-  const lit = look && (look.light === 'win' ? st.win : look.light);
+  const lit = look && (look.light === 'win' ? st.win : look.light), bar = Math.max(.8, look?.bar ?? 0);
   for (const i of boxes) {
     if (thin.has(i)) continue;
-    const b = all.find(o => o.i === i), mine = hits.filter(h => h.m === SHAPES.box && h.i === i);
+    const b = all.find(o => o.i === i), mine = hits.filter(h => h.m === SHAPES.box && h.i === i), ends = [];
     const frame = look && [attr.aBase.getX(i), attr.aBase.getY(i), attr.aBase.getZ(i)].map(v => v * look.shade);
 
     // Walk each crossed line past the box and mark where it goes in or out.
@@ -655,6 +669,16 @@ function tunnel(k, hits, st, site = false) {
       const n = L.s.length, idx = mine.filter(h => h.q.line === L).map(h => h.q.i), span = Math.ceil((b.sx + b.sz) / 3) + 4;
       const at = i => L.s[L.closed ? ((i % n) + n) % n : Math.max(0, Math.min(n - 1, i))];
       let last = null;
+
+      // A line that passes beside the box without entering it must clear it by graze, unless it runs inside
+      // another box there.
+
+      const win = Array.from({ length: Math.max(...idx) - Math.min(...idx) + 2 * span }, (_, j) => at(Math.min(...idx) - span + j));
+      if (graze != null && !win.some(p => inside(b, p.x, p.y, p.z)) && win.some(p => {
+        if (p.y + L.hi < b.y0 || p.y - L.lo > b.y1 || all.some(o => o !== b && !thin.has(o.i) && inside(o, p.x, p.y, p.z))) return false;
+        _p.set(p.x, b.e[13], p.z).applyMatrix4(b.inv);
+        return Math.hypot(Math.max(Math.abs(_p.x) - .5, 0) * b.sx, Math.max(Math.abs(_p.z) - .5, 0) * b.sz) < (L.kind === 'maglev' ? 3.4 : 8) + graze;
+      })) return false;
       for (let s = Math.min(...idx) - span; s < Math.max(...idx) + span; s++) {
         let p0 = at(s), p1 = at(s + 1);
         if (inside(b, p0.x, p0.y, p0.z) === inside(b, p1.x, p1.y, p1.z)) continue;
@@ -670,19 +694,37 @@ function tunnel(k, hits, st, site = false) {
         const lx = Math.abs(_p.x) > Math.abs(_p.z) ? Math.sign(_p.x) : 0, lz = lx ? 0 : Math.sign(_p.z);
         const nx = b.e[0] * lx + b.e[8] * lz, nz = b.e[2] * lx + b.e[10] * lz, nl = Math.hypot(nx, nz);
         const tx = p1.x - p0.x, tz = p1.z - p0.z, tl = Math.hypot(tx, tz) || 1, cos = Math.abs(tx * nx + tz * nz) / tl / nl;
-
-        // A portal that would overhang the facade's corner means the line clips the corner, so the lot does not tunnel.
-
-        const along = lx ? Math.abs(_p.z) * b.sz : Math.abs(_p.x) * b.sx, half = (lx ? b.sz : b.sx) / 2;
-        if (along + portalWidth(cos, L.kind) / 2 + Math.max(.8, look?.bar ?? 0) > half) return false;
+        if (cos < minCos) return false;
 
         // On a block site, a line that goes in and out through two neighbouring faces within 15 m cuts the
         // corner off, so the site does not tunnel there.
 
         if (site && last && !!last.lx !== !!lx && Math.hypot(x - last.x, z - last.z) < 15) return false;
         last = { x, z, lx };
-        portals.push({ x, y, z, nx: nx / nl, nz: nz / nl, cos, kind: L.kind, style: st.id, look, frame, lit });
+        const a = lx ? _p.z * b.sz : _p.x * b.sx, w = portalWidth(cos, L.kind);
+        ends.push({ x, y, z, lx, lz, a0: a - w / 2, a1: a + w / 2, nx: nx / nl, nz: nz / nl, cos, kind: L.kind });
       }
+    }
+
+    // Openings on one face at one deck height that overlap or stand within 6 m of each other merge into one.
+
+    ends.sort((p, q) => p.a0 - q.a0);
+    const groups = [];
+    for (const e of ends) {
+      const g = groups.find(g => g[0].lx === e.lx && g[0].lz === e.lz && g[0].kind === e.kind && Math.abs(g[0].y - e.y) < 2
+        && e.a0 < Math.max(...g.map(o => o.a1)) + 6);
+      if (g) g.push(e); else groups.push([e]);
+    }
+    for (const g of groups) {
+      const { lx, lz, nx, nz, kind } = g[0], a0 = Math.min(...g.map(e => e.a0)), a1 = Math.max(...g.map(e => e.a1)), am = (a0 + a1) / 2;
+
+      // A portal that would overhang the facade's corner means the line clips the corner, so the lot does not tunnel.
+
+      const half = (lx ? b.sz : b.sx) / 2;
+      if (Math.max(-a0, a1) + bar > half) return false;
+      const u = lx ? lx / 2 : am / b.sx, v = lx ? am / b.sz : lz / 2, y = g.reduce((s, e) => s + e.y, 0) / g.length;
+      portals.push({ x: b.e[12] + u * b.e[0] + v * b.e[8], y, z: b.e[14] + u * b.e[2] + v * b.e[10], nx, nz, w: a1 - a0, half: half - Math.abs(am),
+        cos: Math.min(...g.map(e => e.cos)), at: g.map(({ x, y, z }) => ({ x, y, z })), kind, style: st.id, look, frame, lit, stand });
     }
   }
   if (!portals.length) return false;
@@ -692,14 +734,14 @@ function tunnel(k, hits, st, site = false) {
   return true;
 }
 
-// A lit frame round the line's section on the facade. A highway's frame holds a dark inset that hides the windows
+// A lit frame w wide round the line's section on the facade. A highway's frame holds a dark inset that hides the windows
 // behind it. A maglev opening gets a one-sided inset and a lining from ride.js, so riders see out the far end.
 // A style with a portal key dresses the opening in its building's look instead, see SETTINGS.md, Styles.
 // It adds a lintel and two jambs that stand out of the facade in the pierced box's colour (frame), with strips lit in lit.
 
-export const portalWidth = (cos, kind) => Math.min(2, 1 / Math.max(cos, .5)) * (kind === 'maglev' ? 7.2 : 18);
-function portal({ x, y, z, nx, nz, cos, kind, look, frame, lit }) {
-  const mag = kind === 'maglev', W = portalWidth(cos, kind);
+const portalWidth = (cos, kind) => (kind === 'maglev' ? 7.2 : 18) / Math.max(cos, .25);
+function portal({ x, y, z, nx, nz, w: W, kind, look, frame, lit }) {
+  const mag = kind === 'maglev';
   const y0 = y - (mag ? 3.6 : 2.4), y1 = y + (mag ? 6.2 : 3.4), H = y1 - y0, yc = (y0 + y1) / 2, ry = Math.atan2(nx, nz);
   const rgb = mag ? [.4, 1.3, 1.8] : [1.6, .9, .35], ex = nz, ez = -nx;
   if (!mag) prop('box', x + nx * .12, yc, z + nz * .12, W, H, .24, [.012, .014, .02], ry);
@@ -788,7 +830,7 @@ function clearOf(f, build, st) {
   const k = mark();
   build(f, 1, false);
   let hit = clash(k, qs);
-  if (!hit.length || tunnel(k, hit, st) || beside(k, hit)) return;
+  if (!hit.length || tunnel(k, hit, st) || STYLES[st.id].tunnel && !crowds(k) && tunnel(k, hit, st, { stand: true }) || beside(k, hit)) return;
   const near = corridorIn(f, 2), top = topSince(k), g = near.length ? trim(f, near) : null;
   const yMax = Math.max(...hit.map(h => h.q.y)), wide = hit.every(h => h.q.line.kind === 'maglev') ? 16 : 40;
   if (top >= Math.max(2 * yMax, yMax + 40) && Math.min(f.w, f.d) >= wide) {
@@ -811,6 +853,35 @@ function clearOf(f, build, st) {
   undo(k);
 }
 
+// OWNER holds a building id for each box, so the checks can tell two buildings apart. own(n0) gives the
+// boxes added since box count n0 a fresh id.
+
+export const OWNER = new Int32Array(SHAPES.box.instanceMatrix.count);
+let owners = 0;
+export const own = n0 => { owners++; for (let i = n0; i < SHAPES.box.count; i++) OWNER[i] = owners; };
+
+// The clear space between boxes i and j, in metres. It is negative where they overlap.
+
+export function boxGap(i, j) {
+  const a = SHAPES.box.instanceMatrix.array, B = [i, j].map(k => {
+    const e = a.subarray(k * 16, k * 16 + 16), sx = Math.hypot(e[0], e[2]), sz = Math.hypot(e[8], e[10]), hy = Math.abs(e[5]) / 2;
+    return { x: e[12], z: e[14], y0: e[13] - hy, y1: e[13] + hy, u: [e[0] / sx, e[2] / sx], v: [e[8] / sz, e[10] / sz], hx: sx / 2, hz: sz / 2 };
+  });
+  const [p, q] = B, reach = (b, n) => b.hx * Math.abs(b.u[0] * n[0] + b.u[1] * n[1]) + b.hz * Math.abs(b.v[0] * n[0] + b.v[1] * n[1]);
+  const plan = Math.max(...[p.u, p.v, q.u, q.v].map(n => Math.abs((q.x - p.x) * n[0] + (q.z - p.z) * n[1]) - reach(p, n) - reach(q, n)));
+  return Math.max(plan, Math.max(p.y0, q.y0) - Math.min(p.y1, q.y1));
+}
+
+// True when a box above 30 m added since k comes within 1 m of a box above 30 m that stood before k.
+
+function crowds(k) {
+  const a = SHAPES.box.instanceMatrix.array, j0 = k.n[INSTANCED.indexOf(SHAPES.box)];
+  const tall = i => a[i * 16 + 13] + Math.abs(a[i * 16 + 5]) / 2 > 30;
+  for (let i = j0; i < SHAPES.box.count; i++) if (tall(i))
+    for (let j = 0; j < j0; j++) if (tall(j) && Math.hypot(a[i * 16 + 12] - a[j * 16 + 12], a[i * 16 + 14] - a[j * 16 + 14]) < 200 && boxGap(i, j) < 1) return true;
+  return false;
+}
+
 S.BASE = new Map();
 export function generate(blend) {
   for (const m of INSTANCED) m.count = S.BASE.get(m) ?? 0;
@@ -822,24 +893,32 @@ export function generate(blend) {
 
   // A block kit that spills into a corridor gives its block back to the lots. A maglev may tunnel through the
   // kit instead, or through one major block that takes the place of the boxes it crosses. s.tunnel says which.
+  // Failing both, the kit moves into the part of the block one straight cut keeps clear of the maglev, and
+  // s.trim holds that frame.
 
-  SITES = blockSites(blend).filter(s => {
+  SITES = blockSites(blend, (s, min) => {
     const { f, zone } = s;
     if (edgeAt(f.cx, f.cz) < .15) return false;
     const r = rng(hash(Math.round(f.cx), Math.round(f.cz) + 99)), kits = BLOCK_KITS[zone], k = mark(), st = styleAt(f.cx, f.cz, blend);
-    const qs = corridorIn(f, 40).map(h => h.q);
-    S.FRAME = f;
-    kits[Math.floor(r() * kits.length)](f.cx, f.cz, Math.min(f.w, BLOCK_MAX) - 4, Math.min(f.d, BLOCK_MAX) - 4, st, r);
-    S.FRAME = null;
-    const hit = clash(k, qs);
+    const qs = corridorIn(f, 40).map(h => h.q), w = Math.min(f.w, BLOCK_MAX), d = Math.min(f.d, BLOCK_MAX);
+    const kit = g => {
+      S.FRAME = g;
+      kits[Math.floor(r() * kits.length)](g.cx, g.cz, Math.min(g.w, BLOCK_MAX) - 4, Math.min(g.d, BLOCK_MAX) - 4, st, r);
+      S.FRAME = null;
+      return clash(k, qs);
+    };
+    const hit = kit(f);
     if (!hit.length) return true;
     if (hit.every(h => h.q.line.kind === 'maglev')) {
-      if (tunnel(k, hit, st, true)) return s.tunnel = 'kit';
-      if (major(k, f, hit, st, r) && tunnel(k, clash(k, qs), st, true)) return s.tunnel = 'block';
+      if (tunnel(k, hit, st, { site: true })) return s.tunnel = 'kit';
+      if (major(k, f, hit, st, r) && tunnel(k, clash(k, qs), st, { site: true })) return s.tunnel = 'block';
+      undo(k);
+      const g = trim({ ...f, w, d }, corridorIn(f, 2, w, d));
+      if (g && Math.min(g.w, g.d) >= min && !kit(g).length) return s.trim = g;
     }
     undo(k);
     return false;
-  });
+  }).filter(s => !s.lost);
   for (const f of FRAMES) {
     if (Math.min(f.w, f.d) - 2 < 4 || Math.hypot(f.cx - CENTRE.x, f.cz - CENTRE.y) < CENTRE_R) continue;
     if (f.taken || inSite(f.cx, f.cz, 2)) continue;
@@ -847,7 +926,11 @@ export function generate(blend) {
     // Lots thin out toward the frayed edge, so the city ends in scattered buildings.
 
     if (edgeAt(f.cx, f.cz) < .08 + .3 * rng(hash(Math.round(f.cx), Math.round(f.cz) + 41))()) continue;
-    for (const p of lotPieces(f, STYLES[styleAt(f.cx, f.cz, blend).id].lotMax)) clearOf(p, (g, k, bare, slab) => buildLot(p, g, blend, k, bare, slab), styleAt(p.cx, p.cz, blend));
+    for (const p of lotPieces(f, STYLES[styleAt(f.cx, f.cz, blend).id].lotMax)) {
+      const n0 = SHAPES.box.count;
+      clearOf(p, (g, k, bare, slab) => buildLot(p, g, blend, k, bare, slab), styleAt(p.cx, p.cz, blend));
+      own(n0);
+    }
   }
   FILL ??= fillCells();
 
@@ -855,17 +938,21 @@ export function generate(blend) {
 
   for (const f of INFILL) {
     if (inSite(f.cx, f.cz, 2)) continue;
+    const n0 = SHAPES.box.count;
     if (f.edge < 30) {
       const st = styleAt(f.cx, f.cz, blend), r = rng(hash(Math.round(f.cx * 10), Math.round(f.cz * 10) + 3));
       S.FRAME = f;
       KITS[STYLES[st.id].edgeKit ?? 'grove'](f.cx, f.cz, Math.min(f.w, f.d), st, 1, r);
       S.FRAME = null;
     } else clearOf(f, (g, k, bare, slab) => buildLot(f, g, blend, k, bare, slab), styleAt(f.cx, f.cz, blend));
+    own(n0);
   }
   for (const c of BAND) {
     const st = styleAt(c.x, c.z, blend);
     S.FRAME = { cx: 0, cz: 0, tx: c.x, tz: c.z, a: 0, c: 1, s: 0, w: 10, d: 10 };
+    const n0 = SHAPES.box.count;
     KITS[STYLES[st.id].edgeKit ?? 'grove'](0, 0, 10, st, 1, rng(hash(c.x, c.z + 11)));
+    own(n0);
     S.FRAME = null;
   }
 
@@ -884,7 +971,9 @@ export function generate(blend) {
       const o = (k - (n - 1) / 2) * L / n;
       const g = { ...b, cx: b.cx + (along ? o * b.c : o * b.s), cz: b.cz + (along ? -o * b.s : o * b.c), w: along ? L / n : b.w, d: along ? b.d : L / n };
       S.FRAME = g;
+      const n0 = SHAPES.box.count;
       yk(g.cx, g.cz, Math.min(g.w, g.d) - 2, st, 1, rng(hash(Math.round(g.cx * 10), Math.round(g.cz * 10) + 5)));
+      own(n0);
       S.FRAME = null;
     }
   }
@@ -895,8 +984,10 @@ export function generate(blend) {
     const fk = KITS[STYLES[st.id].fillKit];
     if (STYLES[st.id].noFill && !fk) continue;
     S.FRAME = { cx: 0, cz: 0, tx: c.x, tz: c.z, a: c.a, c: Math.cos(c.a), s: Math.sin(c.a) };
+    const n0 = SHAPES.box.count;
     if (fk) fk(0, 0, 10, st, 1, r);
     else bld(0, 0, SC.fill + r() * SC.fill / 2, SC.fill + r() * SC.fill / 2, lerp(st.h0 * .5, st.h1 * .6, r() ** 2), st, r, { skin: SKINS[pick('skin', st.w, r)] });
+    own(n0);
     S.FRAME = null;
   }
 

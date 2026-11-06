@@ -7,7 +7,7 @@ import { AXIS_HI, AXIS_LO, BLOCK, CENTRE, CENTRE_PLACE, CENTRE_R, CITY, PLACES, 
 import { SETTING, atRoot, inPack } from './setting.js';
 import { FOG_GLSL, SURFACE, U, WATER_GLSL, addHole, holed, label, outerGround, slab, surface, water } from './render.js';
 import { groundAt } from './relief.js';
-import { FACES, GLOWS, INSTANCED, PROPS, SKINS, beacon, beam, bld, laser, glow, glows, grey, helipad, holo, kibble, neon, pool, prop, puff, put, soften, roof, sign, textSign } from './instances.js';
+import { FACES, GLOWS, INSTANCED, PROPS, SHAPES, SKINS, beacon, beam, bld, laser, glow, glows, grey, helipad, holo, kibble, neon, pool, prop, puff, put, soften, roof, sign, textSign } from './instances.js';
 import { KITS, crownOf, decor, grammarTowerBody, neonTexture, panel, plate, stringLights } from './grammar.js';
 import { fillGreens } from './greens.js';
 import { SOIL, soil } from './soil.js';
@@ -15,7 +15,7 @@ import { packClouds } from './clouds.js';
 import { keep } from './edge.js';
 import { STREETS, buildPylons, centre, corridorIn, traffic } from './transport.js';
 import { buildStations } from './ride.js';
-import { ALL_BLOCK_FRAMES, BLOCK_FRAMES, BLOCK_KITS, BLOCK_MAX, FAMILY_KITS, SC, FRAMES, HUSH, frontOf, LANDMARKS_KITS, OWN_TIERS, SHOWCASE, SMALL_LOTS, generate, inRect, showcase } from './generator.js';
+import { ALL_BLOCK_FRAMES, BLOCK_FRAMES, BLOCK_KITS, BLOCK_MAX, FAMILY_KITS, SC, FRAMES, HUSH, frontOf, LANDMARKS_KITS, OWN_TIERS, SHOWCASE, SMALL_LOTS, generate, inRect, own, showcase } from './generator.js';
 
 // ---------- module API: what place and kit files may use ----------
 
@@ -352,7 +352,9 @@ for (const p of PLACES) {
   decor.add(g);
   S.DECOR = g;
   S.FRAME = { cx: 0, cz: 0, tx: site.cx, tz: site.cz, a: site.a, c: site.c, s: site.s, w: sw, d: sd };
+  const n0 = SHAPES.box.count;
   p.top = new THREE.Vector3(p.x, p.build(H, p, 0, 0), p.z);
+  own(n0);
   STATIC_BUILDS.push(g);
   S.FRAME = null;
   S.DECOR = decor;
@@ -416,7 +418,9 @@ for (const lm of LANDMARKS_KITS) {
   decor.add(g);
   S.DECOR = g;
   S.FRAME = { cx: 0, cz: 0, tx: site.cx, tz: site.cz, a: site.a, c: site.c, s: site.s, w: site.w, d: site.d, front: site.front ?? frontOf(site), sy: lm.scaleY };
+  const n0 = SHAPES.box.count;
   const focus = lm.build(0, 0, Math.min(site.w, BLOCK_MAX) - 4, Math.min(site.d, BLOCK_MAX) - 4, styleAt(site.cx, site.cz, U.uBlend.value), rng(hash(Math.round(site.cx), 31)));
+  own(n0);
 
   // A build that puts its showpiece away from the block (a club offshore) returns that spot in local metres,
   // as [lx, lz] or { focus: [lx, lz] }. The label, the click box and the card's camera then go there.

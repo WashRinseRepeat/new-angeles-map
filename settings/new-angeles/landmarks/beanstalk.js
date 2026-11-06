@@ -3,6 +3,9 @@
 // The city lies west (a = PI) and south (a = PI / 2). Utilities and freight sit on the north and east.
 
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { HALL } from '../../../engine/transport.js';
+import { camera } from '../../../engine/render.js';
+import { beanpod, hall } from './hall.js';
 
 const TAU = Math.PI * 2;
 
@@ -378,18 +381,20 @@ export function build(H, group) {
 
   // ---------- the tether: a buckyweave ribbon between two edge cables ----------
 
-  const T0 = CROWN, T1 = 11500, TH = T1 - T0;
-  const tetherParts = [
-    [new THREE.BoxGeometry(15, TH, 2.6), 0],
-    [new THREE.CylinderGeometry(1.9, 1.9, TH, 10, 1, true).translate(-8.4, 0, 0), 1],
-    [new THREE.CylinderGeometry(1.9, 1.9, TH, 10, 1, true).translate(8.4, 0, 0), 1],
-    [new THREE.BoxGeometry(1.2, TH, 3.4).translate(-3.5, 0, 0), .5],
-    [new THREE.BoxGeometry(1.2, TH, 3.4).translate(3.5, 0, 0), .5],
+  // ribbon(y0, y1) builds the ribbon between two heights. aEdge marks the cables (1) and the ribs (.5).
+
+  const T0 = CROWN, T1 = 11500;
+  const ribbon = (y0, y1) => mergeGeometries([
+    [new THREE.BoxGeometry(15, y1 - y0, 2.6), 0],
+    [new THREE.CylinderGeometry(1.9, 1.9, y1 - y0, 10, 1, true).translate(-8.4, 0, 0), 1],
+    [new THREE.CylinderGeometry(1.9, 1.9, y1 - y0, 10, 1, true).translate(8.4, 0, 0), 1],
+    [new THREE.BoxGeometry(1.2, y1 - y0, 3.4).translate(-3.5, 0, 0), .5],
+    [new THREE.BoxGeometry(1.2, y1 - y0, 3.4).translate(3.5, 0, 0), .5],
   ].map(([g, e]) => {
     g = g.toNonIndexed(); g.deleteAttribute('uv');
     g.setAttribute('aEdge', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count).fill(e), 1));
-    return g.translate(0, T0 + TH / 2, 0);
-  });
+    return g.translate(0, (y0 + y1) / 2, 0);
+  }));
   const tetherMat = new THREE.ShaderMaterial({
     uniforms: U,
     vertexShader: `attribute float aEdge; varying vec3 vW, vN, vL; varying float vE;
@@ -420,7 +425,7 @@ export function build(H, group) {
         gl_FragColor = vec4(c + e * (1. - .55 * f), 1.);
       }`,
   });
-  const tether = new THREE.Mesh(mergeGeometries(tetherParts), tetherMat);
+  const tether = new THREE.Mesh(ribbon(T0, T1), tetherMat);
   tether.frustumCulled = false;
   group.add(tether);
 
@@ -437,7 +442,8 @@ export function build(H, group) {
         gl_FragColor = vec4(vec3(.25, .55, .9) * k * fade * .055, 1.);
       }`,
   });
-  group.add(new THREE.Mesh(new THREE.CylinderGeometry(18, 18, 6000, 24, 1, true).translate(0, 160 + 3000, 0), haloMat));
+  const halo = new THREE.Mesh(new THREE.CylinderGeometry(18, 18, 6000, 24, 1, true).translate(0, 160 + 3000, 0), haloMat);
+  group.add(halo);
 
   // Searchlights from the security ring, sweeping the sky around the tether.
 
@@ -463,37 +469,22 @@ export function build(H, group) {
   group.add(beams);
 
   // ---------- climbers ----------
-  // A climber clamps one face of the ribbon: drive frame, edge grips and three hanging beanpods.
-  // Up climbers ride the +z face, down climbers the -z face.
+  // A climber is a beanpod clamped to one face of the ribbon. Up climbers ride the +z face, down climbers the -z
+  // face. ON turns the pod's clamps to the ribbon and sets the pod out from the face. The offset scales with the pod.
 
-  const cBody = [], cLit = [];
-  const cb = g => cBody.push(g.toNonIndexed()), cl = (g, rgb) => cLit.push(add('_', g, rgb));
-  cb(box(22, 6, 3, 0, 0, 3.2));
-  for (const x of [-8.4, 8.4]) cb(box(5, 9, 6, x, 0, .8));
-  cb(box(18, 3, 7, 0, 4.4, 5));
-  for (const x of [-6, 0, 6]) {
-    cb(cyl(2.5, 2.5, 18, 12, x, -11, 8));
-    cb(cyl(1.2, 2.5, 2, 12, x, -21, 8));
-    cl(box(1.1, 12, .3, x, -10, 10.55), WARM);
-    cl(box(4, .4, 4, x, -22, 8), WHITE);
-  }
-  cl(box(17, .6, .4, 0, 6, 8.6), WHITE);
-  cl(box(.8, .8, .8, -11.4, 0, 3), [3, .2, .1]);
-  cl(box(.8, .8, .8, 11.4, 0, 3), GREEN);
-  delete bins._;
   const mats = { steel: steelMat, dark: darkMat, glow: glowMat, red: redMat, chaser: chaserMat, glass };
   for (const [k, list] of Object.entries(bins)) group.add(new THREE.Mesh(mergeGeometries(list), mats[k]));
-  const cBodyGeo = mergeGeometries(cBody.map(g => { g.deleteAttribute('uv'); return g; }));
-  const cLitGeo = mergeGeometries(cLit);
+  const POD = beanpod(THREE, { WARM, CYAN, WHITE }), podLitMat = new THREE.MeshBasicMaterial({ vertexColors: true, fog: false });
+  const ON = new THREE.Matrix4().makeRotationY(-Math.PI / 2).setPosition(0, 0, POD.r + 2.3);
   const MOVING = 14, TOUR = MOVING, N = TOUR + 1;
-  const climBody = new THREE.InstancedMesh(cBodyGeo, steelMat, N);
-  const climLit = new THREE.InstancedMesh(cLitGeo, new THREE.MeshBasicMaterial({ vertexColors: true, fog: false }), N);
+  const climBody = new THREE.InstancedMesh(POD.body, steelMat, N);
+  const climLit = new THREE.InstancedMesh(POD.lit, podLitMat, N);
   for (const m of [climBody, climLit]) { m.frustumCulled = false; group.add(m); }
   const climbers = Array.from({ length: MOVING }, (_, k) => ({ up: k % 2 === 0, u0: (k >> 1) / (MOVING / 2) + (k % 2) * .037 }));
   const BASE = CROWN - 40, TOP = 9600, JERK = 20, TRIP = Math.cbrt(6 * (TOP - BASE) / JERK), M = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = V3(0, 0, 0), SC = V3(1, 1, 1), Y = V3(0, 1, 0);
   const place = (i, y, up, s) => {
     Q.setFromAxisAngle(Y, up ? 0 : Math.PI); P.set(0, y, 0); SC.setScalar(s);
-    M.compose(P, Q, SC); climBody.setMatrixAt(i, M); climLit.setMatrixAt(i, M);
+    M.compose(P, Q, SC).multiply(ON); climBody.setMatrixAt(i, M); climLit.setMatrixAt(i, M);
   };
 
   // The audio tour drives one extra climber up the +z face. It stays hidden until the tour places it. While it
@@ -504,14 +495,25 @@ export function build(H, group) {
   let solo = false;
   const grown = y => 1 + Math.max(0, y - 400) / 1400;
 
+  // ---------- the hall below the Root ----------
+  // The rider underground sees the hall in place of the Root. The tether and its halo stay. The climbers give
+  // way to the hall's beanpods, so the shaft opens on clear sky.
+
+  const keep = new Set([tether, halo]), root = group.children.filter(o => !keep.has(o));
+  const below = HALL && hall(H, { steel: steelMat, dark: darkMat, body: bodyMat, glow: glowMat, chaser: chaserMat, deck: deckMat,
+    tether: tetherMat, ribbon, root, top: CROWN, jerk: JERK, pod: POD, podLit: podLitMat, rgb: { WARM, WHITE, CYAN, SEA, GREEN, DIM } });
+  if (below) group.add(below.group, below.tunnel, below.mouths);
+
   // ---------- animation ----------
 
   return {
+    hall: below,
     top: DOCK + 18,
     dock: DOCK + 12,
     grown,
     pod(y) { solo = y != null; place(TOUR, y ?? 0, true, solo ? grown(y) : 0); },
     update(t) {
+      below?.update(t, camera);
       climbers.forEach((c, i) => {
         const u = ((t / TRIP + c.u0) % 1 + 1) % 1, e = c.up ? u : 1 - u;
 

@@ -64,8 +64,10 @@ export const STYLES = {
     tiers: [['tenement', 'block', 'stack'], ['block', 'stack', 'tower'], ['tower', 'twin', 'mega']],
 
     // Guayaquil's glass towers take a slim dark mullion frame, lit round the opening in the tower's window colour.
+    // A maglev tunnels through a standing tower in its way where the portal fits the facade and the tower
+    // keeps 1 m clear of its neighbours.
 
-    portal: { depth: .6, bar: .5, shade: .6, light: 'win', strip: 'frame' } }),
+    portal: { depth: .6, bar: .5, shade: .6, light: 'win', strip: 'frame' }, tunnel: true }),
 };
 BDC.w = 0; BDC.zones = ['industry', 'housing'];
 RUT.w = 1; RUT.zones = [];

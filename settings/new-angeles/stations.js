@@ -1,13 +1,39 @@
 // Maglev station kits, one per district. The engine lays the bare platforms and calls a kit to dress them.
 // A kit builds in the station frame. z runs along the line, x across it and y up from the deck top. Platforms run
 // from x 3.4 to 9.4 on both sides, LEN metres long, with their floor at the train's floor (y 1).
-// deck and edge colour the platform. sign and board colour the name boards. build(r) adds the rest through A.
+// deck and edge colour the platform. sign and board colour the name boards. build(r, sides) adds the rest
+// through A. sides holds [left, right], whether each platform stands. A side next to another guideway is gone.
+// interchange.build(r, t) draws the tower at a crossing in the lower station's frame. It stands at t.x, t.z from
+// t.low, the ground, to 5 m over t.high, the upper deck. t.walks holds the platform point each walk runs to.
 
 export function stationKits(A, { HALF, LEN, SIDES, along }) {
+  const on = sides => SIDES.filter((s, k) => sides[k]);
   return {
+    interchange: {
+      build(r, { x, z, low, high, walks }) {
+        // A concrete core with a lit glass lift shaft on two faces, a stair that zigzags up one side and a lit
+        // walk at each level to its platform.
+
+        const h = high + 5 - low, mid = (low + high + 5) / 2;
+        A.box(x, mid, z, 4, h, 4, [.16, .17, .19]);
+        for (const [dx, dz] of [[2.05, 0], [-2.05, 0]]) A.glw(x + dx, mid, z + dz, .1, h, 1.6, [.5, 1.2, 1.6]);
+        for (let y = low + 2, k = 0; y < high + 2; y += 3, k++) {
+          const a = k % 2 ? -1.6 : 1.6;
+          A.beam([x - a, y, z - 2.6], [x + a, y + 3, z - 2.6], .5, [.3, .32, .36]);
+        }
+        A.glw(x, high + 5.1, z, 4.2, .15, 4.2, [1.6, 1.4, 1]);
+        for (const [px, pz, y] of walks) {
+          const dx = px - x, dz = pz - z, L = Math.hypot(dx, dz);
+          if (L < .5) continue;
+          A.box((x + px) / 2, y + .8, (z + pz) / 2, 2.6, .35, L, [.22, .23, .26], Math.atan2(dx, dz));
+          A.glw((x + px) / 2, y + 2, (z + pz) / 2, 2.6, .08, L, [.6, 1.3, 1.6], Math.atan2(dx, dz));
+        }
+        void r;
+      },
+    },
     chakana: {
       deck: [.42, .46, .52], edge: [.5, 1.6, 2.2], sign: [1.3, 1.9, 2.2], board: [.04, .06, .09],
-      build(r) {
+      build(r, sides) {
         // A ribbed vault of pale steel, open to the sky, with a light line along its crown. A ring at each end
         // wraps the platforms and the vault, so the train runs through it.
 
@@ -20,18 +46,18 @@ export function stationKits(A, { HALF, LEN, SIDES, along }) {
           }
         }, -HALF, HALF + 1);
         A.glw(0, 14, 0, .3, .3, LEN, [.6, 1.6, 2.2]);
-        for (const s of SIDES) A.glw(s * 9, 1.06, 0, .5, .05, LEN, [.3, .8, 1.1]);
+        for (const s of on(sides)) A.glw(s * 9, 1.06, 0, .5, .05, LEN, [.3, .8, 1.1]);
         for (const z of [-HALF - 2, HALF + 2]) A.ring(0, 5, z, 30, Math.PI / 2, [.5, 1.4, 2]);
         void r;
       },
     },
     'base-de-cayambe': {
       deck: [.2, .17, .14], edge: [1.6, .7, .15], sign: [1.7, .9, .3], board: [.12, .07, .04],
-      build(r) {
+      build(r, sides) {
         // Patched corrugated roofs on rusty posts, sodium lamps, crates and paint on the back fences.
 
         const rust = () => [[.26, .12, .06], [.18, .16, .14], [.12, .16, .2], [.3, .2, .08]][Math.floor(r() * 4)];
-        for (const s of SIDES) {
+        for (const s of on(sides)) {
           along(8, z => { A.box(s * 9, 3.8, z, .5, 5.6, .5, [.2, .1, .05]); A.box(s * 4, 3.8, z, .4, 5.6, .4, [.2, .1, .05]); }, -HALF + 2);
           along(6, z => A.box(s * (6.6 + r() * .4), 6.7 + r() * .4, z, 7 + r(), .25, 6.3, rust(), r() * .06 - .03));
           along(8, z => A.glw(s * 6.5, 6.3, z, .5, .3, .5, [1.9, .85, .2]));
@@ -44,12 +70,12 @@ export function stationKits(A, { HALF, LEN, SIDES, along }) {
     },
     rutherford: {
       deck: [.05, .06, .08], edge: [1.8, .2, 1.4], sign: [1.6, 2, 2.2], board: [.02, .02, .03],
-      build(r) {
+      build(r, sides) {
         // A chrome hall under one thin roof, neon lines below it, gold trim and wall-high adverts behind the platforms.
 
         A.box(0, 9.2, 0, 22, .4, LEN + 4, [.55, .6, .66]);
         for (const x of [-8, -4, 4, 8]) A.glw(x, 8.9, 0, .15, .1, LEN, [.2, 1.5, 1.9]);
-        for (const s of SIDES) {
+        for (const s of on(sides)) {
           A.glw(s * 11, 9.2, 0, .12, .5, LEN + 4, [1.7, 1.25, .45]);
           along(8, z => A.cyl(s * 9.9, 5, z, .5, 8, [.7, .74, .8]), -HALF + 4);
           along(16, z => A.glw(s * 9.6, 4.6, z, .2, 5, 12, [[1.5, .15, 1.1], [.15, 1.2, 1.5], [.2, 1.4, 1.1], [1.1, .2, 1.4]][Math.floor(r() * 4)]));
@@ -58,15 +84,15 @@ export function stationKits(A, { HALF, LEN, SIDES, along }) {
     },
     esmeraldas: {
       deck: [.2, .2, .19], edge: [1.7, 1.3, .1], sign: [1.8, 1.4, .5], board: [.08, .08, .07],
-      build(r) {
+      build(r, sides) {
         // Steel portal frames with braces, hazard stripes on the edges and stacked containers on both sides.
 
         along(8, z => {
-          for (const s of SIDES) { A.box(s * 10, 5, z, .6, 10, .6, [.22, .24, .26]); A.beam([s * 10, 7, z], [s * 6, 10, z], .25, [.22, .24, .26]); }
+          for (const s of on(sides)) { A.box(s * 10, 5, z, .6, 10, .6, [.22, .24, .26]); A.beam([s * 10, 7, z], [s * 6, 10, z], .25, [.22, .24, .26]); }
           A.box(0, 10, z, 21, .6, .6, [.22, .24, .26]);
           A.glw(0, 9.6, z, .7, .3, .7, [1.8, 1.1, .35]);
         }, -HALF);
-        for (const s of SIDES) {
+        for (const s of on(sides)) {
           along(2, z => A.box(s * 3.75, 1.02, z, .5, .06, 1, [1.4, 1.1, .1]));
           along(13, z => {
             const n = 1 + Math.floor(r() * 3);
@@ -77,10 +103,10 @@ export function stationKits(A, { HALF, LEN, SIDES, along }) {
     },
     nihongai: {
       deck: [.16, .1, .07], edge: [1.8, .5, .2], sign: [1.9, 1.6, 1.2], board: [.18, .03, .02],
-      build(r) {
+      build(r, sides) {
         // Tiered tile roofs on red posts, rows of paper lanterns and a red gate at each end of both platforms.
 
-        for (const s of SIDES) {
+        for (const s of on(sides)) {
           along(8, z => { A.cyl(s * 4.2, 3.6, z, .45, 5.2, [.35, .05, .03]); A.cyl(s * 9, 3.6, z, .45, 5.2, [.35, .05, .03]); }, -HALF + 4);
           A.box(s * 6.6, 6.4, 0, 8.4, .35, LEN - 8, [.07, .05, .05]);
           A.box(s * 6.6, 7.2, 0, 6, .35, LEN - 12, [.07, .05, .05]);
@@ -98,10 +124,10 @@ export function stationKits(A, { HALF, LEN, SIDES, along }) {
     },
     'laguna-velasco': {
       deck: [.5, .48, .44], edge: [1.5, 1.2, .8], sign: [1.4, 1.3, 1.1], board: [.3, .3, .28],
-      build(r) {
+      build(r, sides) {
         // A white canopy that rises and falls in a soft wave, planted trees, a water channel and warm light.
 
-        for (const s of SIDES) {
+        for (const s of on(sides)) {
           along(4, z => A.box(s * 6.6, 7.2 + Math.sin(z / 9) * .9, z, 8, .3, 4.1, [.72, .72, .7]));
           along(12, z => A.cyl(s * 9, 4, z, .35, 6.2, [.7, .7, .68]), -HALF + 6);
           along(4, z => A.glw(s * 6.6, 6.9 + Math.sin(z / 9) * .9, z, 5, .08, .3, [1.4, 1.05, .7]));
@@ -112,10 +138,10 @@ export function stationKits(A, { HALF, LEN, SIDES, along }) {
     },
     manta: {
       deck: [.6, .62, .66], edge: [.4, 1, 2.2], sign: [1.4, 1.8, 2.2], board: [.7, .72, .76],
-      build(r) {
+      build(r, sides) {
         // Thin white fins sweep up over each platform like a wing, a blue strip on their tips, a mast with a beacon.
 
-        for (const s of SIDES) {
+        for (const s of on(sides)) {
           along(2.4, z => A.beam([s * 3, 8.8, z], [s * 11.5, 6.2, z], .3, [.78, .8, .84]));
           A.glw(s * 11.5, 6.2, 0, .25, .25, LEN, [.4, 1, 2.2]);
           along(16, z => A.box(s * 10.5, 3.6, z, .5, 5.2, .5, [.78, .8, .84]), -HALF + 8);
@@ -127,10 +153,10 @@ export function stationKits(A, { HALF, LEN, SIDES, along }) {
     },
     rabotgorod: {
       deck: [.2, .2, .19], edge: [.6, 1, .7], sign: [1.2, 1.3, 1.15], board: [.12, .12, .12],
-      build(r) {
+      build(r, sides) {
         // Heavy concrete slabs on square pillars, pale tube lights and red banners on the pillars.
 
-        for (const s of SIDES) {
+        for (const s of on(sides)) {
           A.box(s * 6.6, 6.8, 0, 8.6, 1.4, LEN + 2, [.2, .2, .19]);
           along(4, z => A.glw(s * 6.6, 6.05, z, 6, .1, .3, [.55, .85, .6]));
           along(10, z => {
@@ -142,10 +168,10 @@ export function stationKits(A, { HALF, LEN, SIDES, along }) {
     },
     'la-costa': {
       deck: [.24, .2, .16], edge: [1.3, 1, .6], sign: [1.5, 1.2, .8], board: [.22, .14, .07],
-      build(r) {
+      build(r, sides) {
         // A country halt: a small wooden shelter in the middle, benches, lamp posts and palms beside the line.
 
-        for (const s of SIDES) {
+        for (const s of on(sides)) {
           for (const z of [-8, 0, 8]) A.box(s * 8.6, 2.8, z, .3, 3.6, .3, [.25, .15, .08]);
           A.box(s * 7.6, 4.7, 0, 4.2, .25, 18, [.2, .12, .06]);
           for (const z of [-5, 5]) A.box(s * 8, 1.5, z, .6, .4, 2.6, [.3, .18, .09]);
@@ -160,14 +186,14 @@ export function stationKits(A, { HALF, LEN, SIDES, along }) {
     },
     quinde: {
       deck: [.16, .14, .12], edge: [1.8, 1.2, .1], sign: [1.8, 1.5, .4], board: [.06, .05, .04],
-      build(r) {
+      build(r, sides) {
         // A factory gate: black steel frames under a truss roof, pipes on the walls with steam, orange beacons.
 
         along(8, z => {
-          for (const s of SIDES) A.box(s * 10.2, 5, z, .8, 10, .8, [.1, .09, .08]);
+          for (const s of on(sides)) A.box(s * 10.2, 5, z, .8, 10, .8, [.1, .09, .08]);
           A.box(0, 10.2, z, 21.6, 1, .6, [.12, .1, .08]);
         }, -HALF);
-        for (const s of SIDES) {
+        for (const s of on(sides)) {
           A.box(s * 6, 10.4, 0, 9, .2, LEN, [.16, .12, .08]);
           along(2, z => A.box(s * 3.75, 1.02, z, .5, .06, 1, [1.6, 1.1, .08]));
           for (const y of [2.6, 3.8]) A.cyl(s * 10, y, 0, .7, LEN, [.3, .22, .12], Math.PI / 2);
@@ -177,11 +203,11 @@ export function stationKits(A, { HALF, LEN, SIDES, along }) {
     },
     guayaquil: {
       deck: [.18, .14, .1], edge: [1.6, .4, .2], sign: [1.8, 1.1, .5], board: [.25, .05, .1],
-      build(r) {
+      build(r, sides) {
         // A patchwork of painted roof sheets, market stalls on the platforms, string lights and laundry overhead.
 
         const paint = () => [[.35, .08, .06], [.06, .2, .3], [.3, .25, .05], [.08, .22, .1], [.25, .1, .28], [.2, .2, .2]][Math.floor(r() * 6)];
-        for (const s of SIDES) {
+        for (const s of on(sides)) {
           along(4, z => A.box(s * (6.5 + r() - .5), 6 + r() * .9, z, 6 + r() * 2, .2, 3.4 + r() * 2, paint(), r() * .2 - .1));
           along(6, z => A.box(s * 9, 3.3, z, .3, 4.8, .3, [.15, .12, .1]), -HALF + 3);
           along(8, z => {

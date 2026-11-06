@@ -756,11 +756,14 @@ export const WATER_GLSL = `
 
 // A landmark that sinks below grade cuts a hole in the ground. Every ground surface discards fragments
 // inside a hole rectangle: world centre, rotation (cos, sin) and half size, as two vec4 per hole.
+// uHoleBox bounds every hole (min x, min z, max x, max z), so ground outside it skips the loop.
 
-const HOLE_MAX = 4, HOLES = { uHoles: { value: Array.from({ length: HOLE_MAX * 2 }, () => new THREE.Vector4()) }, uHoleN: { value: 0 } };
+const HOLE_MAX = 8, HOLES = { uHoles: { value: Array.from({ length: HOLE_MAX * 2 }, () => new THREE.Vector4()) }, uHoleN: { value: 0 },
+  uHoleBox: { value: new THREE.Vector4(1e9, 1e9, -1e9, -1e9) } };
 const HOLE_GLSL = `
-  uniform vec4 uHoles[${HOLE_MAX * 2}]; uniform int uHoleN; varying vec2 vHole;
+  uniform vec4 uHoles[${HOLE_MAX * 2}]; uniform int uHoleN; uniform vec4 uHoleBox; varying vec2 vHole;
   bool inHole(vec2 p) {
+    if (any(lessThan(p, uHoleBox.xy)) || any(greaterThan(p, uHoleBox.zw))) return false;
     for (int i = 0; i < ${HOLE_MAX}; i++) {
       if (i >= uHoleN) break;
       vec4 a = uHoles[i * 2]; vec2 d = p - a.xy, h = uHoles[i * 2 + 1].xy;
@@ -773,6 +776,8 @@ export function addHole(x, z, a, w, d) {
   const i = HOLES.uHoleN.value++ * 2;
   HOLES.uHoles.value[i].set(x, z, Math.cos(a), Math.sin(a));
   HOLES.uHoles.value[i + 1].set(w / 2, d / 2, 0, 0);
+  const r = Math.hypot(w, d) / 2 + 1, b = HOLES.uHoleBox.value;
+  b.set(Math.min(b.x, x - r), Math.min(b.y, z - r), Math.max(b.z, x + r), Math.max(b.w, z + r));
 }
 const MAIN = /void main\s*\(\s*\)\s*\{/;
 export function holed(mat) {

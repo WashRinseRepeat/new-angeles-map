@@ -22,5 +22,65 @@
     ],
     "rot": 0.9425,
     "snap": true
+  },
+  "lm:lv_napd": {
+    "at": [
+      -18.1,
+      1878
+    ]
+  },
+  "lm:harmonyGeneral": {
+    "at": [
+      -1061.1,
+      1487.3
+    ]
+  },
+  "lm:rab_watertower": {
+    "at": [
+      -147.6,
+      2267.2
+    ]
+  },
+  "lm:gye_resistance": {
+    "at": [
+      814.7,
+      3094.2
+    ]
+  },
+  "lm:esm_port": {
+    "at": [
+      -1682.1,
+      120.7
+    ]
+  },
+  "lm:gye_ximenastack": {
+    "at": [
+      894.9,
+      3294.1
+    ]
+  },
+  "lm:fb_nbn": {
+    "at": [
+      -874.6,
+      311.9
+    ]
+  },
+  "lm:fb_concordia": {
+    "at": [
+      -790.8,
+      261.5
+    ]
+  },
+  "lm:fd_semyon": {
+    "at": [
+      -772.4,
+      583.3
+    ]
+  },
+  "lm:gye_ibeam": {
+    "at": [
+      2033.6,
+      3323.1
+    ]
   }
 }

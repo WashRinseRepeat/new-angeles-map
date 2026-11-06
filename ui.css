@@ -257,6 +257,8 @@ body.focus #nav, body.focus #help, body.focus #helpPanel { display: none; }
 #ride .row { display: flex; align-items: center; gap: 4px; margin-top: 8px; }
 #ride .row > button { padding: 4px 8px; font-size: 12px; }
 #ride small { flex: 1; text-align: right; }
+#rChange { flex-wrap: wrap; }
+#rChange[hidden] { display: none; }
 #atFollow { width: 100%; margin-top: 8px; color: var(--accent) !important; }
 #atFollow.flash { animation: at-flash .6s ease-in-out 3; }
 @keyframes at-flash { 50% { background: rgba(var(--accent-rgb), .35); box-shadow: 0 0 14px rgba(var(--accent-rgb), .8); } }
