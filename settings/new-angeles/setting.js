@@ -192,17 +192,17 @@ export default {
         { id: 'quinde', name: 'Quinde', at: [788.7, 1377.7] },
         { id: 'chakana', name: 'Chakana', at: [725.8, 147.7] },
         { id: 'nihongai', name: 'Nihongai', at: [400.5, 620.7] },
-        { id: 'stop', name: 'Oak Lane', at: [780.6, 858.4] },
+        { id: 'laguna-velasco', name: 'Oak Lane', at: [780.6, 858.4] },
         { id: 'base-de-cayambe', name: 'Centro Mercado', at: [532.2, 343.6] },
         { id: 'chakana', name: 'Hopper Park', at: [531.1, 14.1] },
         { id: 'guayaquil', name: 'Parque Industríal', at: [1234.7, 1155.1] },
       ],
 
       // Ride tours name the stations they pass, each optionally on a given route. music is the track key. The
-      // Beanstalk Circle rides the Southwest Line out its stem, round its balloon and home.
+      // Southwest Line tour rides the line out its stem, round its balloon and home.
 
       tours: [
-        { name: 'Beanstalk Circle', music: 'beanstalk-line', via: [['The Beanstalk', 'Beanstalk Southwest Line'],
+        { name: 'Beanstalk Southwest Line', music: 'beanstalk-line', via: [['The Beanstalk', 'Beanstalk Southwest Line'],
           ['Haas Central', 'Beanstalk Southwest Line'], ['Oak Lane', 'Beanstalk Southwest Line'], ['The Beanstalk', 'Beanstalk Southwest Line']] },
       ],
     },

@@ -3,12 +3,12 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { S } from './state.js';
-import { CENTRE, CENTRE_PLACE, CITY, lerp, mapToWorld, rng, sdPoly, smooth, styleAt } from './core.js';
+import { CENTRE, CENTRE_PLACE, CITY, lerp, mapToWorld, rng, sdPoly, smooth, smoother, styleAt } from './core.js';
 import { SETTING } from './setting.js';
 import { edgeAt } from './edge.js';
 import { RELIEF, groundAt } from './relief.js';
 import { QUALITY, U, addHole, camera, scene, shadowUniforms } from './render.js';
-import { _c, beam, glow, prop, yawAt } from './instances.js';
+import { _c, beam, glow, glows, prop, put, yawAt } from './instances.js';
 
 // ---------- elevated highways: they clear a canyon and carry streams of light ----------
 
@@ -148,6 +148,7 @@ export const LOOP_G = .1;
 
 const flat2 = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const flatAt = (P, i) => P.closed ? P[(i % P.length + P.length) % P.length] : P[Math.max(0, Math.min(P.length - 1, i))];
+const headOf = (P, i) => { const a = flatAt(P, i - 1), b = flatAt(P, i + 1), L = flat2(a, b) || 1; return [(b.x - a.x) / L, (b.z - a.z) / L]; };
 const nearestOn = (P, p) => { let k = 0, d = Infinity; P.forEach((q, i) => { const e = flat2(q, p); if (e < d) { d = e; k = i; } }); return { k, d }; };
 const joined = p => { for (const P of laid) { const { k, d } = nearestOn(P, p); if (d < 12) return { P, k }; } return null; };
 
@@ -245,12 +246,13 @@ export const openTrack = (l, y0, y1) => {
 // A ring is a closed line at a fixed height. Rings lay before lines, so a line that ends on a ring takes its height.
 
 const ringTrack = l => {
-  const path = new THREE.CatmullRomCurve3(l.map(([x, z]) => new THREE.Vector3(x, MAGLEV.ring, z)), true, 'centripetal').getSpacedPoints(400).slice(0, -1);
+  const flatC = new THREE.CatmullRomCurve3(l.map(([x, z]) => new THREE.Vector3(x, MAGLEV.ring, z)), true, 'centripetal');
+  const path = flatC.getSpacedPoints(Math.round(flatC.getLength() / 4)).slice(0, -1);
   clearHighways(path, true);
   path.closed = true;
   laid.push(path);
   const curve = new THREE.CatmullRomCurve3(path, true);
-  curve.arcLengthDivisions = 2000;
+  curve.arcLengthDivisions = 2 * path.length;
   return { path, curve, len: curve.getLength(), closed: true };
 };
 
@@ -272,27 +274,63 @@ export const footOn = (P, p) => {
   }
   return best;
 };
+
+// The point d metres along track P from its foot f, against the index order where d < 0, with its heading. The
+// heading blends between the vertices' headings, so an offset from it runs on without a step at each vertex.
+
+const walk = (P, f, d) => {
+  const n = P.length, seg = i => flat2(P[i], P[(i + 1) % n]);
+  let i = f.i, pos = f.t * seg(i) + d;
+  while (pos > seg(i)) { if (!P.closed && i >= n - 2) { pos = seg(i); break; } pos -= seg(i); i = (i + 1) % n; }
+  while (pos < 0) { if (!P.closed && i <= 0) { pos = 0; break; } i = (i - 1 + n) % n; pos += seg(i); }
+  const a = P[i], b = P[(i + 1) % n], t = pos / (seg(i) || 1), [ax, az] = headOf(P, i), [bx, bz] = headOf(P, i + 1);
+  const tx = lerp(ax, bx, t), tz = lerp(az, bz, t), L = Math.hypot(tx, tz) || 1;
+  return { x: lerp(a.x, b.x, t), y: lerp(a.y, b.y, t), z: lerp(a.z, b.z, t), tx: tx / L, tz: tz / L };
+};
 const COS30 = Math.cos(Math.PI / 6);
 
+// A loop's ease onto or off a partner bends it by at most BEND radians per metre. A partner station's move fades
+// out bending its track by at most FADE_BEND. An ease of a gap g over L metres with smoother bends by up to
+// 5.8 g / L², so L = sqrt(5.8 g / BEND).
+
+const BEND = .018, FADE_BEND = .012;
+
 // A bend on a closed track tighter than a 64 m radius over a chord of 2H samples eases, which keeps a margin on the
-// 60 m limit. Its loose samples step halfway to the midpoint of their neighbours until the bend is clear. Returns
-// the samples that moved.
+// 60 m limit. Its loose samples step halfway to the midpoint of their neighbours until the bend is clear. Loose
+// samples within H of a moved one take part of its move, fading out over H, so the moved stretch meets the rest
+// without a kink. Returns the samples that moved.
 
 const unbend = (path, loose, H) => {
+  const was = path.map(p => [p.x, p.z]);
   const n = path.length, at = i => (i % n + n) % n, moved = new Set(), radius = i => {
     const a = path[at(i - H)], b = path[i], c = path[at(i + H)];
     return flat2(a, b) * flat2(b, c) * flat2(a, c) / (2 * Math.abs((b.x - a.x) * (c.z - a.z) - (b.z - a.z) * (c.x - a.x)) || 1e-9);
   };
   for (let t = 0; t < 500; t++) {
-    const tight = new Set();
-    for (let i = 0; i < n; i++) if (radius(i) < 64) for (let k = -H; k <= H; k++) if (loose[at(i + k)]) tight.add(at(i + k));
+    const tight = new Map();
+    for (let i = 0; i < n; i++) if (radius(i) < 64) for (let k = -2 * H; k <= 2 * H; k++) {
+      const j = at(i + k), w = 1 - smoother(H, 2 * H + 1, Math.abs(k));
+      if (loose[j] && w > (tight.get(j) ?? 0)) tight.set(j, w);
+    }
     if (!tight.size) break;
-    for (const i of tight) {
+    for (const [i, w] of tight) {
       const a = path[at(i - 1)], b = path[at(i + 1)], p = path[i];
-      p.x += ((a.x + b.x) / 2 - p.x) / 2;
-      p.z += ((a.z + b.z) / 2 - p.z) / 2;
+      p.x += ((a.x + b.x) / 2 - p.x) * w / 2;
+      p.z += ((a.z + b.z) / 2 - p.z) * w / 2;
       moved.add(i);
     }
+  }
+  const fade = [];
+  for (let i = 0; i < n; i++) {
+    if (!loose[i] || moved.has(i)) continue;
+    let m = -1, d = H + 1;
+    for (let k = 1; k <= H && m < 0; k++) for (const j of [at(i - k), at(i + k)]) if (m < 0 && moved.has(j)) { m = j; d = k; }
+    if (m >= 0) fade.push([i, m, 1 - smoother(0, H + 1, d)]);
+  }
+  for (const [i, m, w] of fade) {
+    path[i].x += (path[m].x - was[m][0]) * w;
+    path[i].z += (path[m].z - was[m][1]) * w;
+    moved.add(i);
   }
   return moved;
 };
@@ -363,19 +401,41 @@ const loopTrack = l => {
   }
 
   // Past each end the loop eases back onto its own line over 60 m, or 90 m where it crosses, weighted by its
-  // distance along the loop.
+  // distance along the loop. It eases from the place it would take if it ran on beside the partner, which moves
+  // along the partner as the loop moves along its line. A wide gap to its own line lengthens the ease, so the ease
+  // bends the loop by at most BEND radians per metre, but an ease ends before the next hold. Where eases overlap,
+  // the loop moves to their weighted mean.
 
-  const ease = [];
-  for (const { P, side, r, dir, L } of ends) for (let k = 1; k * ds < L && !hold[at(r + dir * k)]; k++) {
-    const w = 1 - smooth(0, L, k * ds), i = at(r + dir * k);
-    if (w > (ease[i]?.w ?? 0)) ease[i] = { P, side, w };
+  const target = (P, side, i) => { const f = footOn(P, raw[i]), [nx, nz] = normal(f, i); return { x: f.x + nx * side * 6.8, y: f.y, z: f.z + nz * side * 6.8 }; };
+  const beside = (P, side, f, o, d) => {
+    const g = walk(P, f, d * o);
+    return { x: g.x - g.tz * o * side * 6.8, y: g.y, z: g.z + g.tx * o * side * 6.8 };
+  };
+  const ease = raw.map(() => []);
+  for (const { P, side, r, dir, L: L0 } of ends) {
+    const f = footOn(P, raw[at(r)]), o = Math.sign(f.tx * head[at(r)].x + f.tz * head[at(r)].z) || 1, run = [];
+    for (let k = 1; k * ds < 300 && !hold[at(r + dir * k)]; k++) run.push(beside(P, side, f, o, dir * k * ds));
+    let L = L0;
+    for (let pass = 0; pass < 4; pass++) {
+      const gap = Math.max(0, ...run.filter((_, k) => (k + 1) * ds < L).map((t, k) => flat2(raw[at(r + dir * (k + 1))], t)));
+      L = Math.min((run.length + 1) * ds, Math.max(L0, Math.sqrt(5.8 * gap / BEND)));
+    }
+    run.forEach((t, k) => { if ((k + 1) * ds < L) ease[at(r + dir * (k + 1))].push({ P, t, w: 1 - smoother(0, L, (k + 1) * ds) }); });
   }
   const path = raw.map((p, i) => {
-    const h = hold[i] ?? ease[i];
-    if (!h) return Object.assign(new THREE.Vector3(p.x, free[i], p.z), { w: 0 });
-    const { P, side } = h, f = footOn(P, p), w = hold[i] ? 1 : h.w, [nx, nz] = normal(f, i);
-    const x = f.x + nx * side * 6.8, z = f.z + nz * side * 6.8;
-    return Object.assign(new THREE.Vector3(lerp(p.x, x, w), lerp(free[i], f.y, w), lerp(p.z, z, w)), { w, pin: !!hold[i], beside: P });
+    if (hold[i]) {
+      const { P, side } = hold[i], t = target(P, side, i);
+      return Object.assign(new THREE.Vector3(t.x, t.y, t.z), { w: 1, pin: true, beside: P });
+    }
+    if (!ease[i].length) return Object.assign(new THREE.Vector3(p.x, free[i], p.z), { w: 0 });
+    let x = 0, y = 0, z = 0, sum = 0, stay = 1, top = ease[i][0];
+    for (const e of ease[i]) {
+      const { t } = e;
+      x += t.x * e.w; y += t.y * e.w; z += t.z * e.w; sum += e.w; stay *= 1 - e.w;
+      if (e.w > top.w) top = e;
+    }
+    const w = 1 - stay;
+    return Object.assign(new THREE.Vector3(lerp(p.x, x / sum, w), lerp(free[i], y / sum, w), lerp(p.z, z / sum, w)), { w, pin: false, beside: top.P });
   });
 
   // A held sample moves only within 40 m of its hold's end, and then lets go of its partner's deck.
@@ -422,8 +482,8 @@ const loopTrack = l => {
       want.push(over ? { i, y: f.y + 10, way: 1 } : { i, y: f.y - 10, way: -1 });
     }
   });
-  const reach = Math.ceil(600 / ds);
-  for (const { i, y, way } of want) for (const dir of [1, -1]) for (let k = 1; k <= reach; k++) {
+  const reach = Math.ceil(600 / ds), roads = path.flatMap((_, i) => hw[i] > -Infinity && hw[i] <= ramp[i] ? [{ i, y: hw[i], way: 1 }] : []);
+  for (const { i, y, way } of [...want, ...roads]) for (const dir of [1, -1]) for (let k = 1; k <= reach; k++) {
     const j = at(i + dir * k), q = path[j];
     if (q.pin && way * (y - lo[j]) > .9 * (q.steep ? LOOP_G : G) * ds * k) { q.pin = false; lo[j] = hw[j]; hi[j] = Infinity; }
   }
@@ -433,9 +493,30 @@ const loopTrack = l => {
     if (hw[i] > ramp[i]) { hi[i] = Math.min(hi[i], hw[i] - 20); lo[i] = -Infinity; }
   });
   for (const { i, y, way } of want) if (way > 0) lo[i] = Math.max(lo[i], y); else hi[i] = Math.min(hi[i], y);
-  const floor = grade(lo, 1), ceil = grade(hi, -1);
-  const ys = grade(path.map((p, i) => Math.max(floor[i], Math.min(ceil[i], p.y))), -1);
+  const floor = grade(lo, 1);
+
+  // A ceiling under its own sample's floor gives way, because the floor wins there.
+
+  path.forEach((p, i) => { if (!p.pin && !inHall[i] && floor[i] > hi[i]) hi[i] = Infinity; });
+  const ceil = grade(hi, -1);
+  let ys = grade(path.map((p, i) => Math.max(floor[i], Math.min(ceil[i], p.y))), -1);
+
+  // The loop holds its height between climbs. A closing over W each way fills every dip between two higher decks
+  // less than 2W apart, under the ceiling. Three [1, 2, 1] passes over 60 m then round the corners. After each
+  // pass the decks clamp to their floor and ceiling, pins go back on their partner's deck and the hall stays
+  // level. A short closing over T fills the notches that a clamped floor leaves in a rounded crest. A final grade
+  // pass keeps 8%, or LOOP_G where the loop is steep.
+
+  const W = Math.round(300 / ds), T = Math.round(30 / ds);
+  const fix = y => y.map((v, i) => path[i].pin ? lo[i] : inHall[i] ? HALL.y : Math.max(floor[i], Math.min(ceil[i], v)));
+  const sweep = (y, pick, w) => y.map((_, i) => { let v = y[i]; for (let k = 1; k <= w; k++) v = pick(v, y[at(i - k)], y[at(i + k)]); return v; });
+  const close = (y, w) => fix(sweep(sweep(y, Math.max, w), Math.min, w));
+  ys = close(fix(ys), W);
+  for (let pass = 0; pass < 3; pass++) ys = fix(ys.map((y, i) => (ys[at(i - T)] + 2 * y + ys[at(i + T)]) / 4));
+  ys = close(ys, T);
+  ys = grade(ys, -1);
   path.forEach((p, i) => { p.y = Math.max(floor[i], ys[i]); });
+  path.floor = floor;
   path.closed = true;
   laid.push(path);
   const curve = new THREE.CatmullRomCurve3(path, true);
@@ -568,11 +649,13 @@ for (const R of ROUTES) if (R.root) STATIONS.push({ ...MAGLEV.centreStation, rou
 // A line end that joins another track gets an interchange 90 m in. Where the end merges, it sits at least
 // 150 m in and 30 m clear of the track it merges onto, so the platform stays off the ramp. It takes the name of
 // the nearest station on another track within 500 m, loop routes aside, or its district's name with Junction.
-// Two lines that meet end to end run on as one track, so that end gets no interchange.
+// Two lines that meet end to end run on as one track, so that end gets no interchange. A lollipop's last sample is
+// its switch back onto the stem, not an end.
 
-const lineEnds = ROUTES.filter(R => !R.closed).flatMap(R => [R.path[0], R.path.at(-1)]);
+const lineEnds = ROUTES.filter(R => !R.closed).flatMap(R => R.balloon ? [R.path[0]] : [R.path[0], R.path.at(-1)]);
 for (const R of ROUTES) if (!R.closed) for (const [k, s0, way] of [[0, 90, 1], [R.path.length - 1, R.len - 90, -1]]) {
   const p = R.path[k];
+  if (k && R.balloon) continue;
   if (!laid.some(P => P !== R.path && P.some(q => Math.hypot(q.x - p.x, q.z - p.z) < 9))) continue;
   if (lineEnds.some(q => q !== p && Math.hypot(q.x - p.x, q.z - p.z) < 9)) continue;
   let s = s0;
@@ -587,11 +670,13 @@ for (const R of ROUTES) if (!R.closed) for (const [k, s0, way] of [[0, 90, 1], [
 // A platform is straight, so a station slides up to 100 m to the straightest track nearby, but never onto a
 // merge ramp. A station near a line end stays within 115 m of it and so stays the terminus. A crossing pair keeps
 // its place, so both levels stay stacked. Then the track under the platform is pulled onto its chord and eases back
-// to the curve each side. The ease is the shortest of EASES that keeps the pulled track at a 64 m radius or more,
-// 71 m with double track, whose inner track runs 6.8 m tighter. Among the spots that fit with that ease, the
-// station takes the straightest, with a small cost per metre it slides. Where none fits, it takes the longest ease.
+// to the curve each side. The ease is the first of EASES that keeps the pulled track at a 64 m radius or more,
+// 71 m with double track, whose inner track runs 6.8 m tighter. EASES tries 80 m and 60 m first, which bend the
+// track gently, then 40 m. Among the spots that fit with that ease, the station takes the straightest, with a small
+// cost per metre it slides. Where none fits, it takes the longest ease. A closed route's station keeps its s within
+// the route, so the pull wraps at the seam.
 
-const HALF = (STATION_LEN + 24) / 2, EASES = [40, 60, 80, 100, 120];
+const HALF = (STATION_LEN + 24) / 2, EASES = [80, 60, 40, 100, 120];
 const atS = (R, s) => R.curve.getPointAt(routeU(R, s / R.len));
 function sag(R, s) {
   const a = atS(R, s - HALF), b = atS(R, s + HALF), dx = b.x - a.x, dz = b.z - a.z, L2 = dx * dx + dz * dz;
@@ -612,7 +697,7 @@ const radius = (a, b, c) => {
 function tightest(R, s, E) {
   const a = atS(R, s - HALF), b = atS(R, s + HALF), dx = b.x - a.x, dz = b.z - a.z, L2 = dx * dx + dz * dz, P = [], Q = [];
   for (let d = -HALF - E - 20; d <= HALF + E + 20; d += 4) {
-    const p = atS(R, s + d), w = 1 - smooth(HALF, HALF + E, Math.abs(d)), t = ((p.x - a.x) * dx + (p.z - a.z) * dz) / L2;
+    const p = atS(R, s + d), w = 1 - smoother(HALF, HALF + E, Math.abs(d)), t = ((p.x - a.x) * dx + (p.z - a.z) * dz) / L2;
     P.push({ x: p.x + (a.x + t * dx - p.x) * w, z: p.z + (a.z + t * dz - p.z) * w });
     Q.push(p);
   }
@@ -662,15 +747,32 @@ for (const st of STATIONS) {
   const fit = EASES.flatMap(E => spots.filter(p => p.k < Infinity).map(p => ({ ...p, E }))).find(p => fits(p.s, p.E));
   st.s = fit?.s ?? (spots[0]?.k < Infinity ? spots[0].s : st.s);
   st.ease = fit?.E ?? EASES.filter(E => edge(st.s) >= HALF + E).at(-1) ?? EASES[0];
+  if (R.closed) st.s = (st.s % R.len + R.len) % R.len;
   const p = atS(R, st.s);
   for (const o of STATIONS.filter(o => o.of === st || o.rides === st)) o.s = nearestU(o.route, p.x, p.z).u * o.route.len;
 }
 
-// Track of another route within 12 m of a station's moved track, and within 30° of its heading, moves with it unless
-// its own station moves it. The move fades out from 8 m to 12 m, so double track keeps its spacing through the
-// station and twins ride on their master's chord.
+// Track of another route within 12 m of a station's moved track, and within 30° of its heading, moves with it, so
+// double track keeps its spacing through the station and twins ride on their master's chord. The move fades out
+// along the track past that stretch, and gives way to the track's own station pull where that pull eases in.
 
-const headOf = (P, i) => { const a = flatAt(P, i - 1), b = flatAt(P, i + 1), L = flat2(a, b) || 1; return [(b.x - a.x) / L, (b.z - a.z) / L]; };
+// The distance along track P from each sample to the nearest sample in ok within L, and that sample, or null.
+
+const alongTo = (P, ok, L, closed) => {
+  const n = P.length;
+  return P.map((_, j) => {
+    if (ok[j]) return { d: 0, i: j };
+    let best = null;
+    for (const dir of [1, -1]) for (let i = j, d = 0; d <= L;) {
+      const k = closed ? (i + dir + n) % n : i + dir;
+      if (k < 0 || k >= n) break;
+      d += flat2(P[i], P[k]);
+      i = k;
+      if (ok[i]) { if (d <= L && !(best?.d <= d)) best = { d, i }; break; }
+    }
+    return best;
+  });
+};
 const PULL = new Map();
 for (const R of ROUTES) {
   const P = R.path, n = P.length, cum = [0];
@@ -678,13 +780,15 @@ for (const R of ROUTES) {
   const k = R.len / cum[R.closed ? n : n - 1];
   const own = STATIONS.filter(st => st.route === R && !st.of && !st.rides).map(st => ({ s: st.s, E: st.ease, a: atS(R, st.s - HALF), b: atS(R, st.s + HALF) }));
   if (!own.length) continue;
-  PULL.set(R, { own, D: P.map((p, i) => {
+  const W = P.map(() => 0);
+  PULL.set(R, { own, W, D: P.map((p, i) => {
     let x = p.x, z = p.z;
     for (const { s, E, a, b } of own) {
       let d = Math.abs(cum[i] * k - s);
       if (R.closed) d = Math.min(d, R.len - d);
-      const w = 1 - smooth(HALF, HALF + E, d);
+      const w = 1 - smoother(HALF, HALF + E, d);
       if (w <= 0) continue;
+      W[i] = Math.max(W[i], w);
       const dx = b.x - a.x, dz = b.z - a.z, t = ((x - a.x) * dx + (z - a.z) * dz) / (dx * dx + dz * dz);
       x += (a.x + t * dx - x) * w;
       z += (a.z + t * dz - z) * w;
@@ -694,20 +798,44 @@ for (const R of ROUTES) {
 }
 const shift = new Map(ROUTES.map(R => [R, PULL.get(R)?.D.map(v => [...v]) ?? R.path.map(() => [0, 0])]));
 for (const [R, { own, D }] of PULL) {
-  const P = R.path, mid = own.map(({ s, E }) => ({ c: atS(R, s), E }));
-  for (const Q of ROUTES) if (Q !== R) Q.path.forEach((q, j) => {
-    const mine = PULL.get(Q)?.D[j];
-    if (mine && (mine[0] || mine[1]) || !mid.some(({ c, E }) => flat2(c, q) < HALF + E + 30)) return;
-    const f = footOn(P, q), h = headOf(Q.path, j);
-    if (f.d >= 12 || Math.abs(h[0] * f.tx + h[1] * f.tz) <= COS30) return;
-    // The offset from the foot turns with the track, so double track keeps its spacing through the ease.
+  const P = R.path, n = P.length, mid = own.map(({ s, E }) => ({ c: atS(R, s), E }));
 
-    const i1 = (f.i + 1) % P.length, [ax, az] = D[f.i], [bx, bz] = D[i1], k = 1 - smooth(8, 12, f.d), v = shift.get(Q)[j];
-    const nx = P[i1].x + bx - P[f.i].x - ax, nz = P[i1].z + bz - P[f.i].z - az, L = Math.hypot(nx, nz) || 1;
-    const cos = (f.tx * nx + f.tz * nz) / L, sin = (f.tx * nz - f.tz * nx) / L, ox = q.x - f.x, oz = q.z - f.z;
-    v[0] += (lerp(ax, bx, f.t) + ox * cos - oz * sin - ox) * k;
-    v[1] += (lerp(az, bz, f.t) + ox * sin + oz * cos - oz) * k;
+  // The full move of a sample beside R, from its foot on R. The offset from the foot turns with the track, so
+  // double track keeps its spacing through the ease. The turn blends between R's vertices, and past 12 m the offset
+  // turns as if it were 12 m long.
+
+  const at = i => P.closed ? (i % n + n) % n : Math.max(0, Math.min(n - 1, i)), turn = P.map((_, v) => {
+    const a = P[at(v - 1)], b = P[at(v + 1)], [ax, az] = D[at(v - 1)], [bx, bz] = D[at(v + 1)];
+    const ex = b.x - a.x, ez = b.z - a.z, mx = ex + bx - ax, mz = ez + bz - az;
+    return Math.atan2(ex * mz - ez * mx, ex * mx + ez * mz);
   });
+  const move = (q, f) => {
+    const i1 = at(f.i + 1), [ax, az] = D[f.i], [bx, bz] = D[i1], th = lerp(turn[f.i], turn[i1], f.t), cos = Math.cos(th), sin = Math.sin(th);
+    const c = Math.min(1, 12 / (f.d || 1)), ox = (q.x - f.x) * c, oz = (q.z - f.z) * c;
+    return [lerp(ax, bx, f.t) + ox * cos - oz * sin - ox, lerp(az, bz, f.t) + ox * sin + oz * cos - oz];
+  };
+  for (const Q of ROUTES) if (Q !== R) {
+    const foot = Q.path.map((q, j) => {
+      if (!mid.some(({ c, E }) => flat2(c, q) < HALF + E + 30)) return null;
+      const f = footOn(P, q), h = headOf(Q.path, j);
+      return f.d < 12 && Math.abs(h[0] * f.tx + h[1] * f.tz) > COS30 ? f : null;
+    });
+    if (!foot.some(Boolean)) continue;
+
+    // Past the stretch the move fades out along the track. A larger move fades over a longer run, so the fade
+    // bends the track by at most FADE_BEND radians per metre.
+
+    const near = alongTo(Q.path, foot.map(Boolean), 150, Q.closed), mine = PULL.get(Q)?.W;
+    const full = Q.path.map((q, j) => near[j] && move(q, foot[j] ?? footOn(P, q))), most = new Map();
+    near.forEach((o, j) => { if (o) most.set(o.i, Math.max(most.get(o.i) ?? 0, Math.hypot(...full[j]))); });
+    Q.path.forEach((q, j) => {
+      if (!near[j]) return;
+      const L = Math.min(150, Math.max(30, Math.sqrt(5.8 * most.get(near[j].i) / FADE_BEND)));
+      const k = (1 - smoother(0, L, near[j].d)) * (1 - (mine?.[j] ?? 0)), v = shift.get(Q)[j];
+      v[0] += full[j][0] * k;
+      v[1] += full[j][1] * k;
+    });
+  }
 }
 
 // A station on a route its partner moved keeps its place on the ground, not its distance along the route.
@@ -765,14 +893,18 @@ for (const [st, [x, z]] of moveAt) {
 }
 
 // A station's pull shortens some spans. Each track eases back under the 8% grade by lowering the higher end, or
-// under LOOP_G on a loop's steep samples. Closed tracks wrap at the seam.
+// under LOOP_G on a loop's steep samples. Closed tracks wrap at the seam. Off the hall ramps a loop sample does not
+// go under its floor. The lower end rises instead, unless it is pinned.
 
 for (const R of ROUTES) {
-  const P = R.path, n = P.length;
+  const P = R.path, n = P.length, F = P.floor;
   for (let pass = 0; pass < 2; pass++) for (const dir of [1, -1]) for (let k = 0; k < n; k++) {
     const i = dir > 0 ? k : n - 1 - k, j = R.closed ? (i - dir + n) % n : i - dir;
     if (j < 0 || j >= n) continue;
-    P[i].y = Math.min(P[i].y, P[j].y + (P[i].steep || P[j].steep ? LOOP_G : G) * flat2(P[i], P[j]));
+    const g = (P[i].steep || P[j].steep ? LOOP_G : G) * flat2(P[i], P[j]), y = P[j].y + g;
+    if (y >= P[i].y) continue;
+    P[i].y = Math.max(y, F && !P[i].steep && !P[j].pin ? F[i] : -Infinity);
+    if (P[i].y > y) P[j].y = P[i].y - g;
   }
   R.curve.updateArcLengths();
   R.len = R.curve.getLength();
@@ -839,11 +971,13 @@ for (const b of BUNDLES) {
   });
   b.hw = Math.max(...b.line.map(q => q.hw));
 
-  // The ground opens inside the walls along the hood's chord, so the trench shows from the street.
+  // The ground opens inside the walls, one hole per 14 m piece of the hood, so the trench shows from the street.
 
-  const m = b.line[0], e = b.line.at(-1), L = flat2(m, e), tx = (e.x - m.x) / L, tz = (e.z - m.z) / L;
-  const dev = Math.max(...b.line.map(q => Math.abs((q.x - m.x) * tz - (q.z - m.z) * tx)));
-  addHole((m.x + e.x) / 2, (m.z + e.z) / 2, Math.atan2(tx, tz), Math.max(1, 2 * (b.hw - .6 - dev)), L);
+  for (let j = 0; j + 1 < b.line.length; j += 7) {
+    const piece = b.line.slice(j, j + 8), m = piece[0], e = piece.at(-1), L = flat2(m, e), tx = (e.x - m.x) / L, tz = (e.z - m.z) / L;
+    const dev = Math.max(...piece.map(q => Math.abs((q.x - m.x) * tz - (q.z - m.z) * tx)));
+    addHole((m.x + e.x) / 2, (m.z + e.z) / 2, Math.atan2(tx, tz), Math.max(1, 2 * (b.hw - .25 - dev)), L + (j ? 1 : 0));
+  }
 }
 
 export const concrete = new THREE.MeshStandardMaterial({ color: 0x2c313a, roughness: .85, metalness: .1, side: THREE.DoubleSide });
@@ -890,55 +1024,128 @@ function stilts(p, t, y) {
   glow(...at(spread(SEA_Y) + 1.4, SEA_Y + 1.6), .3, .3, .3, [1.6, .8, .2]);
 }
 
-// A pylon that would land on a highway deck moves along the line until it clears it.
+// A train fills its envelope, 2.2 m each side of the line from 0.5 m under the deck to 3.3 m over it. DECKS holds
+// a sample of every route every 2 m in 20 m cells. decksNear returns the samples within r of x, z in plan.
+
+let DECKS = null;
+const DCELL = 20, dkey = (a, b) => `${a},${b}`;
+export function decksNear(x, z, r) {
+  if (!DECKS) {
+    DECKS = new Map();
+    for (const R of ROUTES) for (const q of R.curve.getSpacedPoints(Math.ceil(R.len / 2))) {
+      const k = dkey(Math.floor(q.x / DCELL), Math.floor(q.z / DCELL));
+      if (!DECKS.has(k)) DECKS.set(k, []);
+      DECKS.get(k).push({ x: q.x, y: q.y, z: q.z });
+    }
+  }
+  const out = [];
+  for (let a = Math.floor((x - r) / DCELL); a <= Math.floor((x + r) / DCELL); a++)
+    for (let b = Math.floor((z - r) / DCELL); b <= Math.floor((z + r) / DCELL); b++)
+      for (const q of DECKS.get(dkey(a, b)) ?? []) if (Math.hypot(q.x - x, q.z - z) < r) out.push(q);
+  return out;
+}
+
+// clearOfTrains is true when a column of radius r from y0 to y1 at x, z stays out of every train envelope.
+
+export const clearOfTrains = (x, z, r, y0, y1) => !decksNear(x, z, r + 2.2).some(q => q.y - .5 < y1 && q.y + 3.3 > y0);
+
+// inTrain is true when instance i of mesh m reaches into a train envelope. The box tests in its own frame, at
+// heights 0.5 m apart. solid(m) is false for see-through meshes such as lights, which the corridor pass and the
+// checks leave alone.
+
+const _m4 = new THREE.Matrix4(), _inv = new THREE.Matrix4(), _box = new THREE.Box3(), _ctr = new THREE.Vector3(), _v = new THREE.Vector3(), _w = new THREE.Vector3();
+export const solid = m => !(m.material?.transparent && m.material.depthWrite === false);
+export function inTrain(m, i) {
+  _m4.fromArray(m.instanceMatrix.array, i * 16);
+  if (Math.abs(_m4.determinant()) < 1e-9) return false;
+  const g = m.geometry, bb = g.boundingBox ?? (g.computeBoundingBox(), g.boundingBox);
+  _box.copy(bb).applyMatrix4(_m4).getCenter(_ctr);
+  _inv.copy(_m4).invert();
+  return decksNear(_ctr.x, _ctr.z, Math.hypot(_box.max.x - _box.min.x, _box.max.z - _box.min.z) / 2 + 2.2).some(q => {
+    for (let y = Math.max(q.y - .5, _box.min.y); y <= Math.min(q.y + 3.3, _box.max.y) + 1e-6; y += .5)
+      if (_v.set(q.x, y, q.z).applyMatrix4(_inv).clamp(bb.min, bb.max).applyMatrix4(_m4).distanceTo(_w.set(q.x, y, q.z)) < 2.2) return true;
+    return false;
+  });
+}
+
+// PILLARS lists every pylon, stilt and highway pier as a column of radius r from y0 to y1, for the checks. A pylon
+// cap counts as a column of its half length. FOOTPRINTS holds the build rectangle of each landmark.
+
+export const PILLARS = [], FOOTPRINTS = [];
+export const onFootprint = (x, z, fs = FOOTPRINTS) => fs.some(f => {
+  const X = x - f.cx, Z = z - f.cz;
+  return Math.abs(X * f.c - Z * f.s) < f.w / 2 && Math.abs(X * f.s + Z * f.c) < f.d / 2;
+});
+
+// A pylon stands on the ground under its cap. It moves along the line, 4 m at a time and at most 40 m, until it
+// clears the highways, every train envelope and every landmark. A pylon that does not clear drops, and the deck
+// spans the gap. A pylon at sea stands on the sea bed.
 
 const onHighway = (x, z) => HW_PTS.some(q => q.y > 5 && Math.hypot(q.x - x, q.z - z) < 11);
+function pylon(curve, u, sea) {
+  const p = curve.getPointAt(u), t = curve.getTangentAt(u), top = p.y - 2.8, foot = top - 1.8;
+  const wet = sea && offshore(p.x, p.z), g = wet ? SEA_Y - 8 : groundAt(p.x, p.z);
+  if (foot - g < 1 || onHighway(p.x, p.z) || onFootprint(p.x, p.z) || !clearOfTrains(p.x, p.z, 4.5, foot, top)
+    || !clearOfTrains(p.x, p.z, wet ? 4.1 : 1.4, g, foot)) return false;
+  prop('box', p.x, top - .9, p.z, 9, 1.8, 3.2, [.06, .065, .075], Math.atan2(t.x, t.z));
+  if (wet) stilts(p, t, foot);
+  else prop('cyl', p.x, (g + foot) / 2, p.z, 2.8, foot - g, 2.8, [.06, .065, .075]);
+  glow(p.x, top - 1.9, p.z, .5, .2, .5, [.3, .7, 1.0]);
+  PILLARS.push({ kind: wet ? 'sea' : 'pylon', x: p.x, z: p.z, r: wet ? 4.1 : 1.4, y0: g, y1: foot }, { kind: 'cap', x: p.x, z: p.z, r: 4.5, y0: foot, y1: top });
+  return true;
+}
+
+// The hoods draw in meshes of their own, marked under, so they still draw while the hall hides the city. Their
+// walls are unlit and near black, like the tunnels' walls, so the lit frames give the light.
+
+const HOOD = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial(), 600);
+const HOOD_GLOW = new THREE.InstancedMesh(HOOD.geometry, glows.material, 600);
+for (const m of [HOOD, HOOD_GLOW]) { m.count = 0; m.frustumCulled = false; m.userData.under = true; scene.add(m); }
+
 export function buildPylons() {
-  const r = rng(77);
-  if (HAS_LOOP) for (let u = 0; u < 1; u += 46 / trackLen) {
-    while (onHighway(track.getPointAt(u % 1).x, track.getPointAt(u % 1).z)) u += 4 / trackLen;
-    const p = track.getPointAt(u % 1), t = track.getTangentAt(u % 1), ry = Math.atan2(t.x, t.z);
-    const top = p.y - 2.8;
-    prop('box', p.x, top - .9, p.z, 9, 1.8, 3.2, [.06, .065, .075], ry);
-    prop('cyl', p.x, (top - 1.8) / 2, p.z, 2.8, top - 1.8, 2.8, [.06, .065, .075]);
-    glow(p.x, top - 1.9, p.z, .5, .2, .5, [.3, .7, 1.0]);
-  }
-  for (const { curve, len, lap } of SPURS) for (let u = .02; u < 1; u += 46 / len) {
-    while (u < 1 && onHighway(curve.getPointAt(u).x, curve.getPointAt(u).z)) u += 4 / len;
-    if (u >= 1) break;
-    const p = curve.getPointAt(u), t = curve.getTangentAt(u), top = p.y - 2.8;
-    if (HALL && lap && p.y < groundAt(p.x, p.z) + 5) continue;
-    prop('box', p.x, top - .9, p.z, 9, 1.8, 3.2, [.06, .065, .075], Math.atan2(t.x, t.z));
-    if (offshore(p.x, p.z)) stilts(p, t, top - 1.8);
-    else prop('cyl', p.x, (top - 1.8) / 2, p.z, 2.8, top - 1.8, 2.8, [.06, .065, .075]);
-    glow(p.x, top - 1.9, p.z, .5, .2, .5, [.3, .7, 1.0]);
-  }
+  const lines = [...HAS_LOOP ? [{ curve: track, len: trackLen, from: 0 }] : [], ...SPURS.map(R => ({ ...R, from: .02, sea: true }))];
+  for (const { curve, len, from, sea } of lines) for (let u = from; u < 1; u += 46 / len)
+    for (let k = 0; k <= 10 && u < 1 && !pylon(curve, u, sea); k++) u += 4 / len;
 
-  // A bundle's hood stands over its tracks from the mouth to where the decks lie deep. Its walls reach down past
-  // the decks, so the cut in the ground shows a trench going down. Lit frames step down the trench with the decks.
-  // A cyan lintel and an amber hazard band mark the mouth. An end wall closes the hood above the tunnel.
+  // A bundle's hood stands over its tracks from the mouth to where the decks lie deep, and 3 m on, so it covers
+  // the start of each tunnel. Its walls reach down past the decks, so the cut in the ground shows a trench going
+  // down. Dim cyan frames step down the trench with the decks every 8 m, and a lit trim runs along both walls, as
+  // in the tunnels. A cyan lintel and an amber hazard band mark the mouth. At the far end a wall closes the hood
+  // round the tunnels.
 
-  const DECK = [.05, .06, .085];
-  for (const { line, hw } of BUNDLES) {
-    for (let j = 0; j + 2 < line.length; j += 2) {
-      const a = line[j], b = line[j + 2], cx = (a.x + b.x) / 2, cz = (a.z + b.z) / 2, L = flat2(a, b) || 1, tx = (b.x - a.x) / L, tz = (b.z - a.z) / L;
+  const DECK = [.016, .019, .026], FRAME = [.16, .44, .64];
+  const hood = (x, y, z, sx, sy, sz, rgb, ry = 0, rx = 0) => put(HOOD, x, y, z, sx, sy, sz, ry, rx, rgb);
+  const lit = (x, y, z, sx, sy, sz, rgb, ry = 0) => put(HOOD_GLOW, x, y, z, sx, sy, sz, ry, 0, rgb);
+  for (const { line, hw, portals } of BUNDLES) {
+    const n = line.length, d = line[n - 2], e = line[n - 1], de = flat2(d, e) || 1;
+    const far = { x: e.x + (e.x - d.x) / de * 3, z: e.z + (e.z - d.z) / de * 3, deck: e.deck + (e.deck - d.deck) / de * 3 };
+    const pts = [...line, far];
+    for (let j = 0; j + 1 < pts.length; j += 2) {
+      const a = pts[j], b = pts[Math.min(j + 2, pts.length - 1)], cx = (a.x + b.x) / 2, cz = (a.z + b.z) / 2, L = flat2(a, b) || 1, tx = (b.x - a.x) / L, tz = (b.z - a.z) / L;
       const g = groundAt(cx, cz), ry = Math.atan2(tx, tz), low = Math.min(a.deck, b.deck) - 3.2, wall = g + 6.8 - low;
-      prop('box', cx, g + 6.8, cz, 2 * hw, .6, L + .3, DECK, ry);
-      for (const s of [-1, 1]) prop('box', cx + tz * s * (hw - .25), low + wall / 2, cz - tx * s * (hw - .25), .5, wall, L + .3, DECK, ry);
-      prop('box', cx, (a.deck + b.deck) / 2 - 3.1, cz, 2 * hw, .4, L + .3, DECK, ry, Math.atan2(a.deck - b.deck, L));
-      if (j % 4) continue;
+      hood(cx, g + 6.8, cz, 2 * hw, .6, L + .3, DECK, ry);
+      for (const s of [-1, 1]) hood(cx + tz * s * (hw - .25), low + wall / 2, cz - tx * s * (hw - .25), .5, wall, L + .3, DECK, ry);
+      hood(cx, (a.deck + b.deck) / 2 - 3.1, cz, 2 * hw, .4, L + .3, DECK, ry, Math.atan2(a.deck - b.deck, L));
+      for (const s of [-1, 1]) lit(cx + tz * s * (hw - .55), (a.deck + b.deck) / 2 + .5, cz - tx * s * (hw - .55), .12, .1, L + .3, [.08, .3, .45], ry);
+      if (j % 4 || j >= n - 1) continue;
       const top = Math.min(a.deck + 6, g + 6.2), h = top - a.deck - .6;
       if (h < 1) continue;
-      glow(a.x, top, a.z, 2 * hw - 1.2, .2, .3, [.2, .55, .8], ry);
-      for (const s of [-1, 1]) glow(a.x + tz * s * (hw - .6), a.deck + .6 + h / 2, a.z - tx * s * (hw - .6), .2, h, .3, [.2, .55, .8], ry);
+      lit(a.x, top, a.z, 2 * hw - 1.2, .2, .3, FRAME, ry);
+      for (const s of [-1, 1]) lit(a.x + tz * s * (hw - .6), a.deck + .6 + h / 2, a.z - tx * s * (hw - .6), .2, h, .3, FRAME, ry);
     }
     const yaw = (a, b) => Math.atan2(b.x - a.x, b.z - a.z), m = line[0], ry = yaw(m, line[1]), tx = Math.sin(ry), tz = Math.cos(ry), g = groundAt(m.x, m.z);
-    glow(m.x, g + 6.2, m.z, 2 * hw - 1, .35, .25, [.25, .9, 1.4], ry);
-    for (let u = -hw + .8; u < hw - .4; u += 1.6) glow(m.x + tz * u, g + 7.25, m.z - tx * u, .8, .3, .3, [1, .42, .03], ry);
-    const e = line.at(-1), ge = groundAt(e.x, e.z);
-    prop('box', e.x, (e.deck + 6 + ge + 6.8) / 2, e.z, 2 * hw, ge + 6.8 - e.deck - 6, .5, DECK, yaw(line.at(-3), e));
+    lit(m.x, g + 6.2, m.z, 2 * hw - 1, .35, .25, [.25, .9, 1.4], ry);
+    for (let u = -hw + .8; u < hw - .4; u += 1.6) lit(m.x + tz * u, g + 7.25, m.z - tx * u, .8, .3, .3, [1, .42, .03], ry);
+
+    // The end wall stands over the tunnels' roofs and beside their walls, which run 4.2 m out from each track.
+
+    const fy = yaw(e, far), fx = Math.cos(fy), fz = -Math.sin(fy), gf = groundAt(far.x, far.z);
+    const lats = portals.map(p => { const q = p.hood.at(-1); return (q.x - e.x) * fx + (q.z - e.z) * fz; });
+    const lo = Math.min(...lats) - 4.2, hi = Math.max(...lats) + 4.2, y0 = far.deck - 3.2, y1 = far.deck + 6.2;
+    hood(far.x, (far.deck + 6 + gf + 6.8) / 2, far.z, 2 * hw, gf + 6.8 - far.deck - 6, .5, DECK, fy);
+    for (const [u0, u1] of [[-hw, lo], [hi, hw]]) if (u1 - u0 > .05) hood(far.x + fx * (u0 + u1) / 2, (y0 + y1) / 2, far.z + fz * (u0 + u1) / 2, u1 - u0, y1 - y0, .5, DECK, fy);
   }
-  void r;
+  for (const m of [HOOD, HOOD_GLOW]) { m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }
 }
 // Moving instances upload only the slots in use, not the whole buffer.
 
@@ -1024,7 +1231,7 @@ const HEAD = new THREE.Color(1, 1, 1), TAIL = new THREE.Color(1, .05, .04);
 export function carriage(end = 0) {
   const [hull, lit] = TRAINS[+!!end], i = hull.count++, o = new THREE.Object3D(), look = o.lookAt.bind(o), _t = new THREE.Vector3();
   lit.count = hull.count;
-  const l = end ? LAMPS.count++ : -1;
+  const l = o.lamp = end ? LAMPS.count++ : -1;
   if (end) { LAMPS.setColorAt(l, end > 0 ? HEAD : TAIL); LAMPS.instanceColor.needsUpdate = true; }
   o.lookAt = t => {
     look(end < 0 ? _t.copy(o.position).multiplyScalar(2).sub(t) : t); o.updateMatrix();
@@ -1035,25 +1242,62 @@ export function carriage(end = 0) {
 }
 export const uploadTrains = () => { for (const ms of TRAINS) ms.forEach(uploadUsed); uploadUsed(LAMPS); };
 
-// The cab stands in for the ridden lead car. Its walls let 70% of the city through, its nose is curved glass
-// and its floor is solid. Thin lit ribs ring the body twice, and a lit sill runs low along both walls into the nose.
+// The cab stands in for the ridden lead car. Its walls and interior are 50% opaque, its floor 85%, and its nose
+// is curved glass. Thin lit ribs ring the body twice, and a lit sill runs low along both walls into the nose. The
+// interior draws before the walls. Its floor and seats write depth, so the walls never hide them.
 
-const CAB_HULL = new THREE.MeshStandardMaterial({ color: 0xb8c0cc, roughness: .3, metalness: .7, transparent: true, opacity: .3, depthWrite: false, side: THREE.DoubleSide });
+const half = m => Object.assign(m, { transparent: true, opacity: .5 });
+const CAB_HULL = half(new THREE.MeshStandardMaterial({ color: 0xb8c0cc, roughness: .3, metalness: .7, depthWrite: false, side: THREE.DoubleSide }));
 const CAB_GLASS = new THREE.MeshStandardMaterial({ color: 0x9fc4d8, roughness: .05, metalness: .2, transparent: true, opacity: .08, depthWrite: false, side: THREE.DoubleSide });
-const CAB_FLOOR = new THREE.MeshStandardMaterial({ color: 0x3a3f48, roughness: .8, side: THREE.DoubleSide });
+const CAB_FLOOR = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .8, transparent: true, opacity: .85, side: THREE.DoubleSide });
 const CAB_RIB = new THREE.MeshBasicMaterial({ color: new THREE.Color(.05, .18, .26), side: THREE.DoubleSide });
 const cabHull = new THREE.Mesh(loft(PROFILE, rings(-5.6, NOSE)), CAB_HULL);
 const cabGlass = new THREE.Mesh(mergeGeometries([loft(PROFILE, rings(NOSE, 5.6, true), true, true), loft(PROFILE, [ring(-5.6), ring(-5.59)], true, true)]), CAB_GLASS);
-const cabFloor = new THREE.Mesh(loft([[1.45, -1.2], [-1.45, -1.2]], rings(-5.6, 4.4, true)), CAB_FLOOR);
 const cabRibs = new THREE.Mesh(mergeGeometries([
   ...[-4, -1].map(z => loft(PROFILE.map(([x, y]) => [x * .995, y * .995]), [ring(z - .015), ring(z + .015)], true)),
   ...[1, -1].map(s => loft([[s * 1.69, -.35], [s * 1.69, -.32]], rings(-5.6, 5.6, true))),
 ]), CAB_RIB);
 cabHull.name = 'hull';
-export const cab = new THREE.Group().add(cabHull, cabGlass, cabFloor, cabRibs);
+
+// The interior has forward-facing double seats on both sides of a darker centre aisle, grab poles at the aisle
+// edges, a lit ceiling panel over each seat row and a lit door outline in each wall. It stays behind the nose
+// glass, so the view ahead is clear. Vertex colours set the cushions apart from the seat frames. The lights are
+// dim, so nothing in the cab blooms, and they write no depth.
+
+const box = (w, h, d, x, y, z) => new THREE.BoxGeometry(w, h, d).translate(x, y, z).deleteAttribute('uv');
+const DOOR = -2.9, ROWS = [-5, -4.1, -1.7, -.8], FRAME = [.5, .58, .65], CUSHION = [.22, .32, .5], POLE = [.85, .87, .9];
+const cabFloor = new THREE.Mesh(mergeGeometries([
+  tint(loft([[1.45, -1.2], [-1.45, -1.2]], rings(-5.6, 4.4, true)), [.23, .25, .28]),
+  tint(box(.95, .01, 5.9, 0, -1.19, -2.55), [.07, .08, .1]),
+]), CAB_FLOOR);
+const seats = ROWS.flatMap(z => [-1, 1].flatMap(s => [tint(box(.95, .1, .5, s, -.75, z), CUSHION), tint(box(.95, .62, .08, s, -.41, z - .25), FRAME)]));
+const poles = [-4.55, DOOR - .75, DOOR + .75, -.35].flatMap(z => [-1, 1].map(s => tint(new THREE.CylinderGeometry(.025, .025, 2.55, 8).translate(s * .48, .07, z).deleteAttribute('uv'), POLE)));
+const doors = [-1, 1].flatMap(s => [box(.04, 2, .05, s * 1.66, -.2, DOOR - .65), box(.04, 2, .05, s * 1.66, -.2, DOOR + .65), box(.04, .05, 1.35, s * 1.66, .8, DOOR)]);
+const cabSeats = new THREE.Mesh(mergeGeometries([...seats, ...poles]), half(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .6, metalness: .2, emissive: 0x7f93a6, emissiveIntensity: .15 })));
+const cabLights = new THREE.Mesh(mergeGeometries([...ROWS.map(z => box(.5, .03, .6, 0, 1.33, z - .1)), ...doors]), half(new THREE.MeshBasicMaterial({ color: new THREE.Color(.55, .52, .45), depthWrite: false })));
+const interior = new THREE.Group().add(cabFloor, cabSeats, cabLights);
+interior.name = 'interior';
+for (const m of [cabFloor, cabSeats, cabLights]) m.renderOrder = -1;
+export const cab = new THREE.Group().add(cabHull, cabGlass, interior, cabRibs);
 cab.visible = false;
 cab.userData.under = true;
 scene.add(cab);
+
+// The ridden train's other cars draw 50% opaque in their own meshes, after the interior. ride.js clears them each
+// frame and adds each car's matrix. A rear car keeps its tail lamp. An empty mesh does not draw.
+
+export const GHOSTS = TRAINS.map(ms => ms.map(m => {
+  const g = new THREE.InstancedMesh(m.geometry, half(m.material.clone()), 16);
+  g.material.depthWrite = false;
+  g.count = 0; g.visible = false; g.frustumCulled = false; g.renderOrder = -.5; g.userData.moves = g.userData.under = true;
+  scene.add(g);
+  return g;
+}));
+export const clearGhosts = () => { for (const ms of GHOSTS) for (const g of ms) { g.count = 0; g.visible = false; } };
+export const ghostCar = (matrix, nose, lamp = -1) => {
+  for (const g of GHOSTS[+nose]) { g.setMatrixAt(g.count++, matrix); g.visible = true; g.instanceMatrix.needsUpdate = true; }
+  if (lamp >= 0) LAMPS.setMatrixAt(lamp, matrix);
+};
 
 export function nearHighway(x, z) {
   let m = Infinity;
@@ -1139,7 +1383,15 @@ export const hwTraffic = [], HW = SETTING.transport.highway;
 for (const h of HIGHWAYS) {
   addSweep(sweep(h.path, [[-8, 0], [8, 0], [7, -1.8], [-7, -1.8]], false), concrete);
   for (const s of [-1, 1]) addSweep(sweep(h.path, [[s * 7.6, 0], [s * 8, 0], [s * 8, 1.1], [s * 7.6, 1.1]], false), concrete);
-  for (let k = 4; k < h.path.length; k += 9) { const p = h.path[k]; if (p.y > 5) prop('cyl', p.x, (p.y - 1.8) / 2, p.z, 3.4, p.y - 1.8, 3.4, [.06, .065, .075]); }
+
+  // A pier stands on the ground. It drops where it would meet a train or stand in a hood.
+
+  for (let k = 4; k < h.path.length; k += 9) {
+    const p = h.path[k], g = groundAt(p.x, p.z);
+    if (p.y < 5 || p.y - 1.8 - g < 1 || !clearOfTrains(p.x, p.z, 1.7, g, p.y - 1.8) || BUNDLES.some(b => b.line.some(q => flat2(q, p) < b.hw + 2))) continue;
+    prop('cyl', p.x, (g + p.y - 1.8) / 2, p.z, 3.4, p.y - 1.8 - g, 3.4, [.06, .065, .075]);
+    PILLARS.push({ kind: 'pier', x: p.x, z: p.z, r: 1.7, y0: g, y1: p.y - 1.8 });
+  }
 
   // The pack sets the cars per metre of highway and their speed before the speed slider.
 

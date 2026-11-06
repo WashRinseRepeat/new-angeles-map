@@ -236,10 +236,13 @@ export function flyTo(target, dist = 150, dir = null, dur = 1.2) {
 export const FOCUS = PLACES.find(p => p.slug === QUERY.get('focus'));
 if (FOCUS) { controls.target.set(FOCUS.x, 10, FOCUS.z); camera.position.set(FOCUS.x + 110, 190, FOCUS.z + 150); select(FOCUS); }
 
-// ?view=x,y,z,tx,ty,tz opens the map at a camera pose, as Copy values writes it (pos, then target).
+// ?view=x,y,z,tx,ty,tz opens the map at a camera pose, as Copy values writes it (pos, then target). The pose
+// holds as given, below ground too, until the user drags or zooms.
 
 const VIEW = QUERY.get('view')?.split(',').map(Number);
-if (VIEW?.length === 6 && VIEW.every(Number.isFinite)) { camera.position.set(...VIEW.slice(0, 3)); controls.target.set(...VIEW.slice(3)); }
+let held = VIEW?.length === 6 && VIEW.every(Number.isFinite);
+export const releaseView = () => { held = false; };
+if (held) { camera.position.set(...VIEW.slice(0, 3)); controls.target.set(...VIEW.slice(3)); camera.lookAt(controls.target); }
 
 window.spike = { setLayer, look: (x, y, z, d = 60) => { controls.target.set(x, y, z); camera.position.set(x - d * .5, y + d * .8, z + d * .6); controls.update(); }, H, generate, renderer, composer, TILES: () => TILES, getSites: () => SITES, scene, CITY, density, styleAt, STYLES, getMerged: () => merged, TALLY, ARCHETYPES, SHAPES, select, PLACES, CENTRE_PLACE, camera, controls, track, FRAMES, nearHighway, CENTRE, CENTRE_R, SETTING };
 
@@ -249,8 +252,8 @@ export let down = null;
 
 // Touching the map stops a flight, so gestures never fight it.
 
-renderer.domElement.addEventListener('pointerdown', e => { down = e.isPrimary ? [e.clientX, e.clientY] : null; fly = spin = null; });
-renderer.domElement.addEventListener('wheel', () => { fly = null; }, { passive: true });
+renderer.domElement.addEventListener('pointerdown', e => { down = e.isPrimary ? [e.clientX, e.clientY] : null; fly = spin = null; held = false; });
+renderer.domElement.addEventListener('wheel', () => { fly = null; held = false; }, { passive: true });
 
 // Labels thin out where they would crowd. Every sixth frame each label is projected to the screen and accepted in
 // priority order: the open card's place, district names, quarters, campaign places, then landmarks, nearest first.
@@ -690,12 +693,13 @@ renderer.setAnimationLoop(now => {
   // sets the target's height instead, or with follow its depth below the ground. It settles at
   // once on the first frame and eases after that. A ride or a tour steers the camera itself.
 
-  if (RELIEF && !fly && !riding() && !tourFocus) {
+  if (RELIEF && !held && !fly && !riding() && !tourFocus) {
     const L = PACK_LAYERS[layer], g = L?.floor == null || L.follow ? groundAt(controls.target.x, controls.target.z) : 0;
     const dy = (g + (L?.floor ?? 0) - controls.target.y) * (settled ? Math.min(1, dt * 4) : 1);
     controls.target.y += dy; camera.position.y += dy; settled = true;
   }
-  controls.update();
+  if (held) held = !fly && !riding() && !tourFocus;
+  if (!held) controls.update();
   clipTop += (LAYERS[layer] - clipTop) * Math.min(1, dt * 3);
   const top = layer === 'all' && clipTop > LAYERS.all - 10 ? 1e5 : clipTop;
   clipPlane.constant = top;

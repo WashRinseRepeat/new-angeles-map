@@ -1,9 +1,10 @@
-// The Beanstalk hall below the Root, and the tunnels that bring the Grand Loop and the Centre Loop into it.
+// The Beanstalk hall below the Root, and the tunnels that bring the Grand Loop and the Center Loop into it.
 // The hall is a horn of the Root's own steel and lit windows. It rises from a wide floor round the tether, over a
 // low canopy above the tracks, to a throat at the crown, where the tether leaves for the sky. The tunnels are low
 // and dim, with lit rings overhead, neon adverts on the walls and openings into the anchor's machinery.
-// Hall and tunnels draw only while the camera is below ground. In and near the hall the city stops drawing too,
-// so the hall may rise past the ground. Local origin is the Root at ground level. Angle a gives (cos a, sin a).
+// Hall and tunnels draw only while the camera is below ground or inside a hood. In and near the hall the city
+// stops drawing too, so the hall may rise past the ground. Local origin is the Root at ground level. Angle a
+// gives (cos a, sin a).
 
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BUNDLES, HALL, ROUTES, STATIONS, STATION_LEN, UNDER } from '../../../engine/transport.js';
@@ -25,12 +26,12 @@ const ADS = [
   [['SPARK AGENCY', 'SEE MORE'], '#ff3fa4'], [['CLONE CARE', 'YOUR BEST SELF'], '#7dff6a'], [['ORBITAL HOTEL', 'BOOK THE VIEW'], '#3ff2ff'],
 ];
 const WAYS = [
-  [['THE BEANSTALK'], '#ffffff'], [['GRAND LOOP'], '#3ff2ff'], [['CENTRE LOOP'], '#ffb43f'], [['CLIMBER GATES', '1 - 6'], '#7dff6a'],
+  [['THE BEANSTALK'], '#ffffff'], [['GRAND LOOP'], '#3ff2ff'], [['CENTER LOOP'], '#ffb43f'], [['CLIMBER DOCKS', 'UP AND DOWN'], '#7dff6a'],
   [['EARTH STATION', 'BY CLIMBER'], '#ffffff'], [['ROOT ANCHOR', 'TENSION PLANT'], '#ffb43f'], [['NO ENTRY', 'ANCHOR WORKS'], '#ff5f3f'],
 ];
 
 // A beanpod is a capsule r in radius and 2 h tall, with two lit window bands, a cyan stripe, a beacon and two
-// clamps on its tether side. Local +x faces out. The hall's pods, the Root's climbers and the tour pod share it.
+// clamps on its tether side. Local +x faces out. Every climber carries one.
 
 export function beanpod(THREE, C, r = 6, h = 10.5) {
   const part = (g, rgb) => {
@@ -46,6 +47,34 @@ export function beanpod(THREE, C, r = 6, h = 10.5) {
     part(box(.3, 9, 1.6, r + .05, -1, 0), C.CYAN), part(box(1.4, 1.4, 1.4, 0, h + .6, 0), C.WHITE),
   ]);
   return { body, lit, r, h };
+}
+
+// A climber is a drive frame that clamps the ribbon, with one beanpod hanging below it. Its origin sits on the
+// ribbon's axis and its frame on the +z face. The frame scales with the ribbon by CLIMBER_SCALE, so the grips close
+// round the edge cables at x = ±5.88. The pod keeps its full size, 1.3 times the 6 m hall pod, and the frame's
+// depth offsets keep the old values, so the frame clears the ribs and reaches the pod. Lit strips run on the grips
+// and the frame, with a red light to port and a green one to starboard. pod is the beanpod's centre.
+// The hall's pods, the Root's climbers and the tour pod share it.
+
+export const CLIMBER_SCALE = .7;
+export function climber(THREE, C) {
+  const S = CLIMBER_SCALE, P = beanpod(THREE, C, 6 * 1.3, 10.5 * 1.3), PY = -6 * S - P.h, PZ = P.r + 2.3;
+  const box = (w, h, d, x, y, z, rgb) => {
+    const g = new THREE.BoxGeometry(w * S, h * S, d * S).translate(x * S, y * S, z).toNonIndexed();
+    g.deleteAttribute('uv');
+    if (rgb) g.setAttribute('color', new THREE.Float32BufferAttribute(Array.from({ length: g.attributes.position.count }, () => rgb).flat(), 3));
+    return g;
+  };
+  const hang = g => g.clone().rotateY(-Math.PI / 2).translate(0, PY, PZ);
+  const body = mergeGeometries([
+    box(22, 6, 3, 0, 0, 3.2), ...[-8.4, 8.4].map(x => box(5, 9, 6, x, 0, .8 * S)), box(18, 3, 7, 0, 4.4, 5),
+    box(4, 3, (PZ - 3) / S, 0, -4.5, (PZ + 3) / 2), hang(P.body),
+  ]);
+  const lit = mergeGeometries([
+    box(17, .6, .4, 0, 6, 5 + 3.5 * S + .15, C.WHITE), box(.8, .8, .8, -11.4, 0, 3.2, [3, .2, .1]), box(.8, .8, .8, 11.4, 0, 3.2, C.GREEN),
+    ...[-1, 1].map(s => box(.3, 7, 4, s * 10.95, 0, .8 * S, C.WARM)), hang(P.lit),
+  ]);
+  return { body, lit, pod: [0, PY, PZ], r: P.r, h: P.h };
 }
 
 export function hall(H, look) {
@@ -213,57 +242,83 @@ export function hall(H, look) {
   add('glow', new THREE.TorusGeometry(24.2, .4, 4, 96).rotateX(Math.PI / 2).translate(0, FLOOR + 10.1, 0), C.CYAN);
   add('glow', new THREE.TorusGeometry(13.2, .35, 4, 64).rotateX(Math.PI / 2).translate(0, FLOOR + 22.1, 0), C.WARM);
 
-  // Six loading bays stand in a ring at R0 round the anchor, like the blades of a wheel. Each door faces along
-  // the ring toward a greater angle, so the bay 30° short of the platforms' bearing opens toward the riders. A pod
-  // slides out along the ring and then swings in to its guide rail. The struts stand between the bays.
+  // The edge cables glow on both faces of the ribbon, from the anchor's floor to the oculus.
 
-  const face = STATIONS.filter(st => st.route.lap && st.name === 'The Beanstalk')
-    .reduce((v, st) => v.add(st.route.curve.getPointAt(st.u).sub(V3(OX, 0, OZ)).setY(0).normalize()), V3(0, 0, 0));
-  const BAYS = Array.from({ length: 6 }, (_, k) => k / 6 * TAU + Math.atan2(face.z, face.x) + TAU / 12);
-  for (const b of BAYS) {
-    const a = b + TAU / 12;
+  const cableGlow = mergeGeometries([-1, 1].flatMap(sx => [-1, 1].map(sz => {
+    const g = new THREE.BoxGeometry(.3, TOP - FLOOR, .3).translate(sx * 5.88, (TOP + FLOOR) / 2, sz * 1.4).toNonIndexed();
+    g.deleteAttribute('uv');
+    g.setAttribute('color', new THREE.Float32BufferAttribute(Array.from({ length: g.attributes.position.count }, () => C.CYAN).flat(), 3));
+    return g;
+  })));
+
+  // Six struts brace the anchor, clear of the belts on the z axis.
+
+  for (let k = 0; k < 6; k++) {
+    const a = k / 6 * TAU;
     add('steel', beam(polar(22, a, FLOOR + 8), polar(40, a, FLOOR + 1), 3, 4));
     add('glow', box(.6, .6, .6, 0, 0, 0).translate(...polar(40.5, a, FLOOR + 2).toArray()), [3, .2, .1]);
   }
 
-  // Each bay is a steel box, lit inside, with a door that drops into the floor. The cavity is BW wide, BH high and
-  // BD deep. In a bay's own frame x points out from the tether, z through the door, and the frame sits at the
-  // bay's centre. A pod slides SLIDE m out of its bay. Its guide rail stands at the bearing where the slide ends
-  // and runs from the collar to the throat.
+  // ---------- conveyors ----------
+  // Two belts serve the ribbon. The up belt runs from a loading dock on the +z axis in to the +z face, the down
+  // belt from the -z face out to an unloading dock on the -z axis. d is 1 on the up side and -1 on the down side.
+  // A belt runs level through its dock, out of the door DOOR m from the axis, then climbs over the anchor to a level
+  // end below the face. A climber rides with its pod LIFT m above the deck and stops OPEN m short of the face.
 
-  const R0 = 110, BW = 20, BH = 26, BD = 18, PR = look.pod.r, PH = look.pod.h, SLIDE = BD / 2 + PR + 6;
-  const bayFrame = a => new THREE.Matrix4().makeRotationY(-a).setPosition(polar(R0, a));
-  const rail = a => a + Math.atan2(SLIDE, R0);
-  for (const a of BAYS) {
-    const m = bayFrame(a), at = (g, x, y, z) => g.translate(x, y, z).applyMatrix4(m), B = (w, h, d, x, y, z) => at(new THREE.BoxGeometry(w, h, d), x, y, z);
-    add('steel', B(BW + 4, BH + 4, 2, 0, FLOOR + BH / 2 + 2, -BD / 2 - 1));
-    for (const s of [-1, 1]) add('steel', B(2, BH + 4, BD, s * (BW / 2 + 1), FLOOR + BH / 2 + 2, 0));
-    add('steel', B(BW, 4, BD, 0, FLOOR + BH + 2, 0));
-    add('glow', B(BW - 1.4, BH - 2, .2, 0, FLOOR + BH / 2, -BD / 2 + .1), C.DIM);
-    for (const s of [-1, 1]) add('glow', B(.6, BH + .4, .3, s * (BW / 2 + .3), FLOOR + BH / 2, BD / 2 + .2), C.WARM);
-    add('glow', B(BW + 1.2, .6, .3, 0, FLOOR + BH + .3, BD / 2 + .2), C.WARM);
-    for (const z of [0, BD / 2 + 9]) add('glow', B(1.6, .25, 14, 0, FLOOR + .1, z), C.SEA);
-    const r = rail(a);
-    add('steel', box(.9, TOP - FLOOR - 22, .9, ...polar(11.5, r, (TOP + FLOOR + 22) / 2).toArray(), -r + Math.PI / 2));
-    add('glow', box(.25, TOP - FLOOR - 22, .25, ...polar(12.05, r, (TOP + FLOOR + 22) / 2).toArray(), -r + Math.PI / 2), C.CYAN);
+  const CL = look.climber, PY = CL.pod[1], PZ = CL.pod[2], PR = CL.r;
+  const DOOR = 95, DEPTH = 32, DW = 22, DH = 40, BW = 12, OPEN = 4, YD = FLOOR + 1.5, YE = FLOOR + 24, ZE = OPEN + PZ, LIFT = CL.h + .4;
+  const deckY = z => z >= DOOR ? YD : z <= ZE ? YE : YE + (YD - YE) * (z - ZE) / (DOOR - ZE);
+  const deck = d => [DOOR + DEPTH - 1, DOOR, ZE, ZE - PR - 1].map(z => V3(0, deckY(z), d * z));
+  const side = (p, x, y) => p.clone().add(V3(x, y, 0));
+  for (const d of [1, -1]) {
+    const D = deck(d);
+    for (let i = 1; i < D.length; i++) {
+      const a = D[i - 1], b = D[i];
+      add('steel', beam(side(a, 0, -.8), side(b, 0, -.8), BW, .4));
+      add('glow', beam(side(a, 0, -.45), side(b, 0, -.45), BW - .6, .1), C.DIM);
+      for (const s of [-1, 1]) {
+        add('steel', beam(side(a, s * (BW / 2 + .4), -.6), side(b, s * (BW / 2 + .4), -.6), .8, 1.6));
+        add('glow', beam(side(a, s * (BW / 2 + .85), -.3), side(b, s * (BW / 2 + .85), -.3), .12, .3), C.CYAN.map(v => v * .5));
+      }
+    }
+    for (let z = 30; z < DOOR - 4; z += 12) {
+      const y = deckY(z) - 1.4;
+      for (const s of [-1, 1]) add('steel', box(.8, y - FLOOR, .8, s * (BW / 2 + .4), (y + FLOOR) / 2, d * z));
+      add('steel', box(BW + 1.6, .6, .6, 0, y - 2, d * z));
+    }
+    add('steel', box(BW + 1.6, 2.4, 2.4, 0, YE + .2, d * (ZE - PR - 1.9)));
+    add('glow', box(BW + 1.7, .3, 2.5, 0, YE + 1, d * (ZE - PR - 1.9)), C.WARM);
+
+    // The dock is a steel box DW wide, DH high over the deck and DEPTH deep, lit inside, with a door that drops
+    // into the floor.
+
+    const zc = d * (DOOR + DEPTH / 2), hi = YD + DH + 4;
+    add('steel', box(DW + 4, hi - FLOOR, 2, 0, (hi + FLOOR) / 2, d * (DOOR + DEPTH + 1)));
+    for (const s of [-1, 1]) add('steel', box(2, hi - FLOOR, DEPTH + 2, s * (DW / 2 + 1), (hi + FLOOR) / 2, zc));
+    add('steel', box(DW, 4, DEPTH + 2, 0, YD + DH + 2, zc));
+    add('steel', box(DW, YD - 1 - FLOOR, DEPTH, 0, (YD - 1 + FLOOR) / 2, zc));
+    add('glow', box(DW - 1.4, DH - 2, .2, 0, YD + DH / 2, d * (DOOR + DEPTH - .1)), C.DIM);
+    for (const s of [-1, 1]) add('glow', box(.6, DH + .4, .3, s * (DW / 2 + .3), YD + DH / 2, d * (DOOR - .2)), C.WARM);
+    add('glow', box(DW + 1.2, .6, .3, 0, YD + DH + .3, d * (DOOR - .2)), C.WARM);
   }
 
-  // A launch lights its bay. A soft band rings the door frame and a pool of light spreads over the floor before
-  // it, fading out away from the door. The geometry is white, and each bay's instance colour sets its light.
+  // A passing climber lights its dock. A soft band rings the door frame and a pool of light spreads over the floor
+  // before it, fading out away from the door. The geometry stands at the up dock's door, and each dock's instance
+  // colour sets its light.
 
   const shine = [];
-  for (const s of [-1, 1]) shine.push([new THREE.BoxGeometry(1.4, BH + 1.4, .2).translate(s * (BW / 2 + 1), FLOOR + BH / 2, BD / 2 + .4), 1]);
-  shine.push([new THREE.BoxGeometry(BW + 3.4, 1.4, .2).translate(0, FLOOR + BH + 1, BD / 2 + .4), 1]);
-  const pool = new THREE.PlaneGeometry(BW + 6, 20, 1, 4).rotateX(-Math.PI / 2).translate(0, FLOOR + .06, BD / 2 + 10);
-  shine.push([pool, null]);
+  for (const s of [-1, 1]) shine.push([new THREE.BoxGeometry(1.4, DH + 1.4, .2).translate(s * (DW / 2 + 1), YD + DH / 2, -.4), 1]);
+  shine.push([new THREE.BoxGeometry(DW + 3.4, 1.4, .2).translate(0, YD + DH + 1, -.4), 1]);
+  shine.push([new THREE.PlaneGeometry(DW + 6, 20, 1, 4).rotateX(-Math.PI / 2).translate(0, FLOOR + .06, -10), null]);
   const shineGeo = mergeGeometries(shine.map(([g, v]) => {
     g = g.index ? g.toNonIndexed() : g;
     const pos = g.attributes.position, col = new Float32Array(pos.count * 3);
-    for (let i = 0; i < pos.count; i++) col.fill(v ?? .5 * (1 - (pos.getZ(i) - BD / 2) / 20) ** 2, i * 3, i * 3 + 3);
+    for (let i = 0; i < pos.count; i++) col.fill(v ?? .5 * (1 + pos.getZ(i) / 20) ** 2, i * 3, i * 3 + 3);
     g.deleteAttribute('uv'); g.deleteAttribute('normal');
     g.setAttribute('color', new THREE.BufferAttribute(col, 3));
     return g;
   }));
+  const DOCKS = [1, -1].map(d => new THREE.Matrix4().makeRotationY(d > 0 ? 0 : Math.PI).setPosition(0, 0, d * DOOR));
 
   // ---------- posters ----------
   // One atlas holds every advert and board, each drawn by the district kits' neon sign helper, 512 x 128 per cell.
@@ -299,7 +354,10 @@ export function hall(H, look) {
     const a = (k + .5) / 24 * TAU;
     poster(hallPosters, { p: polar(KR + 6, a, KY - 7.5), ry: inward(a), w: 30, cell: k % 3 ? ad() : 4 });
   }
-  for (const a of BAYS) poster(hallPosters, { p: polar(R0 + BW / 2 + 2.2, a, FLOOR + BH + 9), ry: inward(a) + Math.PI, w: 20, cell: 3 });
+  for (const d of [1, -1]) {
+    poster(hallPosters, { p: V3(-DW / 2 - 2.2, YD + DH - 6, d * (DOOR + DEPTH / 2)), ry: -Math.PI / 2, w: 20, cell: 3 });
+    poster(hallPosters, { p: V3(0, YD + DH + 7, d * (DOOR - 1.2)), ry: d > 0 ? Math.PI : 0, w: 20, cell: 3 });
+  }
 
   // Holo banners share the city's animated billboard shader through an instanced mesh of their own.
 
@@ -334,9 +392,9 @@ export function hall(H, look) {
 
   // ---------- the tunnels ----------
   // A tunnel follows each deep span out from the hall's wall to the portal's hood. It is a flat-roofed box, 9 m
-  // high, its walls 4.2 m out. Beside the other loop the shared wall drops and each side meets in the middle.
-  // Rings of light every 24 m light pools on the floor, walls and roof. Every 110 m a side opens on a lit plant
-  // room. Neon adverts hang between the rings.
+  // high, its walls 4.2 m out. Within 8.4 m of the other loop the shared wall drops and each side meets in the
+  // middle. Rings of light every 24 m light pools on the floor, walls and roof. Every 110 m a side opens on a lit
+  // plant room. Neon adverts hang midway between the rings.
 
   const tPos = [], tCol = [], tGlow = [], tPosters = [];
   let rooms = 0;
@@ -355,14 +413,25 @@ export function hall(H, look) {
     for (const q of span) if (Math.hypot(q.p.x, q.p.z) > RG - 8) runs.at(-1).push(q); else if (runs.at(-1).length) runs.push([]);
     for (const run of runs.filter(run => run.length > 1)) {
       const s0 = run[0].s;
+
+      // Over the first 18 m in from the hood, half-bright rings stand every 12 m, so the light steps up from the
+      // hood gently.
+
+      const outer = Math.hypot(run[0].p.x, run[0].p.z) > Math.hypot(run.at(-1).p.x, run.at(-1).p.z) ? run[0].s : run.at(-1).s;
+      const entry = q => { const e = Math.abs(q.s - outer); return e < 18 ? (e + 6) % 12 - 6 : Infinity; };
+      const main = q => Math.abs((q.s - s0 + 12) % 24 - 12) <= 1, ring = q => main(q) || Math.abs(entry(q)) <= 1;
       for (const q of run) {
         q.hw = [4.2, 4.2]; q.open = [false, false];
-        let best = 10, o = null;
+        let best = 8.4, o = null;
         for (const c of others) { const d = flat(c.p, q.p); if (d < best) { best = d; o = c; } }
         const lat = o ? o.p.clone().sub(q.p).dot(q.n) : 0;
-        if (Math.abs(lat) > 4) { const k = +(lat > 0); q.hw[k] = Math.abs(lat) / 2; q.open[k] = true; }
+        if (Math.abs(lat) > 4) { const k = +(lat > 0); q.hw[k] = Math.abs(lat) / 2; q.open[k] = true; q.dy = o.p.y - q.p.y; }
         const d = (q.s - s0 + 12) % 24 - 12;
-        q.L = Math.exp(-((d / 4) ** 2));
+        q.L = Math.max(Math.exp(-((d / 4) ** 2)), .5 * Math.exp(-((entry(q) / 4) ** 2)));
+
+        // At the hall's wall the floor rises to the hall's floor, so no gap opens under the hall's floor.
+
+        q.fy = Math.hypot(q.p.x, q.p.z) < RG + 2 ? Math.max(-3, FLOOR - q.p.y) : -3;
       }
       const at = (q, k, y) => q.p.clone().addScaledVector(q.n, k ? q.hw[1] : -q.hw[0]).setY(q.p.y + y);
       const mid = (q, lat, y, along = 0) => q.p.clone().addScaledVector(q.n, lat).addScaledVector(q.t, along).setY(q.p.y + y);
@@ -378,37 +447,71 @@ export function hall(H, look) {
       const cut = (q, side) => holes.some(h => h.side === side && Math.abs(q.s - h.s) <= 6);
       for (let i = 1; i < run.length; i++) {
         const a = run[i - 1], b = run[i];
-        quad(at(a, 0, -3), at(a, 1, -3), at(b, 1, -3), at(b, 0, -3), shade(a.L, 'floor'), shade(a.L, 'floor'), shade(b.L, 'floor'), shade(b.L, 'floor'));
+        quad(at(a, 0, a.fy), at(a, 1, a.fy), at(b, 1, b.fy), at(b, 0, b.fy), shade(a.L, 'floor'), shade(a.L, 'floor'), shade(b.L, 'floor'), shade(b.L, 'floor'));
         quad(at(a, 0, 6), at(a, 1, 6), at(b, 1, 6), at(b, 0, 6), shade(a.L, 'roof'), shade(a.L, 'roof'), shade(b.L, 'roof'), shade(b.L, 'roof'));
         for (const k of [0, 1]) {
-          if (a.open[k] || b.open[k] || cut(a, k) && cut(b, k)) continue;
+          if (cut(a, k) && cut(b, k)) continue;
           const band = i % 4 < 2 ? 1 : .7, w = (q, f) => shade(q.L * f, 'wall').map(v => v * band);
-          quad(at(a, k, -3), at(a, k, 6), at(b, k, 6), at(b, k, -3), w(a, .6), w(a, 1), w(b, 1), w(b, .6));
+
+          // Where the decks differ beside the other loop, the higher roof hangs a strip down and the lower floor
+          // raises a strip up at the midline, so no gap opens between the two tunnels.
+
+          if (a.open[k] && b.open[k]) {
+            const up = Math.max(a.dy, b.dy) + .2, down = Math.max(-a.dy, -b.dy) + .2;
+            if (up > .25) quad(at(a, k, a.fy), at(a, k, a.fy + up), at(b, k, b.fy + up), at(b, k, b.fy), w(a, .6), w(a, .6), w(b, .6), w(b, .6));
+            if (down > .25) quad(at(a, k, 6 - down), at(a, k, 6), at(b, k, 6), at(b, k, 6 - down), w(a, 1), w(a, 1), w(b, 1), w(b, 1));
+            continue;
+          }
+
+          // Where the shared wall ends, the own wall starts at the open sample and a cap closes the gap to the midline.
+
+          const edge = a.open[k] !== b.open[k], o = a.open[k] ? a : b;
+          const side = (q, y) => edge ? q.p.clone().addScaledVector(q.n, k ? 4.2 : -4.2).setY(q.p.y + y) : at(q, k, y);
+          quad(side(a, a.fy), side(a, 6), side(b, 6), side(b, b.fy), w(a, .6), w(a, 1), w(b, 1), w(b, .6));
+          if (edge) quad(side(o, o.fy), side(o, 6), at(o, k, 6), at(o, k, o.fy), w(o, .6), w(o, 1), w(o, 1), w(o, .6));
           const sd = (k ? 1 : -1) * .08;
-          tglow(beam(at(a, k, .5).addScaledVector(a.n, -sd), at(b, k, .5).addScaledVector(b.n, -sd), .12, .1), [.08, .3, .45]);
+          tglow(beam(side(a, .5).addScaledVector(a.n, -sd), side(b, .5).addScaledVector(b.n, -sd), .12, .1), [.08, .3, .45]);
         }
       }
       for (const q of run) {
-        if (Math.abs((q.s - s0 + 12) % 24 - 12) > 1) continue;
-        const ry = Math.atan2(q.t.x, q.t.z), w = q.hw[0] + q.hw[1], warm = Math.round((q.s - s0) / 24) % 6 === 0, rgb = warm ? [1.6, .85, .3] : [.85, 1.1, 1.35];
+        if (!ring(q)) continue;
+        const ry = Math.atan2(q.t.x, q.t.z), w = q.hw[0] + q.hw[1], warm = Math.round((q.s - s0) / 24) % 6 === 0, rgb = (warm ? [1.6, .85, .3] : [.85, 1.1, 1.35]).map(v => main(q) ? v : v / 2);
         const c = mid(q, (q.hw[1] - q.hw[0]) / 2, 5.8);
         tglow(box(w - .4, .22, .5, c.x, c.y, c.z, ry), rgb);
         for (const k of [0, 1]) if (!q.open[k] && !cut(q, k)) { const e = mid(q, (k ? 1 : -1) * (q.hw[k] - .15), 2.65); tglow(box(.2, 6.3, .5, e.x, e.y, e.z, ry), rgb); }
       }
 
-      // A plant room: sodium-lit walls, two great tension drums with lit rims, pipes and status lights.
+      // A plant room: sodium-lit walls, two great tension drums with lit rims, pipes and status lights. A pool of
+      // light falls from the lamp strip over the floor and walls, and a lit trim runs along the walls as in the tunnel.
 
+      const ROOM = { base: [.012, .009, .006], floor: [.24, .15, .07], wall: [.3, .18, .08], roof: [.1, .07, .04] };
       for (const { q, side } of holes) {
         const sd = side ? 1 : -1, hw = q.hw[side], ry = Math.atan2(q.t.x, q.t.z), lo = -3.7, hi = 6.7;
         const P = (lat, y, along) => mid(q, sd * lat, y, along);
-        const WALL = [.2, .11, .04], WALL_LO = [.07, .04, .015], ROOF = [.05, .035, .02];
-        quad(P(hw + 10, lo, -7), P(hw + 10, lo, 7), P(hw + 10, hi, 7), P(hw + 10, hi, -7), WALL_LO, WALL_LO, WALL, WALL);
-        for (const e of [-7, 7]) quad(P(hw - .1, lo, e), P(hw + 10, lo, e), P(hw + 10, hi, e), P(hw - .1, hi, e), WALL_LO, WALL_LO, WALL, WALL);
-        quad(P(hw - .1, lo, -7), P(hw + 10, lo, -7), P(hw + 10, lo, 7), P(hw - .1, lo, 7), [.06, .04, .02]);
-        quad(P(hw - .1, hi, -7), P(hw + 10, hi, -7), P(hw + 10, hi, 7), P(hw - .1, hi, 7), ROOF);
+        const lux = (lat, along, k, f = 1) => ROOM.base.map((v, i) => v + ROOM[k][i] * f * (.25 + .75 * Math.exp(-((along / 5) ** 2) - ((lat - hw - 5) / 6) ** 2)));
+        const grid = (lats, alongs, y, k) => {
+          for (let i = 1; i < lats.length; i++) for (let j = 1; j < alongs.length; j++) {
+            const [l0, l1, e0, e1] = [lats[i - 1], lats[i], alongs[j - 1], alongs[j]];
+            quad(P(l0, y, e0), P(l1, y, e0), P(l1, y, e1), P(l0, y, e1), lux(l0, e0, k), lux(l1, e0, k), lux(l1, e1, k), lux(l0, e1, k));
+          }
+        };
+        const steps = (a, b, n) => Array.from({ length: n + 1 }, (_, i) => a + (b - a) * i / n);
+        const LAT = steps(hw - .1, hw + 10, 5), ALONG = steps(-7, 7, 7);
+        for (let j = 1; j < ALONG.length; j++) {
+          const [e0, e1] = [ALONG[j - 1], ALONG[j]];
+          quad(P(hw + 10, lo, e0), P(hw + 10, lo, e1), P(hw + 10, hi, e1), P(hw + 10, hi, e0), lux(hw + 10, e0, 'wall', .4), lux(hw + 10, e1, 'wall', .4), lux(hw + 10, e1, 'wall'), lux(hw + 10, e0, 'wall'));
+        }
+        for (const e of [-7, 7]) for (let i = 1; i < LAT.length; i++) {
+          const [l0, l1] = [LAT[i - 1], LAT[i]];
+          quad(P(l0, lo, e), P(l1, lo, e), P(l1, hi, e), P(l0, hi, e), lux(l0, e, 'wall', .4), lux(l1, e, 'wall', .4), lux(l1, e, 'wall'), lux(l0, e, 'wall'));
+        }
+        grid(LAT, ALONG, lo, 'floor');
+        grid(LAT, ALONG, hi, 'roof');
+        for (const e of [-6.92, 6.92]) tglow(beam(P(hw, .5, e), P(hw + 9.92, .5, e), .12, .1), [.45, .26, .08]);
+        tglow(beam(P(hw + 9.92, .5, -7), P(hw + 9.92, .5, 7), .12, .1), [.45, .26, .08]);
         for (const along of [-3, 3]) {
           const c = P(hw + 5.5, lo + 2.8, along), g = new THREE.CylinderGeometry(2.6, 2.6, 4.5, 20).rotateX(Math.PI / 2).rotateY(ry).translate(c.x, c.y, c.z);
-          solid(g, [.22, .2, .17], [.1, .1, .11]);
+          solid(g, [.22, .2, .17], [.25, .25, .27]);
           for (const e of [-2.3, 2.3]) {
             const rc = c.clone().addScaledVector(q.t, e);
             tglow(new THREE.TorusGeometry(2.65, .12, 4, 32).rotateY(ry).translate(rc.x, rc.y, rc.z), along < 0 ? [1.6, .75, .2] : [.3, 1.2, 1.8]);
@@ -420,12 +523,12 @@ export function hall(H, look) {
         const l = P(hw + 5, hi - .2, 0);
         tglow(box(.5, .15, 12, l.x, l.y, l.z, ry), [1.7, .95, .35]);
         for (const e of [-6, 6]) { const f = P(hw, 1.5, e); tglow(box(.2, 9, .2, f.x, f.y, f.z, ry), [.6, .35, .1]); }
-        tPosters.push({ p: P(hw + 9.4, 4.4, 0), ry: ry + (side ? Math.PI / 2 : -Math.PI / 2), w: 6, cell: 5 + (r() < .5) });
+        tPosters.push({ p: P(hw + 8.3, 4.4, 0), ry: ry + (side ? Math.PI / 2 : -Math.PI / 2), w: 6, cell: 5 + (r() < .5) });
       }
 
-      // Adverts every 30 m, alternating sides, between the rings.
+      // Adverts hang midway between the rings, alternating sides.
 
-      for (let s = s0 + 18, k = 0; s < run.at(-1).s - 6; s += 30, k++) {
+      for (let s = s0 + 12, k = 0; s < run.at(-1).s - 6; s += 24, k++) {
         const side = k % 2, q = run.find(q => q.s >= s);
         if (q.open[side] || holes.some(h => Math.abs(h.s - s) < 10)) continue;
         const sd = side ? 1 : -1, ry = Math.atan2(q.t.x, q.t.z) + (side ? Math.PI / 2 : -Math.PI / 2);
@@ -448,12 +551,12 @@ export function hall(H, look) {
   const mesh = (geo, mat) => { const m = new THREE.Mesh(geo, mat); m.frustumCulled = false; return m; };
   const merged = key => mergeGeometries(bins[key]);
   const group = new THREE.Group(), tunnel = new THREE.Group(), mouths = new THREE.Group();
-  const inst = (geo, mat) => { const m = new THREE.InstancedMesh(geo, mat, BAYS.length); m.frustumCulled = false; return m; };
-  const podBody = inst(look.pod.body, look.steel), podLit = inst(look.pod.lit, look.podLit), doors = inst(new THREE.BoxGeometry(BW, BH, .5), look.dark);
-  const lights = inst(shineGeo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
-  const FRAMES = BAYS.map(bayFrame);
-  FRAMES.forEach((m, k) => lights.setMatrixAt(k, m));
-  group.add(mesh(merged('shell'), shellMat), floor, mesh(merged('steel'), look.steel), podBody, podLit, doors, lights,
+  const inst = (geo, mat, n) => { const m = new THREE.InstancedMesh(geo, mat, n); m.frustumCulled = false; return m; };
+  const podBody = inst(CL.body, look.steel, 8), podLit = inst(CL.lit, look.podLit, 8), doors = inst(new THREE.BoxGeometry(DW, DH, .5), look.dark, 2);
+  const lights = inst(shineGeo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }), 2);
+  DOCKS.forEach((m, k) => lights.setMatrixAt(k, m));
+  const cables = mesh(cableGlow, look.glow);
+  group.add(mesh(merged('shell'), shellMat), floor, mesh(merged('steel'), look.steel), podBody, podLit, doors, lights, cables,
     mesh(merged('glow'), look.glow), mesh(merged('chaser'), look.chaser), tether, holoMesh(holos), mesh(mergeGeometries(hallPosters), posterMat), shaft, haze);
   tunnel.add(mesh(tube, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide })), mesh(merged('tglow'), look.glow),
     mesh(mergeGeometries(tunnelPosters), Object.assign(posterMat.clone(), { color: new THREE.Color().setScalar(.75) })));
@@ -495,17 +598,24 @@ export function hall(H, look) {
   group.visible = tunnel.visible = false;
 
   // ---------- visibility ----------
-  // Below ground the hall and tunnels draw and the throats hide. Deeper than 4 m and near the hall, the Root and
-  // every top-level scene object without userData.under stop drawing for the frame, so the city stays out of the
-  // hall. The scene hook runs inside the render, after the ride has placed the camera.
+  // Below ground or inside a hood the hall and tunnels draw and the throats hide. Deeper than 4 m, the Root and
+  // every top-level scene object without userData.under stop drawing for the frame while the camera is inside the
+  // hall's wall, or in a tunnel and looking within 70° of the hall. So the city stays out of the hall, and a rider
+  // who looks out of a tunnel sees the city through the mouth. The scene hook runs inside the render, after the
+  // ride has placed the camera.
 
   let near = false;
+  const _f = V3(0, 0, 0), FACING = Math.cos(70 * Math.PI / 180);
+  const inHood = (x, y, z) => BUNDLES.some(({ line, hw }) => line.some(p => Math.hypot(x - p.x, z - p.z) < hw && y < groundAt(p.x, p.z) + 6.8));
   const show = cam => {
-    const c = cam.position, g = groundAt(c.x, c.z), under = c.y < g - .05;
-    group.visible = tunnel.visible = under;
-    mouths.visible = !under;
-    labels.domElement.style.visibility = under ? 'hidden' : '';
-    near = c.y < g - 4 && Math.hypot(c.x - OX, c.z - OZ) < RG + 80;
+    const c = cam.position, g = groundAt(c.x, c.z), under = c.y < g - .05, dx = OX - c.x, dz = OZ - c.z, dist = Math.hypot(dx, dz);
+    const covered = under || dist < RG + 200 && inHood(c.x, c.y, c.z);
+    group.visible = tunnel.visible = covered;
+    mouths.visible = !covered;
+    labels.domElement.style.visibility = covered ? 'hidden' : '';
+    cam.getWorldDirection(_f);
+    const facing = _f.x * dx + _f.z * dz > FACING * Math.hypot(_f.x, _f.z) * dist;
+    near = c.y < g - 4 && (dist < RG || dist < RG + 160 && facing);
     for (const m of look.root) m.visible = !near;
   };
   const hidden = [], before = scene.onBeforeRender, after = scene.onAfterRender;
@@ -521,60 +631,100 @@ export function hall(H, look) {
     after.apply(this, a);
   };
 
-  // ---------- beanpods ----------
-  // The bays launch in turn, one every SLOT seconds, so a launch ends before the next begins. A cycle runs through
-  // five states.
-  //   closed    the pod waits behind the shut door, out of sight
-  //   opening   the door drops into the floor and the bay's light fades in
-  //   out       the pod slides out along the floor rail, then lifts and swings in to its guide rail at R2.
-  //             The door closes and the light fades out behind it
-  //   climbing  thrust grows by the outside climbers' jerk up to V m/s, so the pod creeps off and then shoots up
-  //   gone      the pod is past GONE m and the door has long shut on the next one
-  // The pod shrinks over its last 1000 m, where it is a few pixels wide, so it never pops out of sight.
+  // ---------- climbers ----------
+  // Each belt serves four climbers, one every SLOT seconds. The down side runs SLOT / 2 behind the up side. An up
+  // climber runs through four states.
+  //   belt      it rides the belt out of its dock and up to the belt's end below the +z face
+  //   clamp     the frame closes on the ribbon over TC seconds
+  //   climbing  thrust grows by the outside climbers' jerk up to V m/s, so it creeps off and then shoots up
+  //   gone      it is past GONE m and waits there, unseen, for its next turn in the dock
+  // A down climber runs the same way backwards through arriving, unclamp, belt and gone. It waits in the shut dock.
+  // A climber shrinks over the 1000 m below GONE, where it is a few pixels wide, so it never pops in or out of
+  // sight. A dock's door opens and its light fades in while a climber on its belt passes within 20 m of the door.
+  // belts holds each belt's path for a climber's origin, from its spawn deep in the dock to its stop before the face.
 
-  const SLOT = 15, CYCLE = SLOT * BAYS.length, V = 240, GONE = 4000, J = look.jerk, TV = Math.sqrt(2 * V / J);
-  const R2 = 11.5 + PR + .5, Y0 = FLOOR + PH + .8, Y1 = FLOOR + 50, LIGHT = new THREE.Color(...C.WARM).multiplyScalar(.3);
-  const ease = x => THREE.MathUtils.smootherstep(x, 0, 1), rise = s => s < TV ? J / 6 * s ** 3 : J / 6 * TV ** 3 + V * (s - TV);
-  const pods = BAYS.map((a, bay) => ({ bay, state: 'closed', x: 0, y: Y0, z: 0, r: R0, door: 0, light: 0, scale: 1, turn: -a }));
-  const _p = V3(0, 0, 0), _c = new THREE.Color();
-  const podAt = (p, a, m, c) => {
-    p.door = 0; p.scale = 1; p.turn = -a;
-    p.light = ease((c - 3) / 2) * (1 - ease((c - 10) / 3));
-    _p.set(0, Y0, 0).applyMatrix4(m);
-    if (c < 3) p.state = 'closed';
-    else if (c < 5.5) { p.state = 'opening'; p.door = ease((c - 3) / 2.5); }
-    else if (c < 16.5) {
-      p.state = 'out'; p.door = 1 - ease((c - 10) / 3);
-      if (c < 9.5) _p.set(0, Y0, SLIDE * ease((c - 5.5) / 4)).applyMatrix4(m);
-      else {
-        const u = (c - 9.5) / 7, r1 = Math.hypot(R0, SLIDE), e = ease(u);
-        _p.copy(polar(r1 - (r1 - R2) * e, rail(a), Y0 + (Y1 - Y0) * ease(u / .7)));
-        p.turn = -a - (rail(a) - a) * e;
-      }
-    } else {
-      _p.copy(polar(R2, rail(a), Y1 + rise(c - 16.5))); p.turn = -rail(a);
-      p.state = _p.y < GONE ? 'climbing' : 'gone';
-      p.scale = THREE.MathUtils.clamp((GONE - _p.y) / 1000, 0, 1);
+  const SLOT = 15, CYCLE = 4 * SLOT, V = 240, GONE = 4000, J = look.jerk, TV = Math.sqrt(2 * V / J), TC = 2.5, TB = 22;
+  const rise = s => s < TV ? J / 6 * s ** 3 : J / 6 * TV ** 3 + V * (s - TV), YC = YE + LIFT - PY;
+  const TA = GONE - YC > rise(TV) ? TV + (GONE - YC - rise(TV)) / V : Math.cbrt(6 * (GONE - YC) / J);
+  const ease = x => THREE.MathUtils.smootherstep(x, 0, 1), LIGHT = new THREE.Color(...C.WARM).multiplyScalar(.3);
+  const belts = {}, BL = {};
+  for (const [b, d] of [['up', 1], ['down', -1]]) {
+    belts[b] = [DOOR + 22, DOOR, ZE].map(z => [0, deckY(z) + LIFT - PY, d * (z - PZ)]);
+    BL[b] = belts[b].slice(1).reduce((s, q, i) => s + Math.hypot(...q.map((v, k) => v - belts[b][i][k])), 0);
+  }
+  const walk = (path, s, p) => {
+    for (let i = 1; i < path.length; i++) {
+      const a = path[i - 1], b = path[i], L = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+      if (s <= L || i === path.length - 1) { const u = Math.min(1, Math.max(0, s / L)); [p.x, p.y, p.z] = a.map((v, k) => v + (b[k] - v) * u); return; }
+      s -= L;
     }
-    p.x = _p.x; p.y = _p.y; p.z = _p.z; p.r = Math.hypot(_p.x, _p.z);
   };
-  const placePods = t => {
-    pods.forEach((p, k) => {
-      const a = BAYS[k];
-      podAt(p, a, FRAMES[k], ((t - k * SLOT) % CYCLE + CYCLE) % CYCLE);
-      _o.position.set(p.x, p.y, p.z); _o.rotation.set(0, p.turn, 0); _o.scale.setScalar(p.scale); _o.updateMatrix();
-      podBody.setMatrixAt(k, _o.matrix); podLit.setMatrixAt(k, _o.matrix);
-      _o.position.set(0, FLOOR + BH / 2 - (BH + .2) * p.door, BD / 2 + .1).applyMatrix4(FRAMES[k]); _o.rotation.set(0, -a, 0); _o.scale.setScalar(1); _o.updateMatrix();
-      doors.setMatrixAt(k, _o.matrix);
-      lights.setColorAt(k, _c.copy(LIGHT).multiplyScalar(p.light));
+  const pods = ['up', 'down'].flatMap(belt => [0, 1, 2, 3].map(k => ({ belt, k, state: 'gone', x: 0, y: 0, z: 0, scale: 0, face: belt === 'up' ? 1 : -1 })));
+  const docks = [{ door: 0, light: 0 }, { door: 0, light: 0 }];
+  const podAt = (p, c) => {
+    const d = p.face, P = belts[p.belt], L = BL[p.belt], at = (z, y) => { p.x = 0; p.z = z; p.y = y; };
+    p.scale = 1;
+    if (p.belt === 'up') {
+      if (c < TB) { p.state = 'belt'; walk(P, L * c / TB, p); }
+      else if (c < TB + TC) { p.state = 'clamp'; at(d * OPEN * (1 - ease((c - TB) / TC)), YC); }
+      else { const y = Math.min(GONE, YC + rise(c - TB - TC)); p.state = y < GONE ? 'climbing' : 'gone'; at(0, y); }
+    } else if (c < TA) { p.state = 'arriving'; at(0, YC + rise(TA - c)); }
+    else if (c < TA + TC) { p.state = 'unclamp'; at(d * OPEN * ease((c - TA) / TC), YC); }
+    else if (c < TA + TC + TB) { p.state = 'belt'; walk(P, L * (1 - (c - TA - TC) / TB), p); }
+    else { p.state = 'gone'; p.scale = 0; walk(P, 0, p); }
+    if (p.state === 'climbing' || p.state === 'arriving' || p.y >= GONE) p.scale = THREE.MathUtils.clamp((GONE - p.y) / 1000, 0, 1);
+  };
+
+  // The slats run with the belts at the climbers' belt speed, SP m apart along the deck. A slat wraps from one end
+  // of its deck to the other. It hides over the last 0.3 m, under the end stop, and wraps unseen inside the dock.
+
+  const decks = [1, -1].map(deck), SV = BL.up / TB;
+  const deckLen = decks[0].slice(1).reduce((s, b, i) => s + b.distanceTo(decks[0][i]), 0), NS = Math.round(deckLen / 1.8), SP = deckLen / NS;
+  const slats = new THREE.InstancedMesh(new THREE.BoxGeometry(BW, .25, 1.2), look.steel, 2 * NS);
+  slats.frustumCulled = false;
+  const _a = V3(0, 0, 0), _b = V3(0, 0, 0);
+  const onDeck = (D, s) => {
+    for (let i = 1; i < D.length; i++) {
+      const L = D[i].distanceTo(D[i - 1]);
+      if (s <= L || i === D.length - 1) { _a.lerpVectors(D[i - 1], D[i], Math.min(1, s / L)); _b.subVectors(D[i], D[i - 1]).add(_a); return; }
+      s -= L;
+    }
+  };
+  const placeSlats = t => {
+    decks.forEach((D, j) => {
+      for (let i = 0; i < NS; i++) {
+        const s = ((i * SP + (j ? -1 : 1) * SV * t) % deckLen + deckLen) % deckLen;
+        onDeck(D, s);
+        _o.position.copy(_a); _o.scale.setScalar(s > deckLen - .3 ? 0 : 1); _o.lookAt(_b); _o.updateMatrix();
+        slats.setMatrixAt(j * NS + i, _o.matrix);
+      }
     });
+    slats.instanceMatrix.needsUpdate = true;
+  };
+
+  const placePods = t => {
+    pods.forEach(p => podAt(p, ((t - (p.belt === 'up' ? 0 : SLOT / 2) - p.k * SLOT) % CYCLE + CYCLE) % CYCLE));
+    docks.forEach((dk, j) => {
+      const b = j ? 'down' : 'up', q = Math.min(Infinity, ...pods.filter(p => p.belt === b && p.state === 'belt').map(p => Math.abs(Math.abs(p.z) + PZ - DOOR)));
+      dk.door = dk.light = 1 - THREE.MathUtils.smoothstep(q, 12, 20);
+      _o.position.set(0, YD + DH / 2 - (DH + YD - FLOOR + .2) * dk.door, (j ? -1 : 1) * (DOOR + .3)); _o.rotation.set(0, 0, 0); _o.scale.setScalar(1); _o.updateMatrix();
+      doors.setMatrixAt(j, _o.matrix);
+      lights.setColorAt(j, _c.copy(LIGHT).multiplyScalar(dk.light));
+    });
+    pods.forEach((p, k) => {
+      _o.position.set(p.x, p.y, p.z); _o.rotation.set(0, p.face > 0 ? 0 : Math.PI, 0); _o.scale.setScalar(p.scale); _o.updateMatrix();
+      podBody.setMatrixAt(k, _o.matrix); podLit.setMatrixAt(k, _o.matrix);
+    });
+    placeSlats(t);
     podBody.instanceMatrix.needsUpdate = podLit.instanceMatrix.needsUpdate = doors.instanceMatrix.needsUpdate = lights.instanceColor.needsUpdate = true;
   };
+  const _c = new THREE.Color();
+  group.add(slats);
   placePods(0);
 
   let built = false;
   return {
-    group, tunnel, mouths, pods, oculus: TOP, bays: BAYS.map(a => polar(R0, a)), cavity: BD / 2,
+    group, tunnel, mouths, pods, docks, belts, cables, oculus: TOP, floor: FLOOR,
     update(t, cam) {
       if (!built && STATIONS.every(st => st.sides)) { group.add(platforms()); built = true; }
       placePods(t);

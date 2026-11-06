@@ -37,7 +37,7 @@ export async function showcase(fam) {
   for (const m of INSTANCED) {
     m.instanceMatrix.needsUpdate = true;
     if (m.instanceColor) m.instanceColor.needsUpdate = true;
-    for (const a of ['aBase', 'aWin', 'aP', 'aSkin', 'aSeed', 'aSlot']) if (m.geometry.attributes[a]) m.geometry.attributes[a].needsUpdate = true;
+    for (const a of ['aBase', 'aWin', 'aP', 'aSkin', 'aSeed', 'aSlot', 'aMouth0', 'aMouth1']) if (m.geometry.attributes[a]) m.geometry.attributes[a].needsUpdate = true;
   }
   controls.target.set(0, 10, 0);
   camera.position.set(0, 140, 240);
@@ -510,10 +510,11 @@ function undo(k) {
   INSTANCED.forEach((m, j) => { m.count = k.n[j] ?? 0; });
   for (const [a, n] of [['pos', 3], ['nrm', 3], ['base', 3], ['win', 3], ['p', 4], ['skin', 1], ['u', 1], ['len', 1]]) M[a].length = k.v * n;
   S.flicker.length = k.fl;
+  for (const a of ['aMouth0', 'aMouth1']) SHAPES.box.geometry.attributes[a]?.array.fill(0, (k.n[INSTANCED.indexOf(SHAPES.box)] ?? 0) * 4);
   SOIL.length = k.sl;
   while (S.DECOR.children.length > k.dc) S.DECOR.remove(S.DECOR.children[S.DECOR.children.length - 1]);
 }
-const _m = new THREE.Matrix4(), _inv = new THREE.Matrix4(), _n = new THREE.Matrix3(), _p = new THREE.Vector3(), _q = new THREE.Vector3(), _bb = new THREE.Box3();
+const _m = new THREE.Matrix4(), _inv = new THREE.Matrix4(), _n = new THREE.Matrix3(), _p = new THREE.Vector3(), _in = new THREE.Vector3(), _q = new THREE.Vector3(), _bb = new THREE.Box3();
 const ZERO = new THREE.Matrix4().makeScale(0, 0, 0), SEETHROUGH = new Set([pools, puffs]);
 const inBand = (q, y0, y1) => y1 > q.y - q.line.lo && y0 < q.y + q.line.hi;
 
@@ -631,8 +632,8 @@ function tunnel(k, hits, st, { site = false, stand = false, minCos = stand ? .4 
   };
   const inside = (b, x, y, z) => {
     if (y < b.y0 || y > b.y1) return false;
-    _p.set(x, b.e[13], z).applyMatrix4(b.inv);
-    return Math.abs(_p.x) <= .5 && Math.abs(_p.z) <= .5;
+    _in.set(x, b.e[13], z).applyMatrix4(b.inv);
+    return Math.abs(_in.x) <= .5 && Math.abs(_in.z) <= .5;
   };
   const all = [];
   for (let i = j0; i < SHAPES.box.count; i++) all.push(box(i));
@@ -656,7 +657,7 @@ function tunnel(k, hits, st, { site = false, stand = false, minCos = stand ? .4 
       if (!holds(b, q) && !all.some(o => o !== b && holds(o, q) && (inside(o, q.x, q.y, q.z) || roofs(o, q) || o.y0 <= b.y0 && within(b, o)))) return false;
     }
   }
-  const portals = [], attr = SHAPES.box.geometry.attributes, look = STYLES[st.id].portal ?? null;
+  const portals = [], inner = [], attr = SHAPES.box.geometry.attributes, look = STYLES[st.id].portal ?? null;
   const lit = look && (look.light === 'win' ? st.win : look.light), bar = Math.max(.8, look?.bar ?? 0);
   for (const i of boxes) {
     if (thin.has(i)) continue;
@@ -689,11 +690,18 @@ function tunnel(k, hits, st, { site = false, stand = false, minCos = stand ? .4 
           if (inside(b, x, lerp(p0.y, p1.y, t), z) === into) t1 = t; else t0 = t;
         }
         const t = (t0 + t1) / 2, x = lerp(p0.x, p1.x, t), y = lerp(p0.y, p1.y, t), z = lerp(p0.z, p1.z, t);
-        if (all.some(o => o !== b && !thin.has(o.i) && inside(o, x, y, z))) continue;
         _p.set(x, b.e[13], z).applyMatrix4(b.inv);
         const lx = Math.abs(_p.x) > Math.abs(_p.z) ? Math.sign(_p.x) : 0, lz = lx ? 0 : Math.sign(_p.z);
         const nx = b.e[0] * lx + b.e[8] * lz, nz = b.e[2] * lx + b.e[10] * lz, nl = Math.hypot(nx, nz);
         const tx = p1.x - p0.x, tz = p1.z - p0.z, tl = Math.hypot(tx, tz) || 1, cos = Math.abs(tx * nx + tz * nz) / tl / nl;
+        const a = lx ? _p.z * b.sz : _p.x * b.sx, w = portalWidth(cos, L.kind);
+
+        // A crossing inside another box gets no portal, but its face still opens for a maglev, so the tunnel shows through.
+
+        if (all.some(o => o !== b && !thin.has(o.i) && inside(o, x, y, z))) {
+          if (L.kind === 'maglev') ends.push({ x, y, z, lx, lz, a0: a - w / 2, a1: a + w / 2, cos, kind: L.kind, buried: true });
+          continue;
+        }
         if (cos < minCos) return false;
 
         // On a block site, a line that goes in and out through two neighbouring faces within 15 m cuts the
@@ -701,7 +709,6 @@ function tunnel(k, hits, st, { site = false, stand = false, minCos = stand ? .4 
 
         if (site && last && !!last.lx !== !!lx && Math.hypot(x - last.x, z - last.z) < 15) return false;
         last = { x, z, lx };
-        const a = lx ? _p.z * b.sz : _p.x * b.sx, w = portalWidth(cos, L.kind);
         ends.push({ x, y, z, lx, lz, a0: a - w / 2, a1: a + w / 2, nx: nx / nl, nz: nz / nl, cos, kind: L.kind });
       }
     }
@@ -711,31 +718,54 @@ function tunnel(k, hits, st, { site = false, stand = false, minCos = stand ? .4 
     ends.sort((p, q) => p.a0 - q.a0);
     const groups = [];
     for (const e of ends) {
-      const g = groups.find(g => g[0].lx === e.lx && g[0].lz === e.lz && g[0].kind === e.kind && Math.abs(g[0].y - e.y) < 2
+      const g = groups.find(g => g[0].lx === e.lx && g[0].lz === e.lz && g[0].kind === e.kind && g[0].buried === e.buried && Math.abs(g[0].y - e.y) < 2
         && e.a0 < Math.max(...g.map(o => o.a1)) + 6);
       if (g) g.push(e); else groups.push([e]);
     }
     for (const g of groups) {
-      const { lx, lz, nx, nz, kind } = g[0], a0 = Math.min(...g.map(e => e.a0)), a1 = Math.max(...g.map(e => e.a1)), am = (a0 + a1) / 2;
+      const { lx, lz, nx, nz, kind, buried } = g[0], a0 = Math.min(...g.map(e => e.a0)), a1 = Math.max(...g.map(e => e.a1)), am = (a0 + a1) / 2;
+      const y = g.reduce((s, e) => s + e.y, 0) / g.length;
+
+      // A maglev mouth opens the facade inside the lining, 3.4 m each side of the track and from 3.4 m under the
+      // deck to 6 m over it, in the box's own units.
+
+      const span = lx ? b.sz : b.sx, cosMin = Math.min(...g.map(e => e.cos)), ly = h => (h - b.e[13]) / b.e[5];
+
+      // A group opens only where its ends overlap, so every part of the mouth has a lining behind it.
+
+      const lined = g.every((e, k) => !k || e.a0 < g[k - 1].a1 + .4);
+      const mouth = kind === 'maglev' && lined && [i, (lx || 2 * lz) * 4 + am / span, ((a1 - a0) / 2 - .2 / cosMin) / span, ...[ly(y - 3.35), ly(y + 5.95)].sort((p, q) => p - q)];
+      if (buried) { inner.push({ mouth }); continue; }
 
       // A portal that would overhang the facade's corner means the line clips the corner, so the lot does not tunnel.
 
       const half = (lx ? b.sz : b.sx) / 2;
       if (Math.max(-a0, a1) + bar > half) return false;
-      const u = lx ? lx / 2 : am / b.sx, v = lx ? am / b.sz : lz / 2, y = g.reduce((s, e) => s + e.y, 0) / g.length;
-      portals.push({ x: b.e[12] + u * b.e[0] + v * b.e[8], y, z: b.e[14] + u * b.e[2] + v * b.e[10], nx, nz, w: a1 - a0, half: half - Math.abs(am),
+      const u = lx ? lx / 2 : am / b.sx, v = lx ? am / b.sz : lz / 2;
+      portals.push({ mouth, x: b.e[12] + u * b.e[0] + v * b.e[8], y, z: b.e[14] + u * b.e[2] + v * b.e[10], nx, nz, w: a1 - a0, half: half - Math.abs(am),
         cos: Math.min(...g.map(e => e.cos)), at: g.map(({ x, y, z }) => ({ x, y, z })), kind, style: st.id, look, frame, lit, stand });
     }
   }
   if (!portals.length) return false;
   for (const h of hits) if (h.m !== SHAPES.box || thin.has(h.i)) h.m.setMatrixAt(h.i, ZERO);
+
+  // Each box keeps up to two maglev mouths. A portal's mouth past those keeps its dark inset.
+
+  const mouths = attr.aMouth0 && [attr.aMouth0, attr.aMouth1], used = new Map();
+  for (const p of [...portals, ...inner]) if (p.mouth && mouths) {
+    const [i, ...m] = p.mouth, k = used.get(i) ?? 0;
+    if (k > 1) continue;
+    mouths[k].setXYZW(i, ...m);
+    used.set(i, k + 1);
+    p.open = true;
+  }
   for (const p of portals) portal(p);
   TUNNELS.push(portals);
   return true;
 }
 
 // A lit frame w wide round the line's section on the facade. A highway's frame holds a dark inset that hides the windows
-// behind it. A maglev opening gets a one-sided inset and a lining from ride.js, so riders see out the far end.
+// behind it. A maglev opening cuts the facade, and a lining from ride.js fills it, so the tunnel shows through.
 // A style with a portal key dresses the opening in its building's look instead, see SETTINGS.md, Styles.
 // It adds a lintel and two jambs that stand out of the facade in the pierced box's colour (frame), with strips lit in lit.
 
@@ -890,6 +920,7 @@ export function generate(blend) {
   S.flicker = S.flicker.filter(f => f[1] < (S.BASE.get(f[0]) ?? 0));
   if (!FRAMES[0]?.front) for (const f of [...FRAMES, ...ALL_BLOCK_FRAMES]) f.front = frontOf(f);
   TUNNELS.length = 0;
+  for (const k of [0, 1]) SHAPES.box.geometry.attributes[`aMouth${k}`]?.array.fill(0, (S.BASE.get(SHAPES.box) ?? 0) * 4);
 
   // A block kit that spills into a corridor gives its block back to the lots. A maglev may tunnel through the
   // kit instead, or through one major block that takes the place of the boxes it crosses. s.tunnel says which.
@@ -1033,7 +1064,7 @@ export function generate(blend) {
   for (const m of INSTANCED) {
     m.instanceMatrix.needsUpdate = true;
     if (m.instanceColor) m.instanceColor.needsUpdate = true;
-    for (const a of ['aBase', 'aWin', 'aP', 'aSkin', 'aSeed', 'aSlot']) if (m.geometry.attributes[a]) m.geometry.attributes[a].needsUpdate = true;
+    for (const a of ['aBase', 'aWin', 'aP', 'aSkin', 'aSeed', 'aSlot', 'aMouth0', 'aMouth1']) if (m.geometry.attributes[a]) m.geometry.attributes[a].needsUpdate = true;
   }
   flushMerged();
   buildSoil();

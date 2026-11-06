@@ -99,7 +99,7 @@ for (const a of TRACE.arterials) {
 HIGHWAYS.push({ y: 26, pts: [[810, 1561.33], [810.56, 1584.44], [824.44, 1609.44], [874.44, 1617.78], [943.89, 1616.39], [993.89, 1612.22], [1124.44, 1612.22], [1166.11, 1615], [1221.67, 1617.78], [1263.33, 1615]].map(w) });
 
 // Maglev loop through the first three districts. The spur runs from the Root plaza edge out to the west.
-// The Grand and Centre loops (gen/loops.py) carry the maglev west to the coast and south to Guayaquil.
+// The Grand and Center loops (gen/loops.py) carry the maglev west to the coast and south to Guayaquil.
 
 const MAGLEV = [[650, 150], [800, 180], [780, 330], [700, 450], [650.6, 601.1], [529.4, 656.9], [401.7, 621.9], [361.7, 542.2], [370.6, 413.6], [532.8, 343.1], [570, 250]].map(w);
 // The Beanstalk Southwest Line runs out from the Root plaza edge, round a loop and back to its own stem.

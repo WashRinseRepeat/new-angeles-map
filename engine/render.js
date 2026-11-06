@@ -758,7 +758,7 @@ export const WATER_GLSL = `
 // inside a hole rectangle: world centre, rotation (cos, sin) and half size, as two vec4 per hole.
 // uHoleBox bounds every hole (min x, min z, max x, max z), so ground outside it skips the loop.
 
-const HOLE_MAX = 8, HOLES = { uHoles: { value: Array.from({ length: HOLE_MAX * 2 }, () => new THREE.Vector4()) }, uHoleN: { value: 0 },
+const HOLE_MAX = 32, HOLES = { uHoles: { value: Array.from({ length: HOLE_MAX * 2 }, () => new THREE.Vector4()) }, uHoleN: { value: 0 },
   uHoleBox: { value: new THREE.Vector4(1e9, 1e9, -1e9, -1e9) } };
 const HOLE_GLSL = `
   uniform vec4 uHoles[${HOLE_MAX * 2}]; uniform int uHoleN; uniform vec4 uHoleBox; varying vec2 vHole;

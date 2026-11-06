@@ -5,7 +5,7 @@
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { HALL } from '../../../engine/transport.js';
 import { camera } from '../../../engine/render.js';
-import { beanpod, hall } from './hall.js';
+import { climber, hall } from './hall.js';
 
 const TAU = Math.PI * 2;
 
@@ -187,20 +187,21 @@ export function build(H, group) {
   for (const f of [.35, .65, .88])
     add('glow', new THREE.TorusGeometry(domeR * Math.cos(f * Math.PI / 2) + .2, .2, 4, 64).rotateX(Math.PI / 2).translate(0, CROWN + 2 + domeR * Math.sin(f * Math.PI / 2), 0), DIM);
 
-  // Climber dock above the dome apex: two collars, struts, and four gantry arms down to the plaza deck.
+  // Climber dock above the dome apex: two collars, struts, and four gantry arms down to the plaza deck. The collars
+  // stand DR out from the tether, clear of a passing climber's pod.
 
-  const DOCK = CROWN + domeR + 8;
+  const DOCK = CROWN + domeR + 8, DR = 21;
   for (const y of [DOCK, DOCK + 16]) {
-    add('steel', new THREE.TorusGeometry(15, 1.3, 6, 32).rotateX(Math.PI / 2).translate(0, y, 0));
-    add('glow', new THREE.TorusGeometry(15, .3, 4, 48).rotateX(Math.PI / 2).translate(0, y - 1.4, 0), SEA);
+    add('steel', new THREE.TorusGeometry(DR, 1.3, 6, 48).rotateX(Math.PI / 2).translate(0, y, 0));
+    add('glow', new THREE.TorusGeometry(DR, .3, 4, 64).rotateX(Math.PI / 2).translate(0, y - 1.4, 0), SEA);
   }
-  for (let k = 0; k < 8; k++) add('steel', at(box(1.4, 16, 1.4, 15, DOCK + 8, 0), k / 8 * TAU));
+  for (let k = 0; k < 8; k++) add('steel', at(box(1.4, 16, 1.4, DR, DOCK + 8, 0), k / 8 * TAU));
   for (let k = 0; k < 4; k++) {
     const a = k / 4 * TAU + Math.PI / 4;
-    add('steel', beam(polar(44, a, CROWN + 2), polar(16, a, DOCK + 8), 2.4, 2.4));
-    add('steel', beam(polar(36, a, CROWN + 2), polar(16, a, DOCK), 1.6, 1.6));
+    add('steel', beam(polar(44, a, CROWN + 2), polar(DR + 1, a, DOCK + 8), 2.4, 2.4));
+    add('steel', beam(polar(36, a, CROWN + 2), polar(DR + 1, a, DOCK), 1.6, 1.6));
     add('glow', box(1.2, 1.2, 1.2, 0, 0, 0).translate(...polar(30, a, CROWN + 2 + (DOCK + 8 - CROWN - 2) * .5).toArray()), SEA);
-    add('red', box(1.6, 1.6, 1.6, 0, 0, 0).translate(...polar(15, a, DOCK + 17.5).toArray()));
+    add('red', box(1.6, 1.6, 1.6, 0, 0, 0).translate(...polar(DR, a, DOCK + 17.5).toArray()));
   }
 
   // ---------- ground: terminal halls and freight bays between the fins ----------
@@ -381,25 +382,30 @@ export function build(H, group) {
 
   // ---------- the tether: a buckyweave ribbon between two edge cables ----------
 
-  // ribbon(y0, y1) builds the ribbon between two heights. aEdge marks the cables (1) and the ribs (.5).
+  // ribbon(y0, y1) builds the ribbon between two heights, in segments at most 150 m tall, so the depth clamp below
+  // stays true along it. aEdge marks the cables (1) and the ribs (.5). The ribbon is 10.5 m wide, with its edge
+  // cables at x = ±5.88. The tether runs to T1 and fades out above FADE.
 
-  const T0 = CROWN, T1 = 11500;
-  const ribbon = (y0, y1) => mergeGeometries([
-    [new THREE.BoxGeometry(15, y1 - y0, 2.6), 0],
-    [new THREE.CylinderGeometry(1.9, 1.9, y1 - y0, 10, 1, true).translate(-8.4, 0, 0), 1],
-    [new THREE.CylinderGeometry(1.9, 1.9, y1 - y0, 10, 1, true).translate(8.4, 0, 0), 1],
-    [new THREE.BoxGeometry(1.2, y1 - y0, 3.4).translate(-3.5, 0, 0), .5],
-    [new THREE.BoxGeometry(1.2, y1 - y0, 3.4).translate(3.5, 0, 0), .5],
+  const T0 = CROWN, T1 = 25000, FADE = 12000;
+  const ribbon = (y0, y1) => { const L = y1 - y0, n = Math.ceil(L / 150); return mergeGeometries([
+    [new THREE.BoxGeometry(10.5, L, 2.6, 1, n), 0],
+    [new THREE.CylinderGeometry(1.33, 1.33, L, 10, n, true).translate(-5.88, 0, 0), 1],
+    [new THREE.CylinderGeometry(1.33, 1.33, L, 10, n, true).translate(5.88, 0, 0), 1],
+    [new THREE.BoxGeometry(.84, L, 3.4, 1, n).translate(-2.45, 0, 0), .5],
+    [new THREE.BoxGeometry(.84, L, 3.4, 1, n).translate(2.45, 0, 0), .5],
   ].map(([g, e]) => {
     g = g.toNonIndexed(); g.deleteAttribute('uv');
     g.setAttribute('aEdge', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count).fill(e), 1));
     return g.translate(0, (y0 + y1) / 2, 0);
-  }));
-  const tetherMat = new THREE.ShaderMaterial({
+  })); };
+
+  // The vertex shader holds the tether's depth just inside the far plane, so the far plane never cuts it.
+
+  const tetherShader = {
     uniforms: U,
     vertexShader: `attribute float aEdge; varying vec3 vW, vN, vL; varying float vE;
       void main(){ vec4 w = modelMatrix * vec4(position, 1.); vW = w.xyz; vL = position; vN = normalize(mat3(modelMatrix) * normal); vE = aEdge;
-        gl_Position = projectionMatrix * viewMatrix * w; }`,
+        gl_Position = projectionMatrix * viewMatrix * w; gl_Position.z = min(gl_Position.z, gl_Position.w * .99999); }`,
     fragmentShader: `varying vec3 vW, vN, vL; varying float vE; ${H.FOG_GLSL}
       void main(){
         if (vW.y > uClipTop) discard;
@@ -422,12 +428,20 @@ export function build(H, group) {
         float d = distance(cameraPosition, vW);
         float f = clamp(smoothstep(uFogNear, uFogFar, d), 0., 1.);
         c = mix(c, uFog, f * .65) + vec3(.01, .018, .028) * smoothstep(600., 5000., h);
-        gl_FragColor = vec4(c + e * (1. - .55 * f), 1.);
+        float a = 1.;
+        #ifdef FADE
+        a = 1. - smoothstep(${FADE.toFixed(1)}, ${T1.toFixed(1)}, h);
+        #endif
+        gl_FragColor = vec4(c + e * (1. - .55 * f), a);
       }`,
-  });
-  const tether = new THREE.Mesh(ribbon(T0, T1), tetherMat);
-  tether.frustumCulled = false;
-  group.add(tether);
+  };
+
+  // The tether is opaque up to FADE. Above it a transparent copy fades into the sky.
+
+  const tetherMat = new THREE.ShaderMaterial(tetherShader);
+  const fadeMat = new THREE.ShaderMaterial({ ...tetherShader, defines: { FADE: '' }, transparent: true, depthWrite: false });
+  const tether = new THREE.Mesh(ribbon(T0, FADE), tetherMat), tetherTop = new THREE.Mesh(ribbon(FADE, T1), fadeMat);
+  for (const m of [tether, tetherTop]) { m.frustumCulled = false; group.add(m); }
 
   // Soft halo: an additive shell that brightens where the view grazes the tether's axis.
 
@@ -442,7 +456,7 @@ export function build(H, group) {
         gl_FragColor = vec4(vec3(.25, .55, .9) * k * fade * .055, 1.);
       }`,
   });
-  const halo = new THREE.Mesh(new THREE.CylinderGeometry(18, 18, 6000, 24, 1, true).translate(0, 160 + 3000, 0), haloMat);
+  const halo = new THREE.Mesh(new THREE.CylinderGeometry(12.6, 12.6, 6000, 24, 1, true).translate(0, 160 + 3000, 0), haloMat);
   group.add(halo);
 
   // Searchlights from the security ring, sweeping the sky around the tether.
@@ -469,22 +483,22 @@ export function build(H, group) {
   group.add(beams);
 
   // ---------- climbers ----------
-  // A climber is a beanpod clamped to one face of the ribbon. Up climbers ride the +z face, down climbers the -z
-  // face. ON turns the pod's clamps to the ribbon and sets the pod out from the face. The offset scales with the pod.
+  // A climber clamps one face of the ribbon with a beanpod hanging below it. Up climbers ride the +z face, down
+  // climbers the -z face. Each way, a climber leaves every GAP seconds, and FLEET climbers take turns.
 
   const mats = { steel: steelMat, dark: darkMat, glow: glowMat, red: redMat, chaser: chaserMat, glass };
   for (const [k, list] of Object.entries(bins)) group.add(new THREE.Mesh(mergeGeometries(list), mats[k]));
-  const POD = beanpod(THREE, { WARM, CYAN, WHITE }), podLitMat = new THREE.MeshBasicMaterial({ vertexColors: true, fog: false });
-  const ON = new THREE.Matrix4().makeRotationY(-Math.PI / 2).setPosition(0, 0, POD.r + 2.3);
-  const MOVING = 14, TOUR = MOVING, N = TOUR + 1;
-  const climBody = new THREE.InstancedMesh(POD.body, steelMat, N);
-  const climLit = new THREE.InstancedMesh(POD.lit, podLitMat, N);
-  for (const m of [climBody, climLit]) { m.frustumCulled = false; group.add(m); }
-  const climbers = Array.from({ length: MOVING }, (_, k) => ({ up: k % 2 === 0, u0: (k >> 1) / (MOVING / 2) + (k % 2) * .037 }));
-  const BASE = CROWN - 40, TOP = 9600, JERK = 20, TRIP = Math.cbrt(6 * (TOP - BASE) / JERK), M = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = V3(0, 0, 0), SC = V3(1, 1, 1), Y = V3(0, 1, 0);
+  const CLIMB = climber(THREE, { WARM, CYAN, WHITE, GREEN }), podLitMat = new THREE.MeshBasicMaterial({ vertexColors: true, fog: false });
+  const FLEET = 4, MOVING = 2 * FLEET, TOUR = MOVING, N = TOUR + 1;
+  const climBody = new THREE.InstancedMesh(CLIMB.body, steelMat, N);
+  const climLit = new THREE.InstancedMesh(CLIMB.lit, podLitMat, N);
+  for (const m of [climBody, climLit]) { m.frustumCulled = false; m.userData.climbers = true; group.add(m); }
+  const BASE = CROWN - 40, TOP = 9600, JERK = 20, TRIP = Math.cbrt(6 * (TOP - BASE) / JERK), GAP = 2 * TRIP / 7;
+  const climbers = Array.from({ length: MOVING }, (_, k) => ({ up: k % 2 === 0, t0: (k >> 1) * GAP + (k % 2) * .037 * TRIP }));
+  const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = V3(0, 0, 0), SC = V3(1, 1, 1), Y = V3(0, 1, 0);
   const place = (i, y, up, s) => {
     Q.setFromAxisAngle(Y, up ? 0 : Math.PI); P.set(0, y, 0); SC.setScalar(s);
-    M.compose(P, Q, SC).multiply(ON); climBody.setMatrixAt(i, M); climLit.setMatrixAt(i, M);
+    M.compose(P, Q, SC); climBody.setMatrixAt(i, M); climLit.setMatrixAt(i, M);
   };
 
   // The audio tour drives one extra climber up the +z face. It stays hidden until the tour places it. While it
@@ -499,15 +513,16 @@ export function build(H, group) {
   // The rider underground sees the hall in place of the Root. The tether and its halo stay. The climbers give
   // way to the hall's beanpods, so the shaft opens on clear sky.
 
-  const keep = new Set([tether, halo]), root = group.children.filter(o => !keep.has(o));
+  const keep = new Set([tether, tetherTop, halo]), root = group.children.filter(o => !keep.has(o));
   const below = HALL && hall(H, { steel: steelMat, dark: darkMat, body: bodyMat, glow: glowMat, chaser: chaserMat, deck: deckMat,
-    tether: tetherMat, ribbon, root, top: CROWN, jerk: JERK, pod: POD, podLit: podLitMat, rgb: { WARM, WHITE, CYAN, SEA, GREEN, DIM } });
+    tether: tetherMat, ribbon, root, top: CROWN, jerk: JERK, climber: CLIMB, podLit: podLitMat, rgb: { WARM, WHITE, CYAN, SEA, GREEN, DIM } });
   if (below) group.add(below.group, below.tunnel, below.mouths);
 
   // ---------- animation ----------
 
   return {
     hall: below,
+    tether: { top: T1, fade: FADE, meshes: [tether, tetherTop] },
     top: DOCK + 18,
     dock: DOCK + 12,
     grown,
@@ -515,13 +530,14 @@ export function build(H, group) {
     update(t) {
       below?.update(t, camera);
       climbers.forEach((c, i) => {
-        const u = ((t / TRIP + c.u0) % 1 + 1) % 1, e = c.up ? u : 1 - u;
+        const u = ((t - c.t0) % (FLEET * GAP) + FLEET * GAP) % (FLEET * GAP) / TRIP, e = c.up ? u : 1 - u;
 
         // Climbers start and end inside the Root's body, out of sight. Their thrust grows by JERK m/s³, so they
         // creep off the dock and then shoot up. A trip takes TRIP seconds (about 14 s). Down climbers run the
-        // same curve backwards.
+        // same curve backwards. Between trips a climber waits unseen at BASE.
 
-        place(i, BASE + (TOP - BASE) * e ** 3, c.up, solo && c.up ? 0 : 1);
+        if (u >= 1) place(i, BASE, c.up, 0);
+        else place(i, BASE + (TOP - BASE) * e ** 3, c.up, solo && c.up ? 0 : 1);
       });
       climBody.instanceMatrix.needsUpdate = climLit.instanceMatrix.needsUpdate = true;
       const blink = (Math.sin(t * 2.6) > .55) ? 1 : .06;

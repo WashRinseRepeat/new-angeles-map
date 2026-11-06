@@ -13,7 +13,7 @@ import { fillGreens } from './greens.js';
 import { SOIL, soil } from './soil.js';
 import { packClouds } from './clouds.js';
 import { keep } from './edge.js';
-import { STREETS, buildPylons, centre, corridorIn, traffic } from './transport.js';
+import { BUNDLES, FOOTPRINTS, STREETS, buildPylons, centre, clearOfTrains, corridorIn, inTrain, solid, traffic } from './transport.js';
 import { buildStations } from './ride.js';
 import { ALL_BLOCK_FRAMES, BLOCK_FRAMES, BLOCK_KITS, BLOCK_MAX, FAMILY_KITS, SC, FRAMES, HUSH, frontOf, LANDMARKS_KITS, OWN_TIERS, SHOWCASE, SMALL_LOTS, generate, inRect, own, showcase } from './generator.js';
 
@@ -35,7 +35,7 @@ Object.defineProperties(H, Object.getOwnPropertyDescriptors({
   mixStyle, rng, hash, lerp, smooth, grey,
   put, prop, glow, pool, soil, beam, laser, puff, soften, textSign, beacon, bld, roof, kibble, sign, neon, holo, helipad, crownOf, grammarTowerBody,
   panel, neonTexture, stringLights, plate, canvasTexture,
-  frame: () => S.FRAME,
+  frame: () => S.FRAME, clearOfTrains,
 
   // Local point in the current frame to world coordinates, and back.
 
@@ -301,9 +301,6 @@ function mergeBuilds() {
 
 // ---------- build ----------
 
-buildPylons();
-buildStations();
-
 // Each place builds around the origin; FRAME and a parent group rotate and move it onto its seat,
 // and every lot under its footprint is taken, even past the block edge.
 // Seats come from places.json (GM edit mode writes it), then city.json, then meta.size:
@@ -367,6 +364,12 @@ for (const { frame: f } of PLACES) if (f) for (const st of STREETS) st.path.forE
   const X = q.x - f.cx, Z = q.z - f.cz, [w, d] = f.size ?? [f.w, f.d];
   if (Math.abs(X * f.c - Z * f.s) < w / 2 && Math.abs(X * f.s + Z * f.c) < d / 2) st.block[k] = 1;
 });
+
+// Streets also close within 6 m of a hood's footprint, so no car, lamp or dash crosses a maglev trench.
+
+for (const { line, hw } of BUNDLES) for (const st of STREETS) st.path.forEach((q, k) => {
+  if (line.some(p => Math.hypot(q.x - p.x, q.z - p.z) < hw + 6)) st.block[k] = 1;
+});
 for (const c of traffic) if (!c.hover && c.st.block[Math.floor(c.u)]) c.rank = 2;
 
 // Landmarks from kit modules claim the free block nearest their canon spot (map px) and build there like places.
@@ -376,6 +379,7 @@ export const LANDMARK_LABELS = [];
 // One row per built landmark for search and the atlas. A landmark with a slug is a campaign location and gets a place for the card.
 
 export const LANDMARK_SITES = [];
+const OFF = new THREE.Matrix4().makeScale(0, 0, 0);
 for (const lm of LANDMARKS_KITS) {
   if (SHOWCASE) break;
 
@@ -418,9 +422,18 @@ for (const lm of LANDMARKS_KITS) {
   decor.add(g);
   S.DECOR = g;
   S.FRAME = { cx: 0, cz: 0, tx: site.cx, tz: site.cz, a: site.a, c: site.c, s: site.s, w: site.w, d: site.d, front: site.front ?? frontOf(site), sy: lm.scaleY };
-  const n0 = SHAPES.box.count;
+  const n0 = SHAPES.box.count, foot = { name: lm.name, cx: site.cx, cz: site.cz, c: site.c, s: site.s, w: lm.free ? site.w : Math.min(site.w, BLOCK_MAX), d: lm.free ? site.d : Math.min(site.d, BLOCK_MAX), n0: INSTANCED.map(m => m.count) };
   const focus = lm.build(0, 0, Math.min(site.w, BLOCK_MAX) - 4, Math.min(site.d, BLOCK_MAX) - 4, styleAt(site.cx, site.cz, U.uBlend.value), rng(hash(Math.round(site.cx), 31)));
   own(n0);
+
+  // A landmark part that reaches into a train envelope drops. Lights and other see-through parts stay.
+  // ponytail: tests instanced parts only, not prisms or decor meshes. Add them when one shows in a train path.
+
+  INSTANCED.forEach((m, j) => {
+    if (!solid(m)) return;
+    for (let i = foot.n0[j]; i < m.count; i++) if (inTrain(m, i)) m.setMatrixAt(i, OFF);
+  });
+  FOOTPRINTS.push({ ...foot, n1: INSTANCED.map(m => m.count) });
 
   // A build that puts its showpiece away from the block (a club offshore) returns that spot in local metres,
   // as [lx, lz] or { focus: [lx, lz] }. The label, the click box and the card's camera then go there.
@@ -456,6 +469,11 @@ for (const lm of LANDMARKS_KITS) {
   }
   LANDMARK_SITES.push({ name: lm.label ?? lm.name, key: lm.name, x: fx, z: fz, y: ly, frame: view, el, place, block: lm.free ? null : site, at: [x, z], minSide: lm.minSide ?? SC.siteMin });
 }
+
+// Pylons and stations build once the landmarks stand, so they keep off the landmark footprints.
+
+buildPylons();
+buildStations();
 if (!SHOWCASE) { mergeBuilds(); LANDMARKS.push(fillGreens(H)); }
 S.BASE = new Map(INSTANCED.map(m => [m, m.count]));
 S.BASE.set(SOIL, SOIL.length);

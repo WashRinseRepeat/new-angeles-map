@@ -17,7 +17,14 @@ export const B_VS = `
     attribute float aU, aLen;
     varying float vU, vLen;
   #endif
+  #ifdef MOUTHS
+    attribute vec4 aMouth0, aMouth1;
+    varying vec4 vM0, vM1;
+  #endif
   void main(){
+    #ifdef MOUTHS
+      vM0 = aMouth0; vM1 = aMouth1;
+    #endif
     #ifdef MERGED
       vec4 w = modelMatrix * vec4(position, 1.);
       vWN = normal; vS = vec3(1.); vU = aU; vLen = aLen;
@@ -49,6 +56,19 @@ export const B_FS = `
   ${SHADOW_GLSL}
   float h21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 
+  // A tunnel mouth is a rectangle on one face of the box, in local units: (u + 4 f, half width, y0, y1). Face f is
+  // 1 or -1 on the x faces and 2 or -2 on the z faces. u runs along the face, z on an x face and x on a z face.
+
+  #ifdef MOUTHS
+    varying vec4 vM0, vM1;
+    bool inMouth(vec4 m){
+      if (m.y <= 0.) return false;
+      float f = floor(m.x / 4. + .5), face = abs(vN.x) > .5 ? sign(vN.x) : 2. * sign(vN.z);
+      float u = abs(vN.x) > .5 ? vL.z : vL.x;
+      return abs(f - face) < .5 && abs(u - (m.x - 4. * f)) < m.y && vL.y > m.z && vL.y < m.w;
+    }
+  #endif
+
   // Roof skins 15 slate and 16 tile: staggered rows with a shadow at each row's lower edge, mottled per piece and
   // in patches. Rows fade to their average where they get smaller than a pixel.
 
@@ -64,6 +84,9 @@ export const B_FS = `
   }
   void main(){
     if (vW.y > uClipTop || focusCut(vW)) discard;
+    #ifdef MOUTHS
+      if (inMouth(vM0) || inMouth(vM1)) discard;
+    #endif
     if (!gl_FrontFacing) { gl_FragColor = vec4(fogged(vBase * 1.8 + vec3(.012, .014, .02), vW), 1.); return; }
     vec3 n = normalize(vWN);
     float sun = max(dot(n, normalize(uLightDir)), 0.);
@@ -218,10 +241,11 @@ export function buildingMesh(geo, cap, defines = {}) {
   geo.setAttribute('aWin', new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3));
   geo.setAttribute('aP', new THREE.InstancedBufferAttribute(new Float32Array(cap * 4), 4));
   geo.setAttribute('aSkin', new THREE.InstancedBufferAttribute(new Float32Array(cap), 1));
+  if (defines.MOUTHS) for (const k of [0, 1]) geo.setAttribute(`aMouth${k}`, new THREE.InstancedBufferAttribute(new Float32Array(cap * 4), 4));
   return new THREE.InstancedMesh(geo, new THREE.ShaderMaterial({ uniforms: U, defines, vertexShader: B_VS, fragmentShader: B_FS, userData: { casts: true } }), cap);
 }
 export const SHAPES = {
-  box: buildingMesh(new THREE.BoxGeometry(1, 1, 1), 200000),
+  box: buildingMesh(new THREE.BoxGeometry(1, 1, 1), 200000, { MOUTHS: 1 }),
   cyl: buildingMesh(new THREE.CylinderGeometry(.5, .5, 1, 16), 24000, { CYL: 1 }),
   oct: buildingMesh(new THREE.CylinderGeometry(.5, .5, 1, 8).rotateY(Math.PI / 8), 24000, { CYL: 1 }),
   pyr: buildingMesh(new THREE.CylinderGeometry(0, .5 * Math.SQRT2, 1, 4).rotateY(Math.PI / 4), 16000),

@@ -742,11 +742,14 @@ export function landmarks(H) {
           prop('box', px, n * 1.3, pz, 12, n * 2.6, 2.4, pick(r, BOX), ang);
         }
 
-        // Quay cranes: portal legs on the quay, a boom out over the water, an A-frame and stays.
+        // Quay cranes: portal legs on the quay, a boom out over the water, an A-frame and stays. A crane whose
+        // legs would stand in a train's path drops.
 
         const CR = [.16, .2, .26], CW = [.9, .45, .1];
+        const onTrack = b => [-8, 8].some(da => [-7, 7].some(db => !H.clearOfTrains(...H.worldOf(...at2(q + da, b + db)), .65, 0, 46)));
         for (let k = 0; k < 5; k++) {
           const b = -120 + k * 60, top = 46;
+          if (onTrack(b)) continue;
           for (const da of [-8, 8]) for (const db of [-7, 7]) beam(P(q + da, b + db, 0), P(q + da, b + db, top), 1.3, CR);
           for (const db of [-4, 4]) beam(P(q - 30, b + db, top), P(q + 58, b + db, top), 1.4, CR);
           for (const da of [-8, 8]) beam(P(q + da, b - 7, top - 14), P(q + da, b + 7, top - 14), 1, CR);

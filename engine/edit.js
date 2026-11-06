@@ -11,7 +11,7 @@ import { camera, composer, controls, renderer } from './render.js';
 import { insidePoly } from './grammar.js';
 import { ALL_BLOCK_FRAMES, SC } from './generator.js';
 import { LANDMARK_SITES } from './api.js';
-import { ray as pickRay } from './ui.js';
+import { ray as pickRay, releaseView } from './ui.js';
 
 const KEY = `${SETTING.storage}-map-edit`;
 const DEG = 180 / Math.PI;
@@ -168,6 +168,7 @@ const screen = ([x, z]) => {
 
 let top = null;
 function topDown(on) {
+  releaseView();
   if (on && !top) {
     top = { pos: camera.position.clone(), target: controls.target.clone() };
     const t = controls.target.setY(0), h = THREE.MathUtils.clamp(camera.position.distanceTo(t), 300, 1400);

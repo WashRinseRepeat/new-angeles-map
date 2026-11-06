@@ -328,9 +328,9 @@ function endTour() {
 // ---------- maglev ride: pick a station, then ride the train from there ----------
 
 const ridePick = $('ridePick');
-// The picker offers the data loops first, then the tours, which together pass every station. Lines and spurs run on the map but have no picker entry.
+// The picker offers every route with stops, then the tours. A tour that takes a route's name stands in for it.
 
-const RIDES = [...ROUTES.filter(R => R.music && R.closed && !R.loop), ...TOURS];
+const RIDES = [...ROUTES.filter(R => R.stops?.length && !TOURS.some(T => T.name === R.name)), ...TOURS];
 rail.querySelector('[data-tab=ride]').hidden = !RIDES.length;
 ridePick.innerHTML = RIDES.map((R, i) => `<details class="d"${i ? '' : ' open'}><summary><span>${esc(R.name)}</span><b>${R.stops.length}</b></summary>
   <div class="stns">${R.stops.map(st => `<button data-r="${i}" data-s="${R.stops.indexOf(st)}">${esc(st.name)}</button>`).join('')}</div></details>`).join('');

@@ -47,6 +47,10 @@ const { cx: MX, cy: MY, scale: MS } = SETTING.map;
 export const mapToWorld = ([u, v]) => [(u - MX) * MS, (v - MY) * MS];
 
 export const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+
+// smoother eases like smooth, and its curvature also starts and ends at zero.
+
+export const smoother = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * t * (t * (6 * t - 15) + 10); };
 export const lerp = (a, b, t) => a + (b - a) * t;
 
 // Signed distance to a polygon, positive inside.

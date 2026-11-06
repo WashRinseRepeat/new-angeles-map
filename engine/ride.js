@@ -5,7 +5,7 @@ import { S } from './state.js';
 import { SETTING } from './setting.js';
 import { CITY, hash, rng, sdPoly, smooth } from './core.js';
 import { camera, controls, labels, renderer, scene } from './render.js';
-import { HALL, ROUTES, STATIONS, STATION_LEN, TRAFFIC, cab, carriage, routeU, sweep, uploadTrains } from './transport.js';
+import { FOOTPRINTS, HALL, PILLARS, ROUTES, decksNear, onFootprint, STATIONS, STATION_LEN, TRAFFIC, cab, carriage, clearGhosts, ghostCar, routeU, sweep, uploadTrains } from './transport.js';
 import { groundAt } from './relief.js';
 import { TUNNELS } from './generator.js';
 import { GLOWS, beam, glow, glows, prop, puff, put, textSign } from './instances.js';
@@ -24,6 +24,13 @@ const districtOf = R => short(districtAt(R.curve.getPointAt(1).x, R.curve.getPoi
 export const routeName = R => R.name ?? (R.loop ? MAGLEV.loopName : R.root ? MAGLEV.spurNames[ROUTES.indexOf(R) - 1]
   : `${districtOf(R)} ${R.closed ? 'Loop' : 'Line'}`);
 for (const R of ROUTES) { R.name = routeName(R); R.stops = STATIONS.filter(st => st.route === R).sort((a, b) => a.s - b.s); }
+
+// A ring that stops at the centre station lists its stops from there.
+
+for (const R of ROUTES) {
+  const i = R.closed ? R.stops.findIndex(st => st.name === MAGLEV.centreStation.name) : -1;
+  if (i > 0) R.stops.push(...R.stops.splice(0, i));
+}
 
 // ---------- stations ----------
 // Each station builds in a frame on the track: z runs along the line, x across it, y from the deck top.
@@ -183,6 +190,34 @@ function interchange(lo, up, K) {
   end();
 }
 
+// A stilt stands from the ground to the platform underside. Where another deck passes under the platform within
+// 3.5 m in plan, the stilt ends on that deck's underside (deck - 1.2) and drops above it. A stilt on a landmark
+// moves 4 or 8 m along the platform to clear it, else drops. A landmark never gives way to a stilt.
+// PLATFORMS lists each platform side that takes stilts, with the landmark that took a stilt from it, if any.
+
+export const PLATFORMS = [];
+function stiltAt(x, z) {
+  const F = S.FRAME, wx = F.tx + x * F.c + z * F.s, wz = F.tz - x * F.s + z * F.c, g = groundAt(wx, wz), top = y0 - .6;
+  const under = decksNear(wx, wz, 3.5).filter(q => q.y - .5 < top && q.y + 3.3 > g), y1 = under.length ? Math.min(...under.map(q => q.y)) - 1.2 : top;
+  return { x, z, wx, wz, g, y1, top, ok: y1 - g >= 2, foot: onFootprint(wx, wz) };
+}
+function stilts(st, side) {
+  const x = side * 7, kept = [], row = { station: st.name, route: st.route.name, side, foot: null };
+  PLATFORMS.push(row);
+  along(16, z => {
+    const s = stiltAt(x, z);
+    if (!s.ok) return;
+    if (!s.foot) return kept.push(s);
+    const moved = [4, -4, 8, -8].map(d => z + d).filter(z => Math.abs(z) <= HALF - 2 && !kept.some(k => Math.abs(k.z - z) < 4))
+      .map(z => stiltAt(x, z)).find(s => s.ok && !s.foot);
+    if (moved) kept.push(moved); else row.foot = FOOTPRINTS.find(f => onFootprint(s.wx, s.wz, [f]))?.name;
+  });
+  for (const s of kept) {
+    prop('cyl', x, (s.g + s.y1) / 2, s.z, 1.4, s.y1 - s.g, 1.4, [.06, .065, .075]);
+    PILLARS.push({ kind: 'stilt', x: s.wx, z: s.wz, r: .7, y0: s.g, y1: s.y1, top: s.top, station: st.name, route: st.route.name, side, lz: s.z });
+  }
+}
+
 // A station in the Beanstalk hall stands deep underground. The hall dresses it, so it takes no kit and no stilts.
 
 const deepAt = f => !!HALL && f.y0 < groundAt(f.tx, f.tz) - 6;
@@ -196,7 +231,7 @@ export function buildStations() {
     for (const s of sides) {
       A.box(s * 6.4, .2, 0, 6, 1.6, STATION_LEN, K.deck);
       A.glw(s * 3.5, 1.03, 0, .12, .05, STATION_LEN, K.edge.map(v => v * .45));
-      if (!deep) along(16, z => A.cyl(s * 7, -y0 / 2 - .3, z, 1.4, y0 - .6, [.06, .065, .075]));
+      if (!deep) stilts(st, s);
     }
     nameBoards(st.name, K.sign, K.board, sides);
     if (!deep && !st.of && !STATIONS.some(o => o.of === st)) K.build(rng(hash(Math.round(st.f.tx), 77)), st.sides);
@@ -453,16 +488,18 @@ const trainState = (R, k) => {
 // The rider's line holds still while the camera flies in to board.
 
 // On a tour only the tour's train runs. The other trains drop out of sight when it starts and come back when
-// it ends, and a tour's train drops out when its tour ends. The cab takes the place of the ridden lead car.
+// it ends, and a tour's train drops out when its tour ends. The cab takes the place of the ridden lead car, and
+// the ridden train's other cars draw half see-through.
 
 let onTour = null;
-const hideCar = m => { m.position.set(0, -1e4, 0); m.lookAt(_b.set(0, -1e4, 1)); };
+const _g = new THREE.Matrix4(), hideCar = m => { m.position.set(0, -1e4, 0); m.lookAt(_b.set(0, -1e4, 1)); };
 function moveTrains(dt) {
   const tour = ride?.R.tour ? ride.R : null;
   if (tour !== onTour) {
     for (const R of onTour ? [onTour] : RUNS) for (const cars of R.trains) cars.forEach(hideCar);
     onTour = tour;
   }
+  clearGhosts();
   for (const R of tour ? [tour] : RUNS) {
     R.t += dt * TRAFFIC.speed / .3 * (ride?.R === R ? (ride.boarding || ride.paused ? 0 : ride.mul) : 1) * (cyc(R) ? R.sign ?? 1 : 1);
     R.trains.forEach((cars, k) => {
@@ -471,7 +508,11 @@ function moveTrains(dt) {
         const s = c + e * (TL / 2 - CAR / 2 - j * CAR);
         at(R, s, _a); at(R, s + e * 2, _b);
         m.position.copy(_a).y += 2.4; _b.y += 2.4; m.lookAt(_b);
-        if (ride?.R === R && !ride.wait && !k && !j) { cab.position.copy(m.position); cab.quaternion.copy(m.quaternion); hideCar(m); }
+        if (ride?.R !== R || ride.wait || k) return;
+        if (!j) { cab.position.copy(m.position); cab.quaternion.copy(m.quaternion); }
+        _g.copy(m.matrix);
+        hideCar(m);
+        if (j) ghostCar(_g, j === cars.length - 1, m.lamp);
       });
     });
   }
@@ -516,8 +557,9 @@ function tunnels(R) {
 
 // ---------- tunnel linings ----------
 // A black tube lines each tower tunnel from portal to portal, so a rider sees no rooms, only the lit mouth
-// ahead. Each mouth gets a black inset that faces out: from outside it hides the facade's windows, and
-// from inside it does not draw. Lamps on the walls show the speed. All of it rebuilds with the city.
+// ahead. The tower's facade opens inside the tube's ends, so from outside the tunnel shows through to the far
+// mouth. A mouth the facade cannot open gets a black inset that faces out and hides the windows. Lamps on the
+// walls show the speed. All of it rebuilds with the city.
 
 const LINING = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide }), LINING_OUT = new THREE.MeshBasicMaterial({ color: 0x020305 });
 const lamps = new THREE.InstancedMesh(new THREE.BoxGeometry(.25, .18, 1.6), new THREE.MeshBasicMaterial({ color: new THREE.Color(.22, .55, .75) }), 2000);
@@ -547,7 +589,7 @@ function lineTunnels() {
       lamps.setMatrixAt(lamps.count++, o.matrix);
     }
   }
-  for (const p of TUNNELS.flat()) if (p.kind === 'maglev') {
+  for (const p of TUNNELS.flat()) if (p.kind === 'maglev' && !p.open) {
     const m = new THREE.Mesh(INSET, LINING_OUT);
     m.position.set(p.x + p.nx * .12, p.y + 1.3, p.z + p.nz * .12);
     m.rotation.y = Math.atan2(p.nx, p.nz);
@@ -558,25 +600,35 @@ function lineTunnels() {
 }
 
 // The camera sits in the lead car, .5 m ahead of its centre and 2.7 m above the track, so the floor shows low
-// ahead and the eye clears the decks beside the line. It looks at a clicked place, or else where the rider's yaw
-// and pitch turn the view off the heading. The view eases toward that aim, so a change never jumps.
+// ahead and the eye clears the decks beside the line. The heading runs along a chord to AHEAD m on, so the rider
+// looks into a curve. The view looks at a clicked place, or else where the rider's yaw and pitch turn it off the
+// heading. It eases toward that aim, so a change never jumps. The cab hull turns with the track's heading over the
+// car, eased over HULL m of track, and snaps round only when the train reverses.
 
-const _d = V(0, 0, 0);
+const _d = V(0, 0, 0), AHEAD = 20, EASE = 5, HULL = 6;
+const yawTo = (R, a, b) => { at(R, a, _a); at(R, b, _b); return Math.hypot(_b.x - _a.x, _b.z - _a.z) > 1 ? Math.atan2(_b.x - _a.x, _b.z - _a.z) : null; };
 function pose(C, T, dt = 1) {
   // On a lollipop the rider keeps the same car after the root reverse and rides the next trip backwards, at the
   // glass end that is now at the rear. Odd trips seat the camera there, facing back, so the view never turns.
 
-  const { R } = ride, { c, dir } = trainState(R, 0), end = carEnd(R, R.t), s = c + dir * end * (TL / 2 - CAR / 2);
-  at(R, s, _a); at(R, s + dir * end * 2, _b);
+  const { R } = ride, { c, dir } = trainState(R, 0), end = carEnd(R, R.t), e = dir * end, s = c + e * (TL / 2 - CAR / 2);
+  at(R, s, _a); at(R, s + e * 2, _b);
   _f.subVectors(_b, _a).normalize();
   C.copy(_a).addScaledVector(_f, .5).y += 2.7;
-  _f.setY(0).normalize();
-  ride.head = Math.atan2(_f.x, _f.z);
+  const pitch = Math.asin(_f.y), near = Math.atan2(_f.x, _f.z), k = 1 - Math.exp(-dt * EASE);
+  ride.head = yawTo(R, s, s + e * AHEAD) ?? near;
+  _f.set(Math.sin(ride.head), 0, Math.cos(ride.head));
+  const car = yawTo(R, s - e * CAR / 2, s + e * CAR / 2) ?? near;
+  if (ride.face !== e) Object.assign(ride, { face: e, hull: car, hs: s });
+  const kh = 1 - Math.exp(-Math.abs(s - ride.hs) / HULL);
+  ride.hs = s;
+  ride.hull += (car - ride.hull - Math.round((car - ride.hull) / (2 * Math.PI)) * 2 * Math.PI) * kh;
+  cab.rotation.set(-pitch, ride.hull, 0, 'YXZ');
   const Y = ride.head + ride.yaw, P = ride.pitch - .06;
   if (ride.focus) _d.subVectors(ride.focus, C).normalize();
   else _d.set(Math.sin(Y) * Math.cos(P), Math.sin(P), Math.cos(Y) * Math.cos(P));
   ride.aim ??= _d.clone();
-  ride.aim.lerp(_d, 1 - Math.exp(-dt * 5)).normalize();
+  ride.aim.lerp(_d, k).normalize();
   T.copy(ride.aim).multiplyScalar(40).add(C);
   if (ride.dir !== dir) {
     if (ride.dir) ride.blend ??= { fromC: camera.position.clone(), fromT: controls.target.clone(), t: 0, dur: 1.2 };
@@ -716,7 +768,7 @@ export function rideTick(dt) {
 
   if (ride.wait) {
     const { g } = trainState(ride.R, 0);
-    if (g.D == null && g.st === ride.wait.st) Object.assign(ride, { wait: null, boarding: true, dir: 0, aim: null, yaw: 0, pitch: 0, blend: { fromC: camera.position.clone(), fromT: controls.target.clone(), t: 0, dur: 1.2 } });
+    if (g.D == null && g.st === ride.wait.st) Object.assign(ride, { wait: null, boarding: true, dir: 0, aim: null, face: 0, yaw: 0, pitch: 0, blend: { fromC: camera.position.clone(), fromT: controls.target.clone(), t: 0, dur: 1.2 } });
   }
   if (ride.wait) { _e.copy(ride.wait.C); _T.copy(ride.wait.T); } else pose(_e, _T, dt);
   const b = ride.blend;
