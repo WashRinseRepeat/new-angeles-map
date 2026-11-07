@@ -54,64 +54,137 @@ export function landmarks(H) {
 
   return {
 
-    // NBN Headquarters: the tallest tower on the square. A slim slab whose faces are vidscreens,
-    // a stepped crown with three gold letters on every face, and a ring of camdrones circling the top.
+    // NBN Headquarters: the tallest tower on the square. Four bands of dark glass twist a little further as they
+    // step in, each wrapped in one live media screen with tickers on its narrow faces. A lattice broadcast mast
+    // with dish rings and a gold halo crowns it, signal beams sweep the city, and camdrones circle the top.
 
-    fb_nbn: { at: [462, 488], label: 'NBN Headquarters', labelY: 425, minSide: 50, reach: 500, build(x, z, w, d, st, r) {
-      const glass = { ...st, base: [.05, .06, .08], win: [.55, .8, 1], lit: .35, grime: .1 };
+    fb_nbn: { at: [462, 488], label: 'NBN Headquarters', labelY: 520, minSide: 50, reach: 500, build(x, z, w, d, st, r) {
+      const glass = { ...st, base: [.025, .03, .04], win: [.55, .8, 1], lit: .22, grime: .05 };
       const S = Math.min(w, d), tw = S * .62, td = S * .38, ph = 26, top = 330;
 
       // Podium with a lit lobby front and the plaza lights.
 
-      bld(x, z, S - 4, S - 4, ph, { ...glass, lit: .6 }, r, { skin: SKINS.bands, roof: false, kibble: false });
+      bld(x, z, S - 4, S - 4, ph, { ...glass, lit: .5 }, r, { skin: SKINS.bands, roof: false, kibble: false });
       glow(x, 6, z + (S - 4) / 2 + .1, S * .6, 9, .2, dim(WHITE, .7));
       glow(x, ph - 1, z + (S - 4) / 2 + .2, S - 6, .6, .2, dim(GOLD, .8));
       textSign('NBN', x, ph - 6, z + (S - 4) / 2 + .3, 18, 6, 0, GOLD);
       pool(x, z + S / 2 + 6, S * .5, dim(GOLD, .08));
 
-      // Slab body in three bands. Each band top carries a gold light line.
+      // Media textures: news mosaics, tickers and the NBN LIVE band on the broad faces, a vertical ticker on the
+      // narrow ones. They scroll in update.
 
-      for (const [y0, y1] of [[ph, 130], [130, 230], [230, top]]) {
-        bld(x, z, tw, td, y1 - y0, glass, r, { y0, skin: SKINS.curtain, roof: false, kibble: false });
-        glow(x, y1, z, tw + .4, .7, td + .4, dim(GOLD, .7));
+      const css = c => `rgb(${c.map(v => Math.min(255, v * 150) | 0).join(',')})`, pick = (q, a) => a[Math.floor(q() * a.length)];
+      const media = H.canvasTexture(512, 2048, (g, W, Hh) => {
+        g.fillStyle = '#04060a'; g.fillRect(0, 0, W, Hh);
+        for (let y = 0; y < Hh;) {
+          const kind = r();
+          if (kind < .18) {
+            g.fillStyle = '#c8961e'; g.fillRect(0, y, W, 56);
+            g.fillStyle = '#05070a'; g.font = 'bold 40px sans-serif'; g.textBaseline = 'middle';
+            g.fillText(pick(r, ['BREAKING  ·  NBN NEWS', 'MARKETS  ▲ 2.4%  ·  HAAS ▼', 'LIVE FROM BROADCAST SQUARE', 'ALWAYS ON  ·  NBN']), 18, y + 29);
+            y += 64;
+          } else if (kind < .3) {
+            g.fillStyle = '#0b0f16'; g.fillRect(0, y, W, 150);
+            g.fillStyle = '#ffd24a'; g.font = 'bold 120px sans-serif'; g.textBaseline = 'middle'; g.fillText('NBN', 24, y + 78);
+            g.fillStyle = '#ff3030'; g.fillRect(300, y + 46, 180, 62);
+            g.fillStyle = '#fff'; g.font = 'bold 44px sans-serif'; g.fillText('LIVE', 336, y + 79);
+            y += 160;
+          } else {
+            const hh = 120 + r() * 140, cols = 1 + Math.floor(r() * 3);
+            for (let c = 0; c < cols; c++) {
+              const c0 = pick(r, HOT), x0 = c * W / cols + 6, cw = W / cols - 12;
+              const gr = g.createLinearGradient(x0, y, x0 + cw, y + hh);
+              gr.addColorStop(0, css(dim(c0, .55))); gr.addColorStop(1, css(dim(pick(r, HOT), .2)));
+              g.fillStyle = gr; g.fillRect(x0, y, cw, hh);
+              g.fillStyle = 'rgba(255,255,255,.55)'; g.fillRect(x0 + 10, y + hh - 26, cw * (.3 + r() * .6), 10);
+            }
+            y += hh + 10;
+          }
+        }
+      });
+      media.wrapT = THREE.RepeatWrapping;
+      const tick = H.canvasTexture(128, 1024, (g, W, Hh) => {
+        g.fillStyle = '#05070a'; g.fillRect(0, 0, W, Hh);
+        g.save(); g.translate(W / 2, 0); g.rotate(Math.PI / 2);
+        g.fillStyle = '#ffd24a'; g.font = 'bold 72px sans-serif'; g.textBaseline = 'middle';
+        g.fillText('NBN  ·  LIVE  ·  NBN  ·  LIVE  ·', 0, 0);
+        g.restore();
+      });
+      tick.wrapT = THREE.RepeatWrapping;
+      const screenMat = new THREE.MeshBasicMaterial({ map: media, color: new THREE.Color(1.2, 1.2, 1.25) });
+      const tickMat = new THREE.MeshBasicMaterial({ map: tick, color: new THREE.Color(1.3, 1.25, 1.1) });
+      A.media = [media, tick];
+      const plane = new THREE.PlaneGeometry(1, 1);
+      const panel = (mat, px, py, pz, pw, phh, ry) => {
+        const m = new THREE.Mesh(plane, mat);
+        m.position.set(px, py, pz); m.scale.set(pw, phh, 1); m.rotation.y = ry; m.userData.live = true;
+        H.decor.add(m);
+      };
+
+      // Four twisting bands. Each carries lit corners, a gold line round its top and its screens.
+
+      const BANDS = [[ph, 115, 0, 1], [115, 195, .2, .93], [195, 265, .4, .86], [265, top, .6, .78]], AT = BANDS[3][2];
+      const ring = (y, bw, bd, a, rgb, t = .35) => {
+        const ca = Math.cos(a), sa = Math.sin(a);
+        for (const s of [-1, 1]) {
+          glow(x + sa * s * bd / 2, y, z + ca * s * bd / 2, bw + t, t, t, rgb, a);
+          glow(x + ca * s * bw / 2, y, z - sa * s * bw / 2, t, t, bd + t, rgb, a);
+        }
+      };
+      for (const [y0, y1, a, f] of BANDS) {
+        const bw = tw * f, bd = td * f, hh = y1 - y0, cy = (y0 + y1) / 2, ca = Math.cos(a), sa = Math.sin(a);
+        bld(x, z, bw, bd, hh - .4, glass, r, { y0, skin: SKINS.curtain, roof: false, kibble: false, ry: a });
+        ring(y1 - .2, bw + .5, bd + .5, a, dim(GOLD, .9), .5);
+        for (const [cxs, czs] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+          const lx = cxs * bw / 2, lz = czs * bd / 2;
+          glow(x + lx * ca + lz * sa, cy, z - lx * sa + lz * ca, .4, hh - 1, .4, dim(WHITE, .5), a);
+        }
+        for (const s of [-1, 1]) {
+          const o = bd / 2 + .25;
+          panel(screenMat, x + sa * s * o, cy, z + ca * s * o, bw * .9, hh - 6, a + (s < 0 ? Math.PI : 0));
+          const q = bw / 2 + .25;
+          panel(tickMat, x + ca * s * q, cy, z - sa * s * q, bd * .45, hh - 8, a + s * Math.PI / 2);
+        }
       }
 
-      // Vidscreens cover the broad faces; the narrow faces carry a vertical blade of screens.
+      // Cap: a short dark block with NBN on all four faces.
 
-      for (let y = 50; y < top - 20; y += tw * .48) {
-        holo(x, z, tw, td, y, r, 2, tw * .95);
-        holo(x, z, tw, td, y + tw * .24, r, 3, tw * .95);
-      }
-      for (let y = 70; y < top - 30; y += 70) {
-        holo(x, z, tw, td, y, r, 0, td);
-        holo(x, z, tw, td, y + 35, r, 1, td);
-      }
-
-      // Stepped crown: three setbacks, a gold band under each, NBN on all four faces of the middle step.
-
-      let y = top, cw = tw, cd = td;
-      for (const [hh, f] of [[22, .86], [24, .72], [18, .56]]) {
-        cw = tw * f; cd = td * f;
-        bld(x, z, cw, cd, hh, { ...glass, lit: .55 }, r, { y0: y, skin: SKINS.bands, roof: false, kibble: false });
-        glow(x, y + .4, z, cw + .6, 1, cd + .6, GOLD);
-        y += hh;
-      }
-      const ly = top + 22 + 12;
+      const ca = Math.cos(AT), sa = Math.sin(AT), cw = tw * .7, cd = td * .7, cy0 = top;
+      bld(x, z, cw, cd, 14, { ...glass, lit: .15 }, r, { y0: cy0, skin: SKINS.bands, roof: false, kibble: false, ry: AT });
+      ring(cy0 + 14, cw + .4, cd + .4, AT, dim(GOLD, 1.1), .5);
       for (const [fx, fz] of FACE4) {
-        const span = fx ? td * .72 : tw * .72, out = (fx ? tw * .72 : td * .72) / 2 + .4;
-        textSign('NBN', x + fx * out, ly, z + fz * out, span * .9, span * .3, ryOf(fx, fz), dim(GOLD, 1.2));
+        const span = fx ? cd * .9 : cw * .8, out = (fx ? cw : cd) / 2 + .4, lx = fx * out, lz = fz * out;
+        textSign('NBN', x + lx * ca + lz * sa, cy0 + 7, z - lx * sa + lz * ca, span * .9, span * .3, ryOf(fx, fz) + AT, dim(GOLD, 1.2));
       }
 
-      // Mast, beacons, and the camdrone ring.
+      // Broadcast mast: a dark lattice 150 m tall, dish rings, dishes, a gold NBN halo, beacons and signal beams.
 
-      prop('cyl', x, y + 20, z, 1.4, 40, 1.4, [.12, .12, .14]);
-      for (let k = 0; k < 3; k++) beacon(x, y + 14 + k * 13, z, r);
-      put(GLOWS.ring, x, y + 6, z, tw * 1.5, 1, tw * 1.5, 0, 0, dim(GOLD, .6));
-      A.cams = orbit(24, tw * .85, y - 10, [1.6, 1.5, 1.2], 14, r);
-      A.cams2 = orbit(16, tw * 1.1, y - 40, [1.2, .3, .25], 10, r);
+      const my = cy0 + 14, MH = 150, steel = [.07, .07, .08];
+      prop('lattice', x, my + MH / 2, z, 8, MH, 8, steel);
+      for (const [hy, rr, k] of [[28, 30, .45], [62, 22, .4], [96, 15, .35]]) {
+        put(GLOWS.ring, x, my + hy, z, rr, .5, rr, 0, 0, dim(WHITE, k));
+        for (let q = 0; q < 4; q++) {
+          const an = q / 4 * Math.PI * 2 + hy * .05, dx = Math.sin(an), dz = Math.cos(an);
+          prop('dish', x + dx * 5.5, my + hy - 2, z + dz * 5.5, 5, 5, 5, [.2, .2, .22], an, -1.2);
+        }
+      }
+      put(GLOWS.ring, x, my + 45, z, tw * 2.2, 1, tw * 2.2, 0, 0, dim(GOLD, .9));
+      put(GLOWS.ring, x, my + 47, z, tw * 2.05, .6, tw * 2.05, 0, 0, dim(GOLD, .45));
+      for (let k = 0; k < 5; k++) beacon(x, my + 20 + k * 30, z, r);
+      put(GLOWS.sphere, x, my + MH + 1, z, 3, 3, 3, 0, 0, [2, .15, .12]);
+      for (let k = 0; k < 4; k++) {
+        const an = k / 4 * Math.PI * 2 + .4, b0 = [x, my + MH - 12, z], b1 = [x + Math.sin(an) * 420, my + MH - 60, z + Math.cos(an) * 420];
+        H.laser(b0, b1, .4, k % 2 ? dim(GOLD, .32) : dim(CYAN, .3), { sweep: [.5, .04, .18, k * 1.7] });
+      }
+
+      // Camdrone rings circle the upper bands.
+
+      A.cams = orbit(24, tw * .85, top + 30, [1.6, 1.5, 1.2], 14, r);
+      A.cams2 = orbit(16, tw * 1.1, top - 20, [1.2, .3, .25], 10, r);
     }, update(t) {
       if (A.cams) A.cams.rotation.y = t * .12;
       if (A.cams2) A.cams2.rotation.y = -t * .08;
+      if (A.media) { A.media[0].offset.y = (t * .015) % 1; A.media[1].offset.y = (-t * .05) % 1; }
     } },
 
     // Central Plaza: a broad raised deck on columns with a soft white floor. One grand stair climbs the front (+z)

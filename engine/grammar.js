@@ -2,7 +2,7 @@
 
 import * as THREE from 'three';
 import { S, H } from './state.js';
-import { AXIS_HI, AXIS_LO, BLOCK, lerp } from './core.js';
+import { AXIS_HI, AXIS_LO, BLOCK, STYLES, lerp } from './core.js';
 import { SETTING } from './setting.js';
 import { U, scene } from './render.js';
 import { B_FS, B_VS, FACES, GLOWS, SKINS, beacon, bld, glow, glows, grey, helipad, holo, neon, prop, put, roof, sign } from './instances.js';
@@ -339,6 +339,10 @@ export function buildTall(x, z, W, D, H, st, r, mega) {
   TALLY[kind] = (TALLY[kind] ?? 0) + 1;
   if (kind === 'grammar') grammarTower(x, z, W, D, H, st, r, mega);
   else ARCHETYPES[kind](x, z, W, D, H, st, r);
+
+  // A pack style may dress every tall tower in its district with a tallTrim(x, z, W, D, H) after the build.
+
+  STYLES[st.mix?.[0]?.[0]]?.tallTrim?.(x, z, W, D, H);
 }
 
 // ---------- kits ----------

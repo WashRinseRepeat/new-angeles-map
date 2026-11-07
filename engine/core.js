@@ -32,7 +32,12 @@ export const CITY = await (async () => {
   }
   performance.mark('na:city-dl');
   loadMsg('Loading districts');
-  return JSON.parse(new TextDecoder().decode(await new Blob(parts).arrayBuffer()));
+  const city = JSON.parse(new TextDecoder().decode(await new Blob(parts).arrayBuffer()));
+
+  // A pack may adjust the loaded city before anything reads it, for example to run a street on into a tunnel.
+
+  SETTING.editCity?.(city);
+  return city;
 })();
 performance.mark('na:city-parsed');
 if (innerWidth < 600) document.getElementById('hud').open = false;

@@ -3,6 +3,7 @@
 // Lot kits read H.frame() and fall back to an s × s square. Kits swap by sub-area (see SWAP).
 
 import { trees } from './nature.js';
+import { ISLE } from '../isle.js';
 
 // Dials for the showcase, which passes a plain mixStyle without a district palette.
 
@@ -263,6 +264,10 @@ export function kits(H) {
       lanterns(x, z, w, d, n, h1 - 1, Math.min(5, 2 + Math.floor(sp / 6)), r() < .6 ? LANTERN : PAPER);
       board(pick(r, r() < .6 ? WORDS : BOARDS), x, z, w, d, n, (r() - .5) * sp * .3, h1 - 2.3, Math.min(8, sp * .5), dim(pick(r, [GOLD, RED, PAPER]), .8));
       pool(...fp(x, z, w, d, n, 0, 3), 6, [.12, .07, .04]);
+      if (areaOf(x, z) === 'Tourist Quarter') for (const u of [-.35, .35]) {
+        const [ax, az] = fp(x, z, w, d, n, u * sp, .5), [bx, bz] = fp(x, z, w, d, n, u * sp * .4, 13);
+        stringLights([ax, h1 - .6, az], [bx, h1 + 1.5, bz], .8, 6, dim(r() < .7 ? LANTERN : RED, 1.1));
+      }
       if (r() < .45) mascot(x + (r() - .5) * w * .3, top + 2, z + (r() - .5) * d * .3, 5 + r() * 4, r);
       if (W - w > 5) niwaki(x + Math.sign(r() - .5) * (W / 2 - 1.5), z + (r() - .5) * d * .6, 3 + r() * 2, r);
     },
@@ -283,7 +288,7 @@ export function kits(H) {
       for (let k = 0; k < tiers; k++) {
         bld(x, z, cw, cd, seg - .5, st, r, { y0: y, roof: false, skin });
         y += seg;
-        eave(x, y - .4, z, cw, cd, 1.1 + cw * .05, .38, rgb);
+        eave(x, y - .4, z, cw, cd, 1.1 + cw * .05, .75, rgb);
         cw *= .94; cd *= .94;
       }
       hip(x, y - .2, z, cw * 1.12, cd * 1.12, Math.min(cw, cd) * .32, st, r);
@@ -316,7 +321,7 @@ export function kits(H) {
         const nn = along ? [0, side] : [side, 0], u = (r() - .5) * span(w, d, nn) * .6;
         const [px, pz] = fp(x, z, w, d, nn, u, .4);
         slabOn(px, h * .45, pz, nn, 2.5, h * .85, .8, [.02, .05, .028]);
-        glow(px, 1, pz, .6, .6, .6, dim(JADE, .3));
+        lightOn(...fp(x, z, w, d, nn, u, .85).flatMap((v, i) => i ? [h * .45, v] : [v]), nn, 1, h * .85, .1, dim(JADE, .6));
       }
 
       // Roof garden: hedge, niwaki, a lit pergola.
@@ -346,7 +351,7 @@ export function kits(H) {
         for (const nn of [[1, 0], [0, 1]].map(v => r() < .5 ? v : v.map(c => -c))) {
           const [px, pz] = fp(x, z, w, d, nn, (r() - .5) * span(w, d, nn) * .4, .45);
           slabOn(px, y + th / 2, pz, nn, span(w, d, nn) * .25, th * .9, .9, [.02, .055, .03]);
-          glow(px, y + th * .5, pz, nn[0] ? 1.1 : 1, th * .9, nn[0] ? 1 : 1.1, [.012, .05, .03]);
+          glow(px, y + th * .5, pz, nn[0] ? 1.1 : 1, th * .9, nn[0] ? 1 : 1.1, dim(JADE, .5));
         }
         y += th;
         const nw = w * .76, nd = d * .76;
@@ -354,8 +359,10 @@ export function kits(H) {
         // Terrace: planter rim, trees and a faint jade edge.
 
         prop('box', x, y + .3, z, w - .5, .6, d - .5, MOSS);
-        glow(x, y + .7, z + d / 2 - .4, w - 1, .15, .15, dim(JADE, .3));
-        glow(x, y + .7, z - d / 2 + .4, w - 1, .15, .15, dim(JADE, .3));
+        glow(x, y + .7, z + d / 2 - .4, w - 1, .2, .2, dim(JADE, .8));
+        glow(x, y + .7, z - d / 2 + .4, w - 1, .2, .2, dim(JADE, .8));
+        glow(x + w / 2 - .4, y + .7, z, .2, .2, d - 1, dim(JADE, .8));
+        glow(x - w / 2 + .4, y + .7, z, .2, .2, d - 1, dim(JADE, .8));
         if (t < 2) for (let k = 0; k < 4; k++) {
           const a = k * Math.PI / 2 + r() * .6, rx = (w + nw) / 4, rz = (d + nd) / 4;
           niwaki(x + Math.cos(a) * rx, z + Math.sin(a) * rz, 3 + r() * 3, r, y + .6);
@@ -366,7 +373,8 @@ export function kits(H) {
       // Roof grove and crown.
 
       for (let k = 0; k < 4; k++) (r() < .5 ? niwaki : sakura)(x + (r() - .5) * w * .6, z + (r() - .5) * d * .6, 4 + r() * 3, r, y + .6);
-      put(GLOWS.ring, x, y + 2, z, Math.min(w, d) * 1.05, 1, Math.min(w, d) * 1.05, 0, 0, dim(JADE, .7));
+      put(GLOWS.ring, x, y + 2, z, Math.min(w, d) * 1.05, 1, Math.min(w, d) * 1.05, 0, 0, dim(JADE, 1.1));
+      put(GLOWS.ring, x, y + 5, z, Math.min(w, d) * .8, 1, Math.min(w, d) * .8, 0, 0, dim(RED, .8));
       prop('cyl', x, y + 10, z, .5, 18, .5, [.1, .12, .1]);
       beacon(x, y + 19.5, z, r);
       if (r() < .5) holo(x, z, w, d, y - 12, r, faceIdx(frontN()), 14);
@@ -402,13 +410,21 @@ export function kits(H) {
 
       stadium(0, h, 1, cs, SKINS.fins);
       const bands = 2 + Math.floor(h / 55);
-      for (let k = 1; k <= bands; k++) plate(h * k / (bands + 1), 1, .9, GOLD, .32);
+      for (let k = 1; k <= bands; k++) plate(h * k / (bands + 1), 1, .9, GOLD, .7);
+
+      // Hanging-garden walls climb both long faces, lit jade from within.
+
+      for (const s2 of [-1, 1]) for (const u of [-.3, .3]) {
+        const nn = along ? [0, s2] : [s2, 0], [gx, gz] = fp(x, z, w, d, nn, u * core, .5);
+        slabOn(gx, h * .45, gz, nn, 3, h * .86, .8, [.02, .05, .03]);
+        lightOn(...fp(x, z, w, d, nn, u * core, .95).flatMap((v, i) => i ? [h * .45, v] : [v]), nn, 1, h * .86, .1, dim(JADE, .75));
+      }
 
       // Lit sky lobby, then a stepped crown: a wide plate, a short setback tier, a second plate and a low roof.
 
       const yb = h * (.55 + .1 * r());
       stadium(yb, 3.6, 1.03, { ...cs, lit: .55 }, SKINS.bands);
-      plate(h + .2, 1, 2.4, RED, .5);
+      plate(h + .2, 1, 2.4, RED, 1.1);
       stadium(h + .4, 6, .78, { ...cs, lit: .35 }, SKINS.bands);
       plate(h + 6.6, .78, 1.8, GOLD, .45);
       prop('box', x, h + 7.6, z, along ? core : T * .6, 1.6, along ? T * .6 : core, [.05, .055, .06]);
@@ -607,6 +623,31 @@ export function kits(H) {
     K[sw ? (Array.isArray(sw) ? pick(r, sw) : sw) : name](x, z, s, st, b, r);
   };
   H.nihKits = K;
+
+  // Nihongai dresses the engine's tall towers too: tile eave plates with gold light beneath and a jade garden
+  // wall up two faces. It draws from its own seed, so the city's layout stays the same.
+
+  const NS = H.SETTING.styles.styles.nihongai;
+  if (NS) NS.tallTrim = (x, z, W, D, Ht) => {
+    const q = H.rng(H.hash(Math.round(x * 3) + 11, Math.round(z * 3) + 5)), top = Ht * .55;
+    if (Ht < 40) return;
+    const rgb = q() < .75 ? GOLD : RED, k = 2 + Math.floor(top / 45);
+    for (let i = 1; i <= k; i++) eave(x, top * i / k, z, W, D, 1, 1.3, rgb);
+    const along = W >= D;
+    for (const s2 of [-1, 1]) {
+      const nn = along ? [0, s2] : [s2, 0], u = (q() - .5) * span(W, D, nn) * .4;
+      const [gx, gz] = fp(x, z, W, D, nn, u, .5);
+      slabOn(gx, top / 2 + 3, gz, nn, 3, top - 6, .8, [.02, .05, .03]);
+      lightOn(...fp(x, z, W, D, nn, u, .95).flatMap((v, i) => i ? [top / 2 + 3, v] : [v]), nn, 1.4, top - 6, .1, dim(JADE, .75));
+    }
+
+    // A tall kanji blade on a short face, the district's signature from across the city.
+
+    if (q() < .65) {
+      const nn = along ? [q() < .5 ? 1 : -1, 0] : [0, q() < .5 ? 1 : -1], c = 2.6 + q() * 1.6;
+      vsign(pick(q, WORDS), x, z, W, D, nn, (q() - .5) * span(W, D, nn) * .5, 10 + q() * top * .5, c, pick(q, [RED, RED, GOLD, SAKURA]));
+    }
+  };
   H.nihParts = { pad, niwaki, sakura, toro, torii, eave, hip, pagoda, lanterns, board, vsign, forest, fp, slabOn, lightOn, mascot };
   return out;
 }
@@ -804,81 +845,253 @@ export function landmarks(H) {
   const EQ = { K: 10, mesh: null, lit: new Int8Array(24), on: new THREE.Color(), off: new THREE.Color(.03, .05, .04) };
 
   return {
-    // Jinteki HQ: a long low loaf with smooth sides, rounded top and lit floor lines, in a walled garden
-    // with two campus halls, a red logo ring and the drone ring that marks the campus airspace.
+    // Jinteki HQ, the Garden Ark: a terraced garden platform grown out from the shore into the sea. The long low
+    // loaf lies along the top terrace, and a helix spire rises at its west end.
+    // The land block keeps two campus halls behind a vine wall. Lanterns line the Nihongai shore.
 
-    jintekiHQ: { at: [318, 632], label: 'Jinteki HQ', minSide: 90, reach: 700, labelY: 200, build(x, z, w, d, st, r) {
+    jintekiHQ: { at: [318, 632], label: 'Jinteki HQ', minSide: 90, reach: 700, labelY: 560, build(x, z, w, d, st, r) {
       st = nst(st, x, z);
-      const p = P(), along = w >= d, Lw = Math.max(w, d), Sw = Math.min(w, d);
-      const len = Lw * .78, wid = Math.min(46, Sw * .42), hgt = 30;
-      prop('box', x, .08, z, w, .16, d, [.03, .045, .032]);
+      const p = P(), F = H.frame();
+      const toW = (lx, lz) => [F.tx + lx * F.c + lz * F.s, F.tz - lx * F.s + lz * F.c];
+      const toL = (wx, wz) => { const dx = wx - F.tx, dz = wz - F.tz; return [dx * F.c - dz * F.s, dx * F.s + dz * F.c]; };
 
-      // Loaf: a capsule lying on its side, half buried, with floor lines from an emissive map.
+      // Ark frame: t runs along the coast, n points out to sea. The group's local x is t and its local z is n.
 
-      const tex = H.canvasTexture(1024, 256, (g, cw, ch) => {
+      const [ox, oz] = toL(...ISLE.at), { L, B } = ISLE;
+      const t = [ISLE.t[0] * F.c - ISLE.t[1] * F.s, ISLE.t[0] * F.s + ISLE.t[1] * F.c], n = [-t[1], t[0]], RY = Math.atan2(-t[1], t[0]);
+      const A = (a, b) => [ox + t[0] * a + n[0] * b, oz + t[1] * a + n[1] * b];
+
+      // The joined street meets the island at a = aR (isle.js). Rim posts, walls and trees keep off it.
+
+      const aR = ISLE.road?.[0] ?? 0, onRoad = (a, b, m = 0) => !!ISLE.road && Math.abs(a - aR) < 8 + m && b < -B * .3;
+      const ark = new THREE.Group();
+      ark.position.set(ox, 0, oz); ark.rotation.y = RY;
+      H.decor.add(ark);
+      const add = (geo, mat, a = 0, y = 0, b = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(a, y, b); ark.add(m); return m; };
+      const aglow = (a, y, b, sa, sy, sb, rgb) => glow(...A(a, b).flatMap((v, i) => i ? [y, v] : [v]), sa, sy, sb, rgb, RY);
+      const abeam = (a0, y0, b0, a1, y1, b1, th, rgb) => { const [x0, z0] = A(a0, b0), [x1, z1] = A(a1, b1); H.beam([x0, y0, z0], [x1, y1, z1], th, rgb, 'glow'); };
+
+      // Terraces: three superellipse tiers, a seawall in the surf and two garden steps. Each rim carries a lit line.
+
+      const rim = (la, lb, k, q = 64) => Array.from({ length: q }, (_, i) => {
+        const th = i / q * Math.PI * 2, c = Math.cos(th), s = Math.sin(th);
+        return [la / 2 * Math.sign(c) * Math.abs(c) ** (2 / k), lb / 2 * Math.sign(s) * Math.abs(s) ** (2 / k)];
+      });
+      const top = new THREE.MeshStandardMaterial({ color: new THREE.Color(.03, .05, .032), roughness: .95 });
+      // Terrace walls carry lab windows: one lit strip per storey, a few dark gaps, in world-metre UVs.
+
+      const labs = H.canvasTexture(512, 64, (g, cw, ch) => {
         g.fillStyle = '#000'; g.fillRect(0, 0, cw, ch);
         for (let i = 0; i < 64; i++) {
-          const u = i / 64 * cw;
-          for (let j = 0; j < 8; j++) {
-            const v = H.rng(H.hash(i, j))();
-            if (v < .45) continue;
-            g.fillStyle = `rgba(255,${200 + Math.floor(v * 40)},${140 + Math.floor(v * 60)},${.35 + .5 * v})`;
-            g.fillRect(u, j * ch / 8 + 2, 5, ch / 8 - 4);
-          }
+          const v = H.rng(H.hash(i, 7))();
+          if (v < .3) continue;
+          g.fillStyle = `rgba(255,${200 + Math.floor(v * 40)},${150 + Math.floor(v * 60)},${.35 + .5 * v})`;
+          g.fillRect(i * 8 + 1, 26, 6, 14);
         }
       });
-      const geo = new THREE.CapsuleGeometry(1, 2, 12, 48).rotateZ(Math.PI / 2).scale(len / 4, hgt, wid / 2);
-      if (!along) geo.rotateY(Math.PI / 2);
-      mesh(geo, new THREE.MeshStandardMaterial({ color: 0x1b2624, metalness: .55, roughness: .32, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 1.3 }))
-        .position.set(x, 0, z);
+      labs.wrapS = labs.wrapT = THREE.RepeatWrapping; labs.repeat.set(1 / 64, 1 / 6);
+      const wall = new THREE.MeshStandardMaterial({ color: new THREE.Color(.1, .105, .1), roughness: .6, metalness: .2, emissive: 0xffffff, emissiveMap: labs, emissiveIntensity: .9 });
+      const TIERS = [[L, B, 0, -8, 5], [L * .8, B * .7, -B * .07, 5, 11], [L * .62, B * .46, -B * .1, 11, 17]];
+      const rims = TIERS.map(([la, lb, b0, y0, y1], k) => {
+        const pts = rim(la, lb, 4.5), shp = new THREE.Shape(pts.map(([a, b]) => new THREE.Vector2(a, -(b + b0))));
+        const geo = new THREE.ExtrudeGeometry(shp, { depth: y1 - y0, bevelEnabled: false, curveSegments: 1 }).rotateX(-Math.PI / 2);
+        add(geo, [top, wall], 0, y0);
+        pts.forEach(([a, b], i) => {
+          const [a2, b2] = pts[(i + 1) % pts.length];
+          abeam(a, y1 + .15, b + b0, a2, y1 + .15, b2 + b0, .25, k === 2 ? dim(RED, .7) : dim(PAPER, .45));
+          if (k === 0) {
+            abeam(a, .5, b + b0, a2, .5, b2 + b0, .5, [.12, .3, .34]);
+            if (i % 2 === 0 && !onRoad(a, b)) { prop('cyl', ...A(a * .985, b * .985 + b0).flatMap((v, j) => j ? [y1 + 3, v] : [v]), .3, 6, .3, [.08, .08, .09]); aglow(a * .985, y1 + 6.2, b * .985 + b0, .4, .4, .4, [1.3, .08, .06]); }
+          }
+        });
+        return { pts, b0, y: y1 };
+      });
 
-      // Logo crown: red ring and name on both ends, each reading outward.
+      // Vine wall on the seawall rim, broken by a water stair on the seaward side.
 
-      put(GLOWS.ring, x, hgt + .6, z, 26, 1, 26, 0, 0, RED);
-      put(GLOWS.ring, x, hgt + .4, z, 18, 1, 18, 0, 0, dim(RED, .6));
-      for (const e of [-1, 1]) {
-        const ex = along ? x + e * (len / 2 + 1.5) : x, ez = along ? z : z + e * (len / 2 + 1.5);
-        textSign('JINTEKI', ex, hgt * .55, ez, 22, 5.5, along ? e * Math.PI / 2 : e > 0 ? 0 : Math.PI, dim(RED, 1.2));
-        pool(ex, ez, 14, [.12, .03, .03]);
+      rims[0].pts.forEach(([a, b], i) => {
+        const [a2, b2] = rims[0].pts[(i + 1) % rims[0].pts.length];
+        if ((Math.abs(a) < 30 && b > 0) || onRoad(a, b, 4)) return;
+        const [x0, z0] = A(a * .99, b * .99), [x1, z1] = A(a2 * .99, b2 * .99);
+        H.beam([x0, 6.5, z0], [x1, 6.5, z1], 3, [.022, .05, .028]);
+      });
+      for (let k = 0; k < 6; k++) { const yy = 5 - k * .9; abeam(-24, yy, B / 2 + k * 1.8, 24, yy, B / 2 + k * 1.8, .25, dim(PAPER, .5)); }
+
+      // Gardens: niwaki, sakura and stone lanterns on each terrace ring, koi lakes on the middle step.
+
+      const between = (o, i, k) => {
+        const [a0, b0] = o.pts[k % o.pts.length], [a1, b1] = i.pts[k % i.pts.length], f = .15 + r() * .7;
+        return [a0 + (a1 - a0) * f, b0 + o.b0 + (b1 + i.b0 - b0 - o.b0) * f];
+      };
+      for (const [o, i, cnt] of [[rims[0], rims[1], 200], [rims[1], rims[2], 150]]) for (let k = 0; k < cnt; k++) {
+        const [a, b] = between(o, i, Math.floor(r() * 64)), [px, pz] = A(a, b), y = o.y + .1, q = r();
+        if (onRoad(a, b, 3)) continue;
+        q < .3 ? p.niwaki(px, pz, 4 + r() * 4, r, y) : q < .55 ? p.sakura(px, pz, 6 + r() * 4, r, y)
+          : q < .85 ? p.forest('broad', px, pz, 9 + r() * 7, r, [.02, .06, .035], y) : p.toro(px, pz, y, .8);
       }
 
-      // Halls at two corners, gardens in the strips beside the loaf.
+      // A lit footpath loops round the middle of each terrace ring.
 
-      const side = (Sw - wid) / 2 - 3, n = along ? [0, 1] : [1, 0];
-      for (const e of [-1, 1]) {
-        const u = e * Lw * .3, v = e * (wid / 2 + side / 2 + 1.5);
-        const [hx, hz] = along ? [x + u, z + v] : [x + v, z + u];
-        if (side > 14) H.nihSub('nih_campusHall', hx, hz, along ? 34 : side, along ? side : 34, { x: e * n[0], z: e * n[1] }, st, 1.05, r);
-        for (let k = 0; k < 6; k++) {
-          const uu = -e * Lw * .1 + (r() - .5) * Lw * .5, vv = e * (wid / 2 + 3 + r() * Math.max(2, side - 4));
-          const [tx, tz] = along ? [x + uu, z + vv] : [x + vv, z + uu];
-          k % 3 ? p.niwaki(tx, tz, 3 + r() * 3, r) : p.toro(tx, tz, 0, .6);
+      for (const [o, i] of [[rims[0], rims[1]], [rims[1], rims[2]]]) for (let k = 0; k < 64; k++) {
+        const P0 = o.pts[k], P1 = o.pts[(k + 1) % 64], Q0 = i.pts[k], Q1 = i.pts[(k + 1) % 64], f = .5;
+        const m = (Pp, Qq) => [Pp[0] + (Qq[0] - Pp[0]) * f, Pp[1] + o.b0 + (Qq[1] + i.b0 - Pp[1] - o.b0) * f];
+        const [a1, b1] = m(P0, Q0), [a2, b2] = m(P1, Q1);
+        abeam(a1, o.y + .12, b1, a2, o.y + .12, b2, .5, k % 4 ? dim(PAPER, .22) : dim(PAPER, .5));
+      }
+      for (const s of [-1, 1]) {
+        const a = s * L * .3, b = rims[1].b0 + B * .25, [px, pz] = A(a, b);
+        prop('cyl', px, rims[1].y + .15, pz, 46, .2, 26, WATER, RY);
+        put(GLOWS.ring, px, rims[1].y + .3, pz, 47, 1, 27, RY, 0, dim(PAPER, .35));
+        for (let k = 0; k < 10; k++) aglow(a + (r() - .5) * 34, rims[1].y + .32, b + (r() - .5) * 16, .8, .08, .3, dim(r() < .7 ? [1, .4, .1] : PAPER, .6));
+        const [hx, hz] = A(a + s * 40, b - 16);
+        bld(hx, hz, 10, 8, 4, { ...st, lit: .5 }, r, { y0: rims[1].y, roof: false, skin: SKINS.bands });
+        p.eave(hx, rims[1].y + 4.1, hz, 10, 8, 1.4, .5);
+      }
+
+      // Grow-houses: glass domes on the middle step, ribbed with jade light, a grove inside each.
+
+      const glass = new THREE.MeshStandardMaterial({ color: new THREE.Color(.05, .09, .08), metalness: .6, roughness: .15, emissive: new THREE.Color(.02, .09, .06), transparent: true, opacity: .75 });
+      for (const [a, rd] of [[-L * .12, 24], [L * .05, 18], [L * .2, 14]]) {
+        const b = rims[1].b0 + B * .27 + (rd - 18), [px, pz] = A(a, b), y = rims[1].y;
+        add(new THREE.SphereGeometry(rd, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2), glass, a, y, b);
+        for (const f of [.15, .45, .72, .9]) { const rr = rd * Math.sqrt(1 - f * f) * 2.02; put(GLOWS.ring, px, y + rd * f, pz, rr, 1, rr, 0, 0, dim(JADE, .55)); }
+        for (let k = 0; k < 8; k++) { const an = k / 8 * 6.283; p.forest('broad', px + Math.cos(an) * rd * .45, pz + Math.sin(an) * rd * .45, rd * .4, r, [.03, .09, .05], y); }
+        put(GLOWS.sphere, px, y + rd + .5, pz, 2, 2, 2, 0, 0, dim(JADE, 1.2));
+      }
+
+      // Cascades: lit water falls over the terrace edges into the sea.
+
+      for (const th of [.12, .38, .62, .88]) {
+        const k = Math.floor(th * 64), [a1, b1] = rims[1].pts[k], [a0, b0] = rims[0].pts[k];
+        abeam(a1, rims[1].y, b1 + rims[1].b0, a1, rims[0].y, b1 + rims[1].b0, 2.2, [.3, .7, .8]);
+        abeam(a0, rims[0].y, b0, a0, .2, b0, 3, [.35, .8, .9]);
+        const [fx, fz] = A(a0 * 1.03, b0 * 1.03);
+        put(GLOWS.ring, fx, .3, fz, 16, 3, 16, 0, 0, [.25, .55, .6]);
+      }
+
+      // Tunnel portal: the street runs into a dark mouth in the seawall, under a flat concrete frame.
+
+      if (ISLE.road) {
+        const ryR = Math.atan2(n[0], n[1]), MW = 13, MH = 4.6, CON = [.15, .16, .18];
+        const bW = -B / 2 * (1 - Math.abs(2 * aR / L) ** 4.5) ** (1 / 4.5), at = o => A(aR, bW - o);
+        prop('box', ...at(.3).flatMap((v, i) => i ? [MH / 2, v] : [v]), MW, MH, .6, [.004, .004, .006], ryR);
+        for (const s2 of [-1, 1]) { const [jx, jz] = A(aR + s2 * (MW / 2 + .6), bW - .6); prop('box', jx, (MH + .6) / 2, jz, 1.2, MH + .6, 1.2, CON, ryR); }
+        prop('box', ...at(.6).flatMap((v, i) => i ? [MH + .3, v] : [v]), MW + 2.4, .6, 1.2, CON, ryR);
+        glow(...at(1.25).flatMap((v, i) => i ? [MH - .1, v] : [v]), MW - 1, .12, .1, dim(RED, .9), ryR);
+        glow(...at(.05).flatMap((v, i) => i ? [MH - .5, v] : [v]), MW - 2, .1, .3, dim(PAPER, .6), ryR);
+      }
+
+      // The loaf: a 220 m seed pod half sunk in the top terrace, with warm floor lines, red ribs and a red spine.
+
+      const yT = rims[2].y, bT = rims[2].b0, la = 196, lw = 60, lh = 48, a0 = 50;
+      const tex = H.canvasTexture(1024, 256, (g, cw, ch) => {
+        g.fillStyle = '#000'; g.fillRect(0, 0, cw, ch);
+        for (let i = 0; i < 128; i++) for (let j = 0; j < 12; j++) {
+          const v = H.rng(H.hash(i, j))();
+          if (v < .4) continue;
+          g.fillStyle = `rgba(255,${190 + Math.floor(v * 50)},${130 + Math.floor(v * 70)},${.3 + .55 * v})`;
+          g.fillRect(i / 128 * cw, j * ch / 12 + 2, 4, ch / 12 - 4);
         }
-        const [px, pz] = along ? [x - u * .9, z + v] : [x + v, z - u * .9];
-        prop('cyl', px, .2, pz, Math.min(30, Lw * .3), .2, Math.max(6, side * .7), WATER);
+      });
+      add(new THREE.CapsuleGeometry(1, 2, 12, 48).rotateZ(Math.PI / 2).scale(la / 4, lh, lw / 2),
+        new THREE.MeshStandardMaterial({ color: 0x1b2624, metalness: .55, roughness: .32, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 1.3 }), a0, yT, bT);
+      for (let a = -la / 4; a <= la / 4; a += 13.75) {
+        const [px, pz] = A(a0 + a, bT);
+        put(GLOWS.ring, px, yT, pz, lw * 1.01, 1, lh * 2.02, RY + Math.PI / 2, Math.PI / 2, dim(RED, .55));
+      }
+      abeam(a0 - la / 4, yT + lh + .4, bT, a0 + la / 4, yT + lh + .4, bT, .9, dim(RED, 1.2));
+      for (const e of [-1, 1]) {
+        const [ex, ez] = A(a0 + e * (la / 2 + 1.5), bT);
+        textSign('JINTEKI', ex, yT + lh * .45, ez, 30, 7.5, Math.atan2(e * t[0], e * t[1]), dim(RED, 1.3));
+      }
+      for (let k = -3; k <= 4; k++) for (const s of [-1, 1]) {
+        const [px, pz] = A(a0 + k * 26, bT + s * (lw / 2 + 8));
+        k % 2 ? p.toro(px, pz, yT, .8) : p.niwaki(px, pz, 4 + r() * 2, r, yT);
       }
 
-      // Vine wall with sensor posts.
+      // Helix spire: two dark slab towers twist round an empty axis, joined by sky bridges. Red light runs up
+      // the outer edges of each slab, so two red spirals trace the twist.
 
-      for (const [nx, nz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        const L = nx ? d : w, cx = x + nx * (w / 2 - .6), cz = z + nz * (d / 2 - .6);
-        prop('box', cx, 2.5, cz, nx ? 1.2 : L, 5, nx ? L : 1.2, [.022, .045, .026]);
-        for (let u = -L / 2 + 5; u < L / 2; u += 20) { const px = cx - nz * u, pz = cz + nx * u; glow(px, 6, pz, .4, .4, .4, [1.3, .08, .06]); }
+      const ha = -L * .62 / 2 + 40, HH = 480, y0 = yT + 10, [hx, hz] = A(ha, bT);
+      bld(hx, hz, 96, 96, 10, { ...st, base: [.06, .06, .065], lit: .25 }, r, { y0: yT, shape: 'cyl', roof: false, skin: SKINS.bands });
+      put(GLOWS.ring, hx, yT + 10.3, hz, 98, 1, 98, 0, 0, dim(RED, .9));
+      const dark = { ...st, base: [.045, .045, .05], win: [1, .55, .45], lit: .14, grime: 0 };
+      const NS = 40, SH = HH / NS, turns = 1.15;
+      const slab = (f, ph) => {
+        const an = ph + f * turns * Math.PI * 2, R = 36 - 14 * f, ca = Math.cos(an), sa = Math.sin(an);
+        const tl = [t[0] * -sa + n[0] * ca, t[1] * -sa + n[1] * ca];
+        return { a: ha + ca * R, b: bT + sa * R, ca, sa, W: 40 - 16 * f, D: 10 - 3 * f, ry: Math.atan2(-tl[1], tl[0]), tl };
+      };
+      for (const ph of [0, Math.PI]) for (let k = 0; k < NS; k++) {
+        const f = k / NS, g = slab(f, ph), [sx, sz] = A(g.a, g.b), yy = y0 + k * SH;
+        bld(sx, sz, g.W, g.D, SH - .5, dark, r, { y0: yy, roof: false, skin: k % 5 === 4 ? SKINS.bands : SKINS.fins, ry: g.ry });
+        for (const e of [-1, 1]) glow(sx + g.tl[0] * e * g.W / 2, yy + SH / 2, sz + g.tl[1] * e * g.W / 2, .7, SH + .1, .7, dim(RED, 1.25));
+        if (k % 4 === 0) glow(sx, yy + SH - .3, sz, g.W + .4, .25, g.D + .4, dim(RED, .5), g.ry);
       }
 
-      // Airspace ring: a faint red torus 180 m up with drone lights on it.
+      // Sky bridges cross the empty axis every few storeys, each with a red strip beneath.
+
+      for (let k = 2; k < NS; k += 3) {
+        const f = (k + .5) / NS, p1 = slab(f, 0), p2 = slab(f, Math.PI), yy = y0 + (k + .5) * SH;
+        const [x1, z1] = A(p1.a, p1.b), [x2, z2] = A(p2.a, p2.b);
+        H.beam([x1, yy, z1], [x2, yy, z2], 4.5, [.05, .05, .055]);
+        H.beam([x1, yy - 2.4, z1], [x2, yy - 2.4, z2], .4, dim(RED, k % 2 ? .9 : .5), 'glow');
+
+        // Hallway windows: a warm row on both sides, one pane every 3 m.
+
+        const bl = Math.hypot(x2 - x1, z2 - z1), ux = (x2 - x1) / bl, uz = (z2 - z1) / bl, ry = Math.atan2(ux, uz);
+        for (let u = 3; u < bl - 2; u += 3) for (const s of [-1, 1]) {
+          glow(x1 + ux * u + uz * s * 2.32, yy + .3, z1 + uz * u - ux * s * 2.32, .12, 1.4, 2, dim(PAPER, .75), ry);
+        }
+      }
+
+      // Crown: a last bridge carries the name, a red halo floats above, a mast and a beacon.
+
+      const yc = y0 + HH, q1 = slab(1, 0), q2 = slab(1, Math.PI), [c1x, c1z] = A(q1.a, q1.b), [c2x, c2z] = A(q2.a, q2.b);
+      H.beam([c1x, yc + 4, c1z], [c2x, yc + 4, c2z], 8, [.05, .05, .055]);
+      const bl = Math.hypot(c2x - c1x, c2z - c1z), bx = (c1x + c2x) / 2, bz = (c1z + c2z) / 2, bd = [(c2z - c1z) / bl, -(c2x - c1x) / bl];
+      for (const s of [-1, 1]) textSign('JINTEKI', bx + bd[0] * s * 4.3, yc + 4, bz + bd[1] * s * 4.3, 26, 6, Math.atan2(bd[0] * s, bd[1] * s), dim(RED, 1.4));
+      put(GLOWS.ring, hx, yc + 20, hz, 64, 1, 64, 0, 0, dim(RED, 1.1));
+      put(GLOWS.ring, hx, yc + 34, hz, 40, 1, 40, 0, 0, dim(RED, .6));
+      prop('cyl', bx, yc + 8 + 30, bz, .8, 60, .8, [.12, .12, .13]);
+      put(GLOWS.sphere, bx, yc + 70, bz, 3.5, 3.5, 3.5, 0, 0, [2, .15, .15]);
+      beacon(bx, yc + 64, bz, r);
+
+      // Land block: two campus halls behind a vine wall, with a garden between them.
+
+      prop('box', 0, .08, 0, w, .16, d, [.03, .045, .032]);
+      const frt = H.frame()?.front ?? { x: 0, z: 1 };
+      for (const e of [-1, 1]) H.nihSub('nih_campusHall', e * w * .26, 0, w * .44, d * .62, frt, st, 1.05, r);
+      for (let k = 0; k < 8; k++) { const px = (r() - .5) * w * .2, pz = (r() - .5) * d * .8; k % 3 ? p.niwaki(px, pz, 3 + r() * 3, r) : p.toro(px, pz, 0, .6); }
+
+      // Lantern promenade along the Nihongai shore, clear of the platform.
+
+      for (const line of H.CITY.coast ?? []) for (let i = 0; i + 1 < line.length; i++) {
+        const [ax, az] = line[i], [bx, bz] = line[i + 1], sl = Math.hypot(bx - ax, bz - az);
+        for (let u = 0; u < sl; u += 16) {
+          const wx = ax + (bx - ax) * u / sl, wz = az + (bz - az) * u / sl;
+          if (Math.hypot(wx - F.tx, wz - F.tz) > 1500 || !H.nihArea(wx, wz)) continue;
+          const [lx, lz] = toL(wx, wz), da = (lx - ox) * t[0] + (lz - oz) * t[1], db = (lx - ox) * n[0] + (lz - oz) * n[1];
+          if ((Math.abs(da) < L / 2 + 6 && Math.abs(db) < B / 2 + 6) || (ISLE.road && Math.abs(da - aR) < 10 && db < 0 && db > -B / 2 - 40)) continue;
+          prop('cyl', lx, 2, lz, .25, 4, .25, [.1, .06, .04]);
+          put(GLOWS.sphere, lx, 4.3, lz, .9, 1.2, .9, 0, 0, dim(LANTERN, 1.1));
+          pool(lx, lz, 6, [.14, .06, .02]);
+        }
+      }
+
+      // Airspace ring: a faint red line 180 m up with drone lights on it.
 
       const ringR = 420, rh = 180;
       mesh(new THREE.TorusGeometry(ringR, .35, 4, 200).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: new THREE.Color(.6, .05, .06), transparent: true, opacity: .4, depthWrite: false }))
-        .position.set(x, rh, z);
+        .position.set(ox, rh, oz);
       for (let k = 0; k < 16; k++) {
         const a = k / 16 * Math.PI * 2;
-        put(GLOWS.sphere, x + Math.cos(a) * ringR, rh, z + Math.sin(a) * ringR, 2.4, 1.2, 2.4, 0, 0, [1.6, .1, .08]);
+        put(GLOWS.sphere, ox + Math.cos(a) * ringR, rh, oz + Math.sin(a) * ringR, 2.4, 1.2, 2.4, 0, 0, [1.6, .1, .08]);
       }
 
-      // The camera looks at the +x or +z end, where a logo reads.
+      // The card camera looks from the sea at the loaf and the spire.
 
-      return { face: along ? [1, 0] : [0, 1] };
+      return { focus: A(-20, bT), span: 420, face: n };
     } },
 
     // Harmony General: a silvery ziggurat of nine tall storeys on a raised garden deck, with a lit split stair

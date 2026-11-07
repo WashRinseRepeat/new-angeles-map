@@ -22,7 +22,7 @@ export function build(H, group) {
     const land = landField(H, hm);
     ships = sea(H, land, SEA);
     hidden = eggs(H, land, SEA);
-    group.add(terrainMesh(H, land), seaMesh(H, hm), ...edgeLights(H, land), ...jungle(H, land), ...ships.meshes, ...hidden.meshes);
+    group.add(terrainMesh(H, land), seaMesh(H, hm), ...edgeLights(H, land, ships), ...jungle(H, land), ...ships.meshes, ...hidden.meshes);
     for (const m of cloudDecks(H, hm, land)) { CLOUD_SCENE.add(m); m.updateMatrixWorld(); }
     performance.mark('na:ground');
   });
@@ -374,7 +374,7 @@ function chunked(H, src, size) {
   });
 }
 
-function edgeLights(H, land) {
+function edgeLights(H, land, sea) {
   const { THREE } = H;
   const r = H.rng(H.hash(1871, 4405));
   const small = { p: [], c: [] }, big = { p: [], c: [] };
@@ -428,11 +428,17 @@ function edgeLights(H, land) {
   }
 
   // Offshore aquaculture: buoy grids on the shelf, with a few lit barges and freighters.
-  for (let tries = 0, farms = 0; tries < 3000 && farms < 40; tries++) {
+  for (let tries = 0, farms = 0; tries < 20000 && farms < 40; tries++) {
     const x = FRAME[0] + r() * (FRAME[2] - FRAME[0]), z = FRAME[1] + r() * (FRAME[3] - FRAME[1]), e = land.real(x, z);
     if (e > -20 || e < -400) continue;
-    farms++;
     const ry = r() * Math.PI, c = Math.cos(ry), s = Math.sin(ry), nx = 3 + Math.floor(r() * 6), nz = 3 + Math.floor(r() * 4);
+
+    // A grid claims the disc round itself and its barge in the sea's register, or it moves on.
+
+    const hx = (nx - 1) * 7, hz = (nz - 1) * 7, gx = x + hx * c - hz * s, gz = z + hx * s + hz * c, gr = Math.hypot(hx, hz) + 25;
+    if (sea && !sea.free(gx, gz, gr)) continue;
+    sea?.claim(gx, gz, gr);
+    farms++;
     for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) {
       const u = i * 14, w = j * 14, bx = x + u * c - w * s, bz = z + u * s + w * c;
       if (land.real(bx, bz) < -5) add(small, bx, bz, BUOY, .22);

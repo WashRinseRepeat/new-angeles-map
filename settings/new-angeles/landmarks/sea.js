@@ -3,6 +3,7 @@
 // Coast Guard cutters work the water between. Every ship type is one instanced hull and one instanced light set.
 
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { ISLE } from '../isle.js';
 
 const WARM = [1.4, .9, .45], WHITE = [1.6, 1.6, 1.5], RED = [1.8, .12, .08], GREEN = [.15, 1.6, .3], CYAN = [.3, 1.3, 1.6];
 const SODIUM = [1.6, .8, .3], BLUE = [.25, .5, 1.8];
@@ -15,9 +16,10 @@ export function sea(H, land, SEA) {
   const wet = (x, z, d = 0) => land.real(x, z) < -d && land.cityDist(x, z) > 0;
 
   // Places the sea keeps clear: the cruise ship's bay, Puerto Maritimo and the prison, Undertow, White Beach's
-  // filter ring, and the Pisces ranch with Mama Qucha.
+  // filter ring, the Pisces ranch with Mama Qucha, and Jinteki's island.
 
-  const CLEAR = [[-1044, -630, 520], [-2050, 250, 520], [-1300, 1836, 350], [-1050, 2390, 420], [-850, 3650, 900]];
+  const CLEAR = [[-1044, -630, 520], [-2050, 250, 520], [-1300, 1836, 350], [-1050, 2390, 420], [-850, 3650, 900],
+    [...ISLE.at, Math.hypot(ISLE.L, ISLE.B) / 2 + 40]];
   const clear = (x, z, m = 0) => CLEAR.every(([cx, cz, cr]) => Math.hypot(x - cx, z - cz) > cr + m);
 
   // Every ship's patch, farm and anchorage claims a disc of water. Nothing new may touch a claimed disc. Anchored
@@ -34,7 +36,7 @@ export function sea(H, land, SEA) {
   });
   const room = (x, z, rad, lane = rad) => clear(x, z, rad) && offTrack(x, z, rad) && laneGap(x, z) > lane + 150 && taken.every(([tx, tz, tr]) => Math.hypot(x - tx, z - tz) > rad + tr)
     && [[0, 0], [rad, 0], [-rad, 0], [0, rad], [0, -rad]].every(([a, b]) => wet(x + a, z + b, 5));
-  const claim = (x, z, rad) => { taken.push([x, z, rad]); return [x, z]; };
+  const claim = (x, z, rad, fixed = true) => { taken.push([x, z, rad, fixed]); return [x, z]; };
 
   // Spots off the coast are drawn by length along the shore, so densely traced stretches get no extra traffic.
 
@@ -207,15 +209,15 @@ export function sea(H, land, SEA) {
 
   // Trawlers, cruising yachts and cutters circle slowly over their own patch of water.
 
-  const pick = (lo, hi, rad, lane = rad) => {
+  const pick = (lo, hi, rad, lane = rad, fixed = true) => {
     for (let t = 0; t < 400; t++) {
       const [px, pz] = shoreAt(r()), d = lo + r() * (hi - lo), x = px + sx * d, z = pz + sz * d;
-      if (room(x, z, rad, lane)) return claim(x, z, rad);
+      if (room(x, z, rad, lane)) return claim(x, z, rad, fixed);
     }
     return null;
   };
   const circle = (kind, L, lo, hi, rad, speed) => {
-    const p = pick(lo, hi, rad + L, 0);
+    const p = pick(lo, hi, rad + L, 0, false);
     if (p) ships.push({ kind, c: p, rad, speed: speed / rad * (r() < .5 ? 1 : -1), ph: r() * 6.3, L });
   };
   for (let k = 0; k < 6; k++) circle('trawler', 36, 500, 2600, 120 + r() * 200, 2 + r() * 2);
@@ -313,7 +315,14 @@ export function sea(H, land, SEA) {
   };
   update(0);
 
-  return { meshes: [...Object.values(MESH).flat(), wakes, pools, ...farms(H, wet, room, claim, shoreAt, sx, sz, ux, uz, r, SEA, part, mergeGeometries)], update };
+  const meshes = [...Object.values(MESH).flat(), wakes, pools, ...farms(H, wet, room, claim, shoreAt, sx, sz, ux, uz, r, SEA, part, mergeGeometries)];
+
+  // Other modules place sea lights through free and claim, so they keep off the clear places, the maglev stilts
+  // and every fixed disc: farms and anchored ships. Moving ships may pass over them.
+
+  const free = (x, z, rad) => clear(x, z, rad) && offTrack(x, z, rad)
+    && taken.every(([tx, tz, tr, fixed]) => !fixed || Math.hypot(x - tx, z - tz) > rad + tr);
+  return { meshes, update, free, claim };
 }
 
 // Fish pens: clusters of round net pens on floating rings, each with a feed barge. Kelp lines: rows of amber floats.

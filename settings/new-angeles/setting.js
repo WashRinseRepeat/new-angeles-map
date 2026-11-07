@@ -6,6 +6,7 @@ import { MAP } from './map.js';
 import { BDC, CORES, QUARTER_STYLES, RUT, STYLES } from './styles.js';
 import { stationKits } from './stations.js';
 import { LABELS, moves } from './moves.js';
+import { joinIsle } from './isle.js';
 
 export default {
   id: 'new-angeles',
@@ -15,6 +16,10 @@ export default {
 
   storage: 'na',
   data: { city: 'city.json', streets: 'blend', seats: 'places.json', summaries: 'districts.json' },
+
+  // A Nihongai main street runs on into the tunnel under Jinteki's island.
+
+  editCity: joinIsle,
 
   // The settings panel's music picker offers these loops from the ride audio folder.
 

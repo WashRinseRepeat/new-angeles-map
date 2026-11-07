@@ -3,7 +3,7 @@
 
 export const kits = () => ({});
 
-const GOLD = [1.6, 1.1, .35], DGOLD = [.34, .25, .08], PINK = [1.8, .25, 1.3], CYAN = [.3, 1.4, 1.8];
+const PAPER = [1.25, .95, .6], GOLD = [1.6, 1.1, .35], DGOLD = [.34, .25, .08], PINK = [1.8, .25, 1.3], CYAN = [.3, 1.4, 1.8];
 const LOUD = [[1.8, .2, 1.2], [.2, 1.6, 1.6], [1.6, 1.4, .2], [.4, 1.8, .4], [1.8, .4, .2]];
 const WORDS = ['FLOW x2', 'BOOST', 'SPIN TO WIN', 'DOUBLE DOWN', 'LEVEL UP', 'FREE SPIN', '+500 FLOW', 'JACKPOT', 'ALL IN', 'STREAK!'];
 const BOARD = [['V. KANE', '9,812,440'], ['ORTEGA-9', '8,904,115'], ['M. LIU', '7,660,302'], ['GOLDCHILD', '7,118,950'], ['T. ASHFORD', '6,544,020'],
@@ -87,7 +87,8 @@ export function landmarks(H) {
         const S = seaward(), { ux, uz } = S, vx = -uz, vz = ux, ang = Math.atan2(ux, uz), shoreAng = ang + Math.PI;
         const R = 165, ac = S.d + 60 + R, ix = ux * ac, iz = uz * ac;
         const P = (a, b) => [ix + ux * a + vx * b, iz + uz * a + vz * b];
-        const goldSt = { ...st, base: DGOLD, win: [1.2, .85, .35], lit: .45 };
+        const goldSt = { ...st, base: [.15, .11, .04], win: [1.2, .85, .4], lit: .4 };
+        const steel = [.09, .09, .1], stone = [.05, .048, .045];
         const darkSt = { ...st, base: [.07, .06, .05], win: [1, .8, .5], lit: .25 };
         _o = new THREE.Object3D(); _q = new THREE.Vector3();
 
@@ -110,17 +111,52 @@ export function landmarks(H) {
           pool(ux * k, uz * k, 12, dim(GOLD, .06));
         }
 
-        // The island: a rock base, a breakwater, a gold rim and the sealed perimeter fence.
+        // The island: a dark breakwater, paved ground, a thin gold edge, and a ring of arcade halls on the rim
+        // with lit windows and palms on their roofs. The ring opens at the gate and at the marina.
 
-        prop('cyl', ix, -3, iz, 2 * R + 18, 5, 2 * R + 18, [.05, .05, .045]);
-        prop('cyl', ix, -1.5, iz, 2 * R, 4, 2 * R, [.09, .075, .05]);
-        put(GLOWS.ring, ix, .7, iz, 2 * R, 2, 2 * R, 0, 0, dim(GOLD, .9));
-        put(GLOWS.ring, ix, 14, iz, 2 * R - 2, 1, 2 * R - 2, 0, 0, dim(GOLD, .5));
-        for (let k = 0; k < 24; k++) {
-          const t = k / 24 * Math.PI * 2, [px, pz] = P(Math.cos(t) * (R - 1), Math.sin(t) * (R - 1));
-          if (Math.cos(t) < -.985) continue;
-          prop('box', px, 7, pz, .8, 14, .8, [.1, .08, .04]);
-          glow(px, 14.3, pz, 1.2, .6, 1.2, GOLD);
+        prop('cyl', ix, -3, iz, 2 * R + 18, 5, 2 * R + 18, [.03, .03, .03]);
+        prop('cyl', ix, -1.5, iz, 2 * R, 4, 2 * R, stone);
+        for (let k = 0; k < 96; k++) {
+          const t1 = k / 96 * Math.PI * 2, t2 = (k + 1) / 96 * Math.PI * 2;
+          const [p1x, p1z] = P(Math.cos(t1) * R, Math.sin(t1) * R), [p2x, p2z] = P(Math.cos(t2) * R, Math.sin(t2) * R);
+          beam([p1x, .55, p1z], [p2x, .55, p2z], .3, dim(GOLD, .55), 'glow');
+        }
+        const RING = 40, arcSt = { ...darkSt, base: [.06, .05, .04], win: [1.2, .85, .5], lit: .55 };
+        for (let k = 0; k < RING; k++) {
+          const t = (k + .5) / RING * Math.PI * 2, ca = Math.cos(t), sa = Math.sin(t);
+          if (ca < -.96 || (ca > .93 && sa > -.2)) continue;
+          const [px, pz] = P(ca * (R - 7), sa * (R - 7)), seg = 2 * Math.PI * (R - 7) / RING - 1.2, h = 7 + (k % 3) * 1.5;
+          bld(px, pz, seg, 10, h, arcSt, r, { skin: SKINS.bands, roof: false, ry: Math.atan2(ca * ux + sa * vx, ca * uz + sa * vz) });
+          const [ox2, oz2] = P(ca * (R - 1.9), sa * (R - 1.9));
+          glow(ox2, h + .1, oz2, seg, .2, .25, dim(GOLD, .5), Math.atan2(ca * ux + sa * vx, ca * uz + sa * vz));
+          if (k % 2 === 0) {
+            prop('cyl', px, h + 4, pz, .4, 8, .4, [.1, .08, .05]);
+            prop('cone', px, h + 8, pz, 6, 1.3, 6, [.03, .09, .05], r() * 6);
+            glow(px, h + .5, pz, .4, .4, .4, [1, .9, .6]);
+          }
+        }
+
+        // Lit paths: a promenade ring inside the halls and spokes out from the spire plaza.
+
+        for (const [rr, k0] of [[R - 18, 0], [62, 1]]) for (let k = 0; k < 48; k++) {
+          const t1 = k / 48 * Math.PI * 2, t2 = (k + 1) / 48 * Math.PI * 2, [p1x, p1z] = P(Math.cos(t1) * rr, Math.sin(t1) * rr), [p2x, p2z] = P(Math.cos(t2) * rr, Math.sin(t2) * rr);
+          beam([p1x, .62, p1z], [p2x, .62, p2z], .35, dim(PAPER, k0 ? .3 : .22), 'glow');
+        }
+        for (let k = 0; k < 8; k++) {
+          const t = k / 8 * Math.PI * 2 + Math.PI / 8, [p1x, p1z] = P(Math.cos(t) * 30, Math.sin(t) * 30), [p2x, p2z] = P(Math.cos(t) * (R - 18), Math.sin(t) * (R - 18));
+          beam([p1x, .62, p1z], [p2x, .62, p2z], .3, dim(PAPER, .2), 'glow');
+        }
+
+        // Marina on the sea side: three lit piers with small boats.
+
+        for (const b of [-30, -8, 14]) {
+          const [p1x, p1z] = P(R - 2, b + 30), [p2x, p2z] = P(R + 46, b + 30);
+          beam([p1x, .6, p1z], [p2x, .6, p2z], 2.4, [.12, .1, .07]);
+          for (let k = 8; k < 48; k += 10) {
+            const [lx, lz] = P(R - 2 + k, b + 30 + 1.4);
+            glow(lx, 1.6, lz, .3, .3, .3, [1.3, 1.1, .7]);
+            if (r() < .7) { const [bx, bz] = P(R - 2 + k, b + 30 + (r() < .5 ? -4.5 : 4.5)); prop('box', bx, .8, bz, 2.6, 1.4, 8, [.5, .5, .52], ang); glow(bx, 1.7, bz, 1.6, .3, 3, [.9, .8, .6], ang); }
+          }
         }
 
         // Gold entrance gate at the causeway end, with wristband scanner arches.
@@ -144,26 +180,37 @@ export function landmarks(H) {
         }
         pool(gx, gz, 26, dim(GOLD, .08));
 
-        // The spire: a podium, eight tapering gold tiers with halo rings, a cone, and a lit mast.
+        // The spire: a dark gold podium, a fluted shaft of ten tapering drums with warm floors and thin gold
+        // joints, and a jewel crown with a mast.
 
-        const [sx, sz] = P(0, 0);
-        bld(sx, sz, 50, 50, 10, goldSt, r, { shape: 'oct', skin: SKINS.bands, roof: false, glow: .2 });
+        const [sx, sz] = P(0, 0), NT = 10, TH = 23, dia = k => lerp(36, 12, k / (NT - 1));
+        bld(sx, sz, 52, 52, 10, goldSt, r, { shape: 'oct', skin: SKINS.bands, roof: false, glow: .1 });
+        put(GLOWS.ring, sx, 10.2, sz, 54, .4, 54, 0, 0, dim(GOLD, .55));
         let y = 10;
-        for (let k = 0; k < 8; k++) {
-          const tw = lerp(34, 9, k / 7), th = 21;
-          bld(sx, sz, tw, tw, th - .6, goldSt, r, { y0: y, shape: 'oct', skin: k > 4 ? SKINS.fins : SKINS.curtain, roof: false, glow: .25, ry: ang });
-          y += th;
-          put(GLOWS.ring, sx, y - .3, sz, tw * 1.12, tw * 1.12, tw * 1.12, 0, 0, GOLD);
-          for (const [fa, fb] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-            const o = tw / 2 + .2, [px, pz] = P(fa * o, fb * o);
-            glow(px, y - th / 2, pz, .6, th - 4, .6, dim(GOLD, .7));
+        for (let k = 0; k < NT; k++) {
+          const tw = dia(k);
+          bld(sx, sz, tw, tw, TH - .5, { ...goldSt, base: [.11, .08, .03], lit: k > 6 ? .3 : .2 }, r, { y0: y, shape: 'cyl', skin: k % 3 === 2 ? SKINS.bands : SKINS.fins, roof: false, glow: .12 });
+          y += TH;
+          put(GLOWS.ring, sx, y - .25, sz, tw * 1.06, .5, tw * 1.06, 0, 0, dim(GOLD, k % 2 ? .22 : .45));
+          for (let f = 0; f < 6; f++) {
+            const t = f / 6 * Math.PI * 2 + k * .12, o = tw / 2 + .15, [px, pz] = P(Math.cos(t) * o, Math.sin(t) * o);
+            glow(px, y - TH / 2, pz, .3, TH - 3, .3, dim(GOLD, .16));
           }
         }
-        prop('cone', sx, y + 22, sz, 9, 44, 9, [.8, .6, .2]);
-        beam([sx, y + 44, sz], [sx, y + 68, sz], .9, GOLD, 'glow');
-        put(GLOWS.sphere, sx, y + 44, sz, 4, 4, 4, 0, 0, dim(GOLD, 1.4));
-        beacon(sx, y + 69, sz, r);
-        pool(sx, sz, 60, dim(GOLD, .1));
+        // Jewel crown: a dark octahedron with its twelve edges lit gold.
+
+        const jewel = new THREE.Mesh(new THREE.OctahedronGeometry(1, 0), new THREE.MeshStandardMaterial({ color: new THREE.Color(.05, .04, .025), metalness: .9, roughness: .25 }));
+        const jy = y + 22, JR = 10, JH = 24;
+        jewel.position.set(sx, jy, sz); jewel.scale.set(JR, JH, JR); jewel.rotation.y = ang;
+        H.decor.add(jewel);
+        const eq = [[1, 0], [0, 1], [-1, 0], [0, -1]].map(([a, b]) => { const [px, pz] = P(a * JR, b * JR); return [px, jy, pz]; });
+        for (let k = 0; k < 4; k++) {
+          beam(eq[k], eq[(k + 1) % 4], .4, dim(GOLD, 1.1), 'glow');
+          beam(eq[k], [sx, jy + JH, sz], .4, dim(GOLD, 1.1), 'glow');
+          beam(eq[k], [sx, jy - JH, sz], .4, dim(GOLD, .8), 'glow');
+        }
+        beacon(sx, jy + JH + .8, sz, r);
+        pool(sx, sz, 60, dim(GOLD, .06));
 
         // Top Flow leaderboards: four on the spire, two towers by the gate.
 
@@ -175,7 +222,7 @@ export function landmarks(H) {
           H.decor.add(m);
         };
         {
-          const tw = lerp(34, 9, 2 / 7), by = 10 + 21 * 2 + 10;
+          const tw = dia(2), by = 10 + TH * 2 + 11;
           for (const [fa, fb] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
             const [px, pz] = P(fa * (tw / 2 + 1.5), fb * (tw / 2 + 1.5));
             board(px, by, pz, 13, Math.atan2(fa * ux + fb * vx, fa * uz + fb * vz));
@@ -194,13 +241,17 @@ export function landmarks(H) {
         // Anti-Scan Domes: quiet gold glass over VIP lounges on the +b side, soft lamps and still pools.
 
         const domeGeo = new THREE.SphereGeometry(1, 28, 10, 0, Math.PI * 2, 0, Math.PI / 2);
-        const domeMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(.45, .32, .08), transparent: true, opacity: .6, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+        const domeMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(.04, .045, .05), metalness: .85, roughness: .12, emissive: new THREE.Color(.09, .055, .015), transparent: true, opacity: .88 });
         for (const [a, b, dr] of [[-52, 72, 24], [22, 88, 20], [72, 42, 27]]) {
           const [px, pz] = P(a, b), m = new THREE.Mesh(domeGeo, domeMat);
           m.position.set(px, .5, pz); m.scale.set(dr, dr * .75, dr);
           H.decor.add(m);
-          put(GLOWS.ring, px, .8, pz, dr * 2, 1, dr * 2, 0, 0, GOLD);
-          bld(px, pz, dr * .8, dr * .8, dr * .3, goldSt, r, { shape: 'oct', skin: SKINS.bands, roof: false, lit: .2 });
+          for (const f of [0, .4, .7, .9]) { const rr = dr * 2 * Math.sqrt(1 - f * f) * 1.005; put(GLOWS.ring, px, .5 + dr * .75 * f, pz, rr, f ? .5 : 1, rr, 0, 0, dim(GOLD, f ? .5 : .7)); }
+          for (let q = 0; q < 8; q++) {
+            const t = q / 8 * Math.PI, c = Math.cos(t), sn = Math.sin(t);
+            put(GLOWS.ring, px, .5, pz, dr * 2.01, .5, dr * 1.5, Math.atan2(c, sn), Math.PI / 2, dim(GOLD, .25));
+          }
+          bld(px, pz, dr * .8, dr * .8, dr * .3, goldSt, r, { shape: 'oct', skin: SKINS.bands, roof: false, lit: .5 });
           pool(px, pz, dr * 1.4, dim(GOLD, .1));
           for (let k = 0; k < 4; k++) {
             const t = k / 4 * Math.PI * 2 + .4, lx = px + Math.cos(t) * (dr + 6), lz = pz + Math.sin(t) * (dr + 6);
@@ -214,50 +265,68 @@ export function landmarks(H) {
         const [wx, wz] = P(-60, -72), wr = 30, wh = wr + 8;
         for (const sd of [-1, 1]) {
           const [lx, lz] = P(-60 + sd * 4, -72);
-          for (const e of [-14, 14]) { const [fx, fz] = P(-60 + sd * 4, -72 + e); beam([fx, 0, fz], [lx, wh, lz], 1.2, [.12, .1, .06]); }
+          for (const e of [-14, 14]) { const [fx, fz] = P(-60 + sd * 4, -72 + e); beam([fx, 0, fz], [lx, wh, lz], 1.2, steel); }
         }
-        put(GLOWS.ring, wx, wh, wz, wr * 2, wr * 2, wr * 2, ang, Math.PI / 2, PINK);
-        put(GLOWS.ring, wx, wh, wz, wr * 1.2, wr * 1.2, wr * 1.2, ang, Math.PI / 2, GOLD);
+        put(GLOWS.ring, wx, wh, wz, wr * 2, wr * 2, wr * 2, ang, Math.PI / 2, dim(PINK, .7));
+        put(GLOWS.ring, wx, wh, wz, wr * 1.2, wr * 1.2, wr * 1.2, ang, Math.PI / 2, dim(GOLD, .4));
 
         // Spokes and gondolas turn in update. The rings are round, so they stay put.
 
         A.wheel = [wx, wh, wz, wr, vx, vz];
         A.spoke = own(new THREE.InstancedMesh(PROPS.box.geometry, GLOWS.sphere.material, SPOKES));
         A.cab = own(new THREE.InstancedMesh(GLOWS.sphere.geometry, GLOWS.sphere.material, SPOKES));
-        { const c = new THREE.Color(); for (let k = 0; k < SPOKES; k++) { A.spoke.setColorAt(k, c.setRGB(...dim(GOLD, .6))); A.cab.setColorAt(k, c.setRGB(...pick(r, LOUD))); } }
+        { const c = new THREE.Color(); for (let k = 0; k < SPOKES; k++) { A.spoke.setColorAt(k, c.setRGB(...dim(GOLD, .3))); A.cab.setColorAt(k, c.setRGB(...pick(r, LOUD))); } }
         put(GLOWS.sphere, wx, wh, wz, 3, 3, 3, 0, 0, GOLD);
         pool(wx, wz, 34, dim(PINK, .08));
 
         const [fx, fz] = P(76, -52), fh = 130;
         A.ff = [fx, fz]; A.ffTop = fh - 10;
-        prop('lattice', fx, fh / 2, fz, 7, fh, 7, [.16, .13, .08]);
+        prop('lattice', fx, fh / 2, fz, 7, fh, 7, steel);
         prop('cyl', fx, fh / 2, fz, 3, fh, 3, [.08, .07, .05]);
-        for (const [ea, eb] of [[1, 0], [-1, 0]]) { const [px, pz] = P(76 + ea * 2, -52 + eb * 2); glow(px, fh / 2, pz, .5, fh - 6, .5, PINK); }
+        for (const [ea, eb] of [[1, 0], [-1, 0]]) { const [px, pz] = P(76 + ea * 2, -52 + eb * 2); glow(px, fh / 2, pz, .35, fh - 6, .35, dim(PINK, .7)); }
         prop('box', fx, fh + 3, fz, 9, 6, 9, [.12, .1, .06]);
         glow(fx, fh + 6.3, fz, 9.4, .6, 9.4, PINK);
         textSign('MARGIN CALL', fx - ux * 4.8, fh + 3, fz - uz * 4.8, 8.5, 1.6, shoreAng, GOLD);
         beacon(fx, fh + 8, fz, r);
         pool(fx, fz, 20, dim(PINK, .1));
 
-        // Low-Flow midway: crowded booths, loud signs, flicker and string lights on the -b side.
+        // Low-Flow midway: rows of arcade halls on the -b side, marquee boards facing the lanes, lantern strings
+        // over each lane and loud flicker on the roofs.
 
-        const booths = [];
-        for (let k = 0; k < 120 && booths.length < 38; k++) {
-          const a = -105 + r() * 175, b = -20 - r() * 110, rr = Math.hypot(a, b);
-          if (rr > 108 || rr < 34 || Math.hypot(a + 60, b + 72) < 26 || Math.hypot(a - 76, b + 52) < 14) continue;
-          if (booths.some(q => Math.hypot(q[0] - a, q[1] - b) < 12)) continue;
-          booths.push([a, b]);
+        const halls = [];
+        for (const b of [-36, -60, -84, -108]) for (let a = -112; a <= 96; a += 22) {
+          if (Math.hypot(a, b - 6) > R - 26 || Math.hypot(a, b) < 40 || Math.hypot(a + 60, b + 72) < 38 || Math.hypot(a - 76, b + 52) < 18) continue;
+          halls.push([a, b]);
         }
-        for (const [a, b] of booths) {
-          const [px, pz] = P(a, b), bw = 5 + r() * 5, bd = 5 + r() * 5, bh = 4 + r() * 8, ry = ang + (r() - .5) * 1.2, col = pick(r, LOUD);
-          bld(px, pz, bw, bd, bh, { ...darkSt, base: dim(col, .12), win: col, lit: .5 }, r, { skin: SKINS.bands, roof: false, ry });
-          textSign(pick(r, WORDS), px - Math.sin(ry) * (bd / 2 + .3), bh + 1.6, pz - Math.cos(ry) * (bd / 2 + .3), bw * 1.1, bw * .25, ry + Math.PI, col);
-          if (r() < .45) flickerGlow(px, bh + .3, pz, bw * .9, .3, bd * .9, col, r);
-          pool(px, pz, 10, dim(col, .12));
+        const ryH = Math.atan2(ux, uz), faceH = Math.atan2(vx, vz);
+        for (const [a, b] of halls) {
+          const [px, pz] = P(a, b), col = pick(r, LOUD), h = 8 + r() * 7;
+          bld(px, pz, 12, 18, h, { ...darkSt, base: [.06, .05, .045], win: col, lit: .5 }, r, { skin: SKINS.bands, roof: false, ry: ryH });
+          for (const e of [-1, 1]) { const [qx, qz] = P(a, b + e * 6.05); glow(qx, h + .1, qz, .2, .2, 18, dim(col, .7), ryH); }
+          const [mx2, mz2] = P(a, b + 6.4);
+          prop('box', mx2, h - 2, mz2, .4, 3, 16, [.03, .025, .02], ryH);
+          textSign(pick(r, WORDS), mx2 + vx * .3, h - 2, mz2 + vz * .3, 14, 2.6, faceH, col);
+          if (r() < .4) flickerGlow(...P(a, b + 6.6).flatMap((v, i) => i ? [h + .8, v] : [v]), 1, 1, 1, col, r);
+          pool(...P(a, b + 12), 9, dim(col, .1));
         }
-        for (let k = 0; k + 1 < booths.length && k < 14; k += 2) {
-          const [a1, b1] = booths[k], [a2, b2] = booths[k + 1], [p1x, p1z] = P(a1, b1), [p2x, p2z] = P(a2, b2);
-          if (Math.hypot(a1 - a2, b1 - b2) < 40) stringLights([p1x, 9, p1z], [p2x, 9, p2z], 1.5, 7, pick(r, LOUD));
+        for (const b of [-24, -48, -72, -96]) {
+          const row = halls.filter(q => q[1] === b - 12);
+          if (row.length < 2) continue;
+          const a0 = Math.min(...row.map(q => q[0])), a1 = Math.max(...row.map(q => q[0]));
+          for (let a = a0; a < a1; a += 22) {
+            const [p1x, p1z] = P(a, b - 6), [p2x, p2z] = P(a + 22, b + 6);
+            stringLights([p1x, 7, p1z], [p2x, 7, p2z], 1.2, 7, pick(r, [GOLD, PINK, [1.5, .45, .16]]));
+          }
+        }
+
+        // Fountain plaza under Bullion: stepped pools, cyan rings and jets.
+
+        { const [fx2, fz2] = P(-100, 0);
+          prop('cyl', fx2, .7, fz2, 30, .4, 30, [.04, .05, .055]);
+          prop('cyl', fx2, 1.1, fz2, 16, .6, 16, [.04, .05, .055]);
+          for (const [rr, yy] of [[30, .95], [16, 1.45]]) put(GLOWS.ring, fx2, yy, fz2, rr, 1, rr, 0, 0, dim(CYAN, .7));
+          for (let k = 0; k < 8; k++) { const t = k / 8 * Math.PI * 2, jx = fx2 + Math.cos(t) * 10, jz = fz2 + Math.sin(t) * 10; beam([jx, .9, jz], [jx, 5, jz], .25, dim(CYAN, .6), 'glow'); }
+          beam([fx2, 1.4, fz2], [fx2, 11, fz2], .5, dim(CYAN, .9), 'glow');
         }
 
         // Service dock on the seaward rim, with red lights and a dim glow under the water.
@@ -270,7 +339,11 @@ export function landmarks(H) {
 
         // The coaster: a closed spline on the rim with a lift hill, two vertical loops and a corkscrew.
 
-        const M = 1400, pts = [], LOOPS = [[1.78 * Math.PI, .3, 18], [.52 * Math.PI, .3, 17]], CORK = [.12 * Math.PI, .36, 7], HILL = 1.47 * Math.PI;
+        const M = 5200, pts = [], LOOPS = [[1.78 * Math.PI, .3, 18], [.52 * Math.PI, .3, 17]], CORK = [.12 * Math.PI, .36, 7, 3], HILL = 1.47 * Math.PI;
+
+        // The Helix: four and a half tight turns stacked 60 m up, inside the rim, then straight back down.
+
+        const HELIX = [.32 * Math.PI, .13, 13, 4.5, 60];
         const base = t => { const rho = 128 + 8 * Math.sin(3 * t); return [Math.cos(t) * rho, Math.sin(t) * rho]; };
         for (let i = 0; i < M; i++) {
           const t = i / M * Math.PI * 2, [a, b] = base(t), [a2, b2] = base(t + .001);
@@ -283,23 +356,35 @@ export function landmarks(H) {
             if (q >= 0 && q <= 1) { const f = q * Math.PI * 2; fa += rl * Math.sin(f); h += rl * (1 - Math.cos(f)); lat += 7 * q; }
             else if (q > 1 && q < 2) lat += 7 * (2 - q);
           }
-          { const [tc, span, rc] = CORK, q = wrap(t - tc) / span + .5;
-            if (q >= 0 && q <= 1) { const f = q * Math.PI * 2; lat += rc * Math.sin(f); h += rc * (1 - Math.cos(f)); } }
+          { const [tc, span, rc, turns] = CORK, q = wrap(t - tc) / span + .5;
+            if (q >= 0 && q <= 1) { const f = q * Math.PI * 2 * turns; lat += rc * Math.sin(f); h += rc * (1 - Math.cos(f)); } }
+          { const [tc, span, rh, turns, up] = HELIX, q = wrap(t - tc) / span + .5;
+            if (q >= 0 && q <= 1) { const f = q * Math.PI * 2 * turns; fa += rh * Math.sin(f); lat -= rh * (1 - Math.cos(f)); h += up * Math.sin(Math.PI * q) ** 2; } }
           const [px, pz] = P(a + ta * fa + na * lat, b + tb * fa + nb * lat);
           pts.push(new THREE.Vector3(px, h, pz));
         }
         const curve = new THREE.CatmullRomCurve3(pts, true, 'centripetal');
-        curve.arcLengthDivisions = 6000;
-        const track = new THREE.Mesh(new THREE.TubeGeometry(curve, 1800, 1.1, 6, true), new THREE.MeshBasicMaterial({ color: new THREE.Color(...PINK) }));
-        H.decor.add(track);
-        for (let i = 0; i < M; i += 28) {
+        curve.arcLengthDivisions = 16000;
+        H.decor.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 4000, .75, 6, true), new THREE.MeshStandardMaterial({ color: 0x1c1d22, metalness: .8, roughness: .35 })));
+        const lit = new THREE.CatmullRomCurve3(pts.map(p => p.clone().setY(p.y + .95)), true, 'centripetal');
+        H.decor.add(new THREE.Mesh(new THREE.TubeGeometry(lit, 4000, .2, 4, true), new THREE.MeshBasicMaterial({ color: new THREE.Color(...dim(PINK, .9)) })));
+        for (let i = 0; i < M; i += 80) {
           const p = pts[i];
-          if (p.y > 5) { prop('box', p.x, (p.y - 1.4) / 2, p.z, .9, p.y - 1.4, .9, [.2, .15, .06]); glow(p.x, .9, p.z, 1.6, .4, 1.6, dim(GOLD, .6)); }
+          if (p.y > 5) prop('lattice', p.x, (p.y - 1.2) / 2, p.z, 1.6, p.y - 1.2, 1.6, steel);
         }
+
+        // The Helix winds round a steel column with magenta rings, so the stack reads as one tower.
+
+        { const [tc, , rh, , up] = HELIX, [a, b] = base(tc), [a2, b2] = base(tc + .001), tl = Math.hypot(a2 - a, b2 - b);
+          const [hx, hz] = P(a - (b2 - b) / tl * rh, b + (a2 - a) / tl * rh), top = 16 + up + 22;
+          prop('cyl', hx, top / 2, hz, 3, top, 3, steel);
+          for (let yy = 14; yy < top; yy += 12) put(GLOWS.ring, hx, yy, hz, 6, .5, 6, 0, 0, dim(PINK, .7));
+          textSign('THE HELIX', hx, top + 2, hz, 12, 2.2, shoreAng, dim(PINK, 1.2));
+          beacon(hx, top + 4, hz, r); }
 
         // Arc-length samples drive the train with no per-frame allocation.
 
-        A.N = 2400; A.L = curve.getLength(); A.SP = new Float32Array(A.N * 3);
+        A.N = 4000; A.L = curve.getLength(); A.SP = new Float32Array(A.N * 3);
         curve.getSpacedPoints(A.N).slice(0, A.N).forEach((p, i) => { A.SP[i * 3] = p.x; A.SP[i * 3 + 1] = p.y; A.SP[i * 3 + 2] = p.z; if (p.y > A.top) A.top = p.y; });
         A.car = own(new THREE.InstancedMesh(PROPS.box.geometry, GLOWS.sphere.material, CARS));
         A.lamp = own(new THREE.InstancedMesh(GLOWS.sphere.geometry, GLOWS.sphere.material, CARS));
