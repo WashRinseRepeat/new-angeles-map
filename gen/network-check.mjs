@@ -1396,7 +1396,8 @@ try {
   await check('picker: every route with stops', inPage(async () => {
     const { ROUTES } = window.__ride, { TOURS } = await import(new URL('engine/ride.js', location.href).href);
     const got = [...document.querySelectorAll('#ridePick summary span')].map(e => e.textContent);
-    const want = [...ROUTES.filter(R => R.stops.length && !TOURS.some(T => T.name === R.name)), ...TOURS].map(R => R.name);
+    const want = [...ROUTES.filter(R => R.stops.length && !TOURS.some(T => T.name === R.name)), ...TOURS].map(R => R.name)
+      .sort((a, b) => (b === 'Grand Loop') - (a === 'Grand Loop'));
     const miss = ROUTES.filter(R => R.stops.length && !got.includes(R.name)).map(R => R.name);
     return !miss.length && got.length === new Set(got).size && got.join() === want.join() || `picker ${got.join()}, missing ${miss.join()}`;
   }));
@@ -1640,6 +1641,71 @@ await check('view: underground pose holds', async () => {
     const d = Math.hypot(p[0] - V[0], p[1] - V[1], p[2] - V[2]);
     return d < .5 || `camera at ${p.map(v => v.toFixed(1))}, ${d.toFixed(1)} m from the pose`;
   } finally { await browser.close(); server.close(); }
+});
+
+// ---------- graphics settings ----------
+// The sliders button opens and closes the panel. A preset shows its values in the controls under it, and a change
+// to one control makes the preset Custom. Custom picks reach the renderer at once, win over any level applyQuality
+// sets and survive a reload. On a phone the button sits beside "?" and the panel fits.
+
+await check('settings: graphics panel', async () => {
+  const g = await openMap();
+  try {
+    const p = g.page, bad = [];
+    const state = () => p.evaluate(async () => {
+      const R = await import(new URL('engine/render.js', location.href).href), ui = k => { const e = document.querySelector(`#gfxPanel [data-k=${k}]`); return !e ? undefined : e.type === 'checkbox' ? (e.checked ? 'on' : 'off') : e.value; };
+      return { q: document.getElementById('quality').value, dpr: R.renderer.getPixelRatio(), w: R.renderer.domElement.width, bloom: R.bloom.enabled, glow: R.QUALITY.glow, fog: R.QUALITY.fog,
+        smaa: R.composer.passes.find(x => x.constructor.name === 'SMAAPass').enabled, ao: R.aoPass ? R.QUALITY.ao : null,
+        ui: { res: ui('res'), view: ui('view'), glow: ui('glow'), smaa: ui('smaa'), ao: ui('ao') ?? null }, open: !document.getElementById('gfxPanel').hidden };
+    });
+    const expect = async (when, want) => {
+      const t = await state();
+      for (const k in want) { const a = JSON.stringify(t[k]), b = JSON.stringify(want[k]); if (a !== b) bad.push(`${when}: ${k} ${a}, want ${b}`); }
+    };
+    const set = (k, v) => k !== 'smaa' && k !== 'ao' ? p.selectOption(`#gfxPanel [data-k=${k}]`, v) : p.setChecked(`#gfxPanel [data-k=${k}]`, v === 'on'), quality = v => p.selectOption('#quality', v);
+
+    const s = await state(), ao = on => s.ao === null ? null : on ? 'on' : 'off';
+    await expect('at start', { open: false, q: 'high', ui: { res: '1', view: 'high', glow: '1', smaa: 'off', ao: ao(true) } });
+    await p.click('#gfx');
+    await expect('after the button', { open: true });
+    await quality('ultra');
+    await expect('ultra', { dpr: 1.5, smaa: true, ui: { res: '1.5', view: 'high', glow: '1', smaa: 'on', ao: ao(true) } });
+    await quality('low');
+    await expect('low', { dpr: 1, bloom: false, fog: .6, ui: { res: '1', view: 'low', glow: 'off', smaa: 'off', ao: ao(false) } });
+
+    await set('res', '2'); await set('view', 'medium'); await set('glow', '1.6'); await set('smaa', 'on');
+    const want = { q: 'custom', dpr: 2, w: s.w * 2, bloom: true, glow: 1.6, fog: .85, smaa: true, ui: { res: '2', view: 'medium', glow: '1.6', smaa: 'on', ao: ao(false) } };
+    await expect('custom', want);
+    await p.evaluate(async () => (await import(new URL('engine/render.js', location.href).href)).applyQuality('high'));
+    await expect('custom after a level change', want);
+    await p.click('#gfxClose');
+    await expect('after ×', { open: false });
+
+    // The harness init sets the quality to high on each load, so a second init puts the saved preset back.
+
+    await p.evaluate(() => sessionStorage.setItem('keep-q', localStorage.getItem('na-map-quality')));
+    await p.addInitScript(() => { const q = sessionStorage.getItem('keep-q'); if (q) localStorage.setItem('na-map-quality', q); });
+    await p.reload();
+    await p.waitForFunction(() => window.spike && !document.body.classList.contains('busy'), null, { polling: 250 });
+    await p.evaluate(() => window.__pump(10));
+    await expect('custom after reload', want);
+    await p.click('#gfx');
+    await quality('medium');
+    await expect('medium after custom', { q: 'medium', dpr: 1, bloom: true, glow: 1, smaa: false, ui: { res: '1', view: 'medium', glow: '1', smaa: 'off', ao: ao(true) } });
+
+    await p.setViewportSize({ width: 375, height: 700 });
+    const box = id => p.locator(id).boundingBox(), [gear, help, panel] = [await box('#gfx'), await box('#help'), await box('#gfxPanel')];
+    if (gear.x + gear.width > help.x || gear.y !== help.y) bad.push(`phone button ${JSON.stringify(gear)} against help ${JSON.stringify(help)}`);
+    if (panel.x < 0 || panel.x + panel.width > 375) bad.push(`phone panel ${JSON.stringify(panel)}`);
+
+    // The other page checks print missing files as page errors, so this one keeps to script errors.
+
+    bad.push(...g.errors.filter(e => !/status of 404/.test(e)).slice(0, 3));
+    return !bad.length || bad.join('; ');
+  } finally {
+    await g.browser.close();
+    g.server.close();
+  }
 });
 
 if (ONLY && !ran.size) { console.log(`FAIL --only=${ONLY.join(',')} matches no check`); failed++; }

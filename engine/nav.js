@@ -329,8 +329,10 @@ function endTour() {
 
 const ridePick = $('ridePick');
 // The picker offers every route with stops, then the tours. A tour that takes a route's name stands in for it.
+// The Grand Loop leads the list.
 
-const RIDES = [...ROUTES.filter(R => R.stops?.length && !TOURS.some(T => T.name === R.name)), ...TOURS];
+const RIDES = [...ROUTES.filter(R => R.stops?.length && !TOURS.some(T => T.name === R.name)), ...TOURS]
+  .sort((a, b) => (b.name === 'Grand Loop') - (a.name === 'Grand Loop'));
 rail.querySelector('[data-tab=ride]').hidden = !RIDES.length;
 ridePick.innerHTML = RIDES.map((R, i) => `<details class="d"${i ? '' : ' open'}><summary><span>${esc(R.name)}</span><b>${R.stops.length}</b></summary>
   <div class="stns">${R.stops.map(st => `<button data-r="${i}" data-s="${R.stops.indexOf(st)}">${esc(st.name)}</button>`).join('')}</div></details>`).join('');

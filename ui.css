@@ -94,14 +94,26 @@ body.busy, body.busy * { cursor: progress !important; }
 #helpPanel p { margin: 8px 0; color: var(--text-2); }
 #helpPanel b { color: var(--text-strong); font-weight: 600; }
 
-/* Smooth edges sits in the bottom-right corner, under cards and players. */
+/* Graphics: a quieter sliders button left of "?" opens the render settings. */
 
-#hq { right: 12px; }
-#hq, #ao { position: fixed; z-index: 3; bottom: 12px; background: var(--panel-soft); color: var(--muted-2); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; font-size: 11px; cursor: pointer; }
-#ao { right: 112px; }
-#hq[aria-pressed=true], #ao[aria-pressed=true] { color: var(--accent); border-color: var(--line-on); }
-#clock { position: fixed; z-index: 3; right: 12px; bottom: 44px; display: flex; align-items: center; gap: 8px; background: var(--panel-soft); color: var(--muted-2); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; font-size: 11px; }
-#depth { position: fixed; z-index: 3; right: 12px; bottom: 76px; display: flex; gap: 2px; background: var(--panel-soft); border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
+#gfx { position: fixed; z-index: 6; top: 12px; right: 56px; width: 36px; height: 36px; padding: 8px; border-radius: 50%;
+  background: var(--panel); color: var(--muted); border: 1px solid var(--line); cursor: pointer; }
+#gfx svg { display: block; width: 100%; height: 100%; }
+#gfx[aria-expanded=true] { color: var(--accent); border-color: var(--accent); }
+#gfxPanel { z-index: 6; top: 56px; right: 12px; width: 250px; padding: 12px 16px; font-size: 13px; }
+#gfxPanel h2 { font-size: 14px; margin: 0 0 6px; padding-right: 30px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+#gfxPanel label { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 8px 0; color: var(--text-2); }
+#gfxPanel select { background: var(--button); color: var(--button-text); border: 1px solid var(--line-2); border-radius: 6px; padding: 3px 6px; font: inherit; font-size: 12px; }
+#gfxPanel input[role=switch] { appearance: none; position: relative; flex: none; width: 34px; height: 20px; margin: 0; border-radius: 999px;
+  background: var(--button); border: 1px solid var(--line-2); cursor: pointer; transition: background .15s, border-color .15s; }
+#gfxPanel input[role=switch]::before { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%;
+  background: var(--muted); transition: transform .15s, background .15s; }
+#gfxPanel input[role=switch]:checked { background: var(--button-on); border-color: var(--line-on); }
+#gfxPanel input[role=switch]:checked::before { transform: translateX(14px); background: var(--accent); }
+#gfxPanel input[role=switch]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#gfxPanel .hint { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+#clock { position: fixed; z-index: 3; right: 12px; bottom: 12px; display: flex; align-items: center; gap: 8px; background: var(--panel-soft); color: var(--muted-2); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; font-size: 11px; }
+#depth { position: fixed; z-index: 3; right: 12px; bottom: 44px; display: flex; gap: 2px; background: var(--panel-soft); border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
 #depth button { border: 0; background: none; color: var(--muted-2); border-radius: 999px; padding: 3px 9px; font-size: 11px; cursor: pointer; min-height: 0; }
 #depth button.on { color: var(--accent); background: rgba(255, 255, 255, .06); }
 #clock output { min-width: 34px; font-variant-numeric: tabular-nums; color: var(--text); }
@@ -109,7 +121,7 @@ body.busy, body.busy * { cursor: progress !important; }
 #clock .play { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 0 2px; font-size: 10px; min-height: 0; }
 #helpPanel kbd { font: 11px ui-monospace, monospace; border: 1px solid var(--key-line); border-radius: 4px; padding: 0 4px; color: var(--key); }
 #helpPanel h2 { padding-right: 30px; }
-#helpClose { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,.6); color: #fff; border: 0; border-radius: 50%; width: 26px; height: 26px; min-height: 0; padding: 0; font-size: 18px; line-height: 26px; cursor: pointer; }
+#helpClose, #gfxClose { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,.6); color: #fff; border: 0; border-radius: 50%; width: 26px; height: 26px; min-height: 0; padding: 0; font-size: 18px; line-height: 26px; cursor: pointer; }
 #helpPanel .back { display: inline-block; margin-top: 6px; color: var(--key); text-decoration: none; font-size: 12px; }
 @media (pointer: coarse) { #helpPanel .desk { display: none; } }
 @media (pointer: fine) { #helpPanel .touch { display: none; } }
@@ -247,7 +259,7 @@ details.d > summary b { font-size: 11px; color: var(--muted); font-weight: 400; 
 
 #ridePick .stns { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 4px 8px; }
 #ridePick .stns button { font-size: 12px; }
-body.focus #nav, body.focus #help, body.focus #helpPanel { display: none; }
+body.focus #nav, body.focus #help, body.focus #helpPanel, body.focus #gfx, body.focus #gfxPanel { display: none; }
 #ride { z-index: 6; right: 16px; bottom: 16px; width: 300px; padding: 10px 12px; }
 #ride .hd { display: flex; align-items: flex-start; gap: 8px; }
 #ride .hd > div { flex: 1; min-width: 0; }
@@ -302,11 +314,11 @@ body.focus #clock, body.editing #clock, body.focus #depth, body.editing #depth {
   #atour, #ride { left: 8px; right: 8px; bottom: 8px; width: auto; }
   #atSub { bottom: 168px; max-width: calc(100vw - 32px); font-size: 14px; }
   #minimap { left: 8px; bottom: 8px; width: calc(100vw - 16px); }
-  #hq, #ao { bottom: 8px; padding: 8px 12px; }
-  #hq { right: 8px; }
-  #ao { right: 128px; }
-  #clock { right: 8px; bottom: 52px; padding: 6px 12px; }
-  #depth { right: 8px; bottom: 94px; }
+  #gfx { top: 62px; right: 52px; }
+  #gfxPanel { top: 104px; left: 8px; right: 8px; width: auto; }
+  #gfxPanel select { min-height: 36px; font-size: 16px; }
+  #clock { right: 8px; bottom: 8px; padding: 6px 12px; }
+  #depth { right: 8px; bottom: 50px; }
   #minimap svg { height: 46vh; }
   .panel button, #chips button, #results .r, #nav .leaf, details.d > summary { min-height: 40px; }
   #chips button { flex: none; }
@@ -317,7 +329,7 @@ body.focus #clock, body.editing #clock, body.focus #depth, body.editing #depth {
 /* Touch screens get finger-sized card buttons. A phone held sideways drops the card photo. */
 
 @media (pointer: coarse) {
-  #close, #cMin, #helpClose { width: 40px; height: 40px; line-height: 40px; font-size: 20px; }
+  #close, #cMin, #helpClose, #gfxClose { width: 40px; height: 40px; line-height: 40px; font-size: 20px; }
   #cMin { right: 54px; }
   #card.min .body { min-height: 58px; padding-right: 108px; }
 }

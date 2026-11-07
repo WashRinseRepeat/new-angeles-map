@@ -382,7 +382,7 @@ class AOPass extends Pass {
 
     const rise = camera.position.y - controls.target.y, fall = Math.asin(Math.min(1, rise / camera.position.distanceTo(controls.target)));
     const nearest = (rise - 150) / Math.sin(Math.min(Math.PI / 2, fall + THREE.MathUtils.degToRad(camera.fov / 2)));
-    if (QUALITY.level === 'low' || nearest > AO.reach) return;
+    if (!QUALITY.ao || nearest > AO.reach) return;
     const U = this.u, clear = r.autoClear;
     U.tDepth.value = readBuffer.depthTexture;
     U.uProj.value.copy(camera.projectionMatrix);
@@ -448,7 +448,7 @@ output.material.fragmentShader = output.material.fragmentShader
 const outputRender = output.render.bind(output);
 output.render = (r, writeBuffer, readBuffer, ...rest) => {
   output.uniforms.tDepth.value = readBuffer.depthTexture;
-  output.uniforms.uBloom.value = bloom.enabled ? 1 : 0;
+  output.uniforms.uBloom.value = bloom.enabled ? QUALITY.glow : 0;
   outputRender(r, writeBuffer, readBuffer, ...rest);
 };
 composer.addPass(output);
@@ -472,13 +472,19 @@ export const QUALITY_LEVELS = {
   low: { dpr: 1, bloom: false, cars: .3, detail: DETAIL.low, fog: .6 },
 };
 export const QUALITY = { mode: 'auto', level: matchMedia('(pointer: coarse)').matches ? 'medium' : 'high', ...QUALITY_LEVELS.high };
+
+// PICK holds the viewer's custom choices from the graphics panel. They win over the level's own values.
+// Ambient occlusion and shadows are on at every level but low. glow scales the bloom. The window hears map-quality after each change.
+
+export const PICK = {};
 export function applyQuality(level) {
-  Object.assign(QUALITY, { ss: 1, smaa: false }, QUALITY_LEVELS[level], { level });
+  Object.assign(QUALITY, { ss: 1, smaa: false, glow: 1, ao: level !== 'low', shadows: level !== 'low' }, QUALITY_LEVELS[level], PICK, { level });
   const dpr = Math.min(devicePixelRatio * QUALITY.ss, QUALITY.dpr);
   renderer.setPixelRatio(dpr);
   composer.setPixelRatio(dpr);
   bloom.enabled = QUALITY.bloom;
   smaa.enabled = QUALITY.smaa;
+  dispatchEvent(new Event('map-quality'));
 }
 applyQuality(QUALITY.level);
 
@@ -602,9 +608,17 @@ if (SHADOWS) {
   // when the square moves and every 60 frames for what the city adds; a live one every frame. Casters are picked
   // every frame while the city settles after loading, then every 30 frames.
 
-  let key = '', age = 0, picked = 0, frames = 0;
+  let key = '', age = 0, picked = 0, frames = 0, cleared = false;
   const _aimed = new THREE.Vector3();
+
+  // With shadows off the map holds far depth, so every point reads as lit, and it is not drawn again.
+
   const draw = () => {
+    if (!QUALITY.shadows) {
+      if (!cleared) { renderer.setRenderTarget(target); renderer.clear(); renderer.setRenderTarget(null); cleared = true; key = ''; }
+      return;
+    }
+    cleared = false;
     if (!dir.equals(_aimed.copy(U.uLightDir.value).normalize())) aim();
     const r = Math.ceil(Math.min(Math.max(camera.position.distanceTo(controls.target) * 1.1, 150), SHADOWS.reach) / 50) * 50;
     const texel = 2 * r / N;

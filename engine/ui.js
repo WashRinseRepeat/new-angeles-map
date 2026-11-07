@@ -6,7 +6,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { S, H } from './state.js';
 import { CENTRE, CENTRE_PLACE, CENTRE_R, CITY, CORES, DENSITY, PLACES, SITE, STANDALONE, STYLES, centroidOf, density, lerp, styleAt } from './core.js';
 import { SETTING, inPack } from './setting.js';
-import { FOG, FOG_BASE, LOCK, QUALITY, SURFACE, U, aoPass, applyQuality, bloom, camera, composer, controls, fadeTwin, flatGeo, hemi, label, labelRoot, labels, lockCamera, moon, renderer, scene } from './render.js';
+import { FOG, FOG_BASE, LOCK, PICK, QUALITY, QUALITY_LEVELS, SHADOWS, SURFACE, U, aoPass, applyQuality, bloom, camera, composer, controls, fadeTwin, flatGeo, hemi, label, labelRoot, labels, lockCamera, moon, renderer, scene } from './render.js';
 import { SHAPES, TILE, TILES, glows, pools, put, signs, yawAt } from './instances.js';
 import { ARCHETYPES, ARCH_BASE, ARCH_WEIGHTS, MERGED_MAT, TALLY, decor, insidePoly, merged } from './grammar.js';
 import { rideFocus, rideTick, riding } from './ride.js';
@@ -576,36 +576,6 @@ function autoQuality(fps) {
   if (slow >= 4 && k > 0) { applyQuality(ORDER[k - 1]); slow = 0; }
   if (fast >= 12 && k < ORDER.indexOf(START)) { applyQuality(ORDER[k + 1]); fast = 0; }
 }
-const qSel = document.getElementById('quality');
-const QUALITY_KEY = `${SETTING.storage}-map-quality`;
-try { qSel.value = localStorage.getItem(QUALITY_KEY) || 'auto'; } catch {}
-const setMode = v => {
-  QUALITY.mode = v;
-  if (v !== 'auto') applyQuality(v);
-  try { localStorage.setItem(QUALITY_KEY, v); } catch {}
-};
-const hq = document.getElementById('hq'), showHq = () => hq.setAttribute('aria-pressed', qSel.value === 'ultra');
-qSel.onchange = () => { setMode(qSel.value); showHq(); };
-setMode(qSel.value);
-showHq();
-
-// The smooth-edges switch picks ultra, and a second press returns to auto.
-
-hq.onclick = () => {
-  qSel.value = qSel.value === 'ultra' ? 'auto' : 'ultra';
-  setMode(qSel.value);
-  if (qSel.value === 'auto') applyQuality(START);
-  showHq();
-};
-// A pack with ambient occlusion gets a switch for it beside smooth edges. The choice is kept per browser.
-
-if (aoPass) {
-  const ao = hq.insertAdjacentElement('beforebegin', Object.assign(document.createElement('button'), { id: 'ao', textContent: 'Corner shade', title: 'Darkens creases where walls meet the ground. Costs frame rate when zoomed in.' }));
-  const show = () => ao.setAttribute('aria-pressed', aoPass.enabled);
-  try { aoPass.enabled = localStorage.getItem('map-ao') !== 'off'; } catch {}
-  ao.onclick = () => { aoPass.enabled = !aoPass.enabled; show(); try { localStorage.setItem('map-ao', aoPass.enabled ? 'on' : 'off'); } catch {} };
-  show();
-}
 let fpsN = 0, fpsT = 0;
 
 // three draws a transparent double-sided mesh twice, back faces then front, and resolves its program both times.
@@ -839,6 +809,98 @@ helpBtn.onclick = () => {
 document.getElementById('helpClose').onclick = () => showHelp(false);
 addEventListener('keydown', e => { if (e.key === 'Escape' && !helpPanel.hidden) showHelp(false); });
 renderer.domElement.addEventListener('pointerdown', () => showHelp(false));
+
+// The sliders button beside "?" opens the graphics panel. Quality picks a preset level, and auto moves the level
+// with the frame rate. The controls under it show what the level sets. A change to one of them switches the preset
+// to Custom, which holds the controls over the level then showing. Auto stops stepping under Custom.
+
+const gfxBtn = Object.assign(document.createElement('button'), { id: 'gfx', title: 'Graphics' });
+gfxBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h11M18 7h3M3 17h4M11 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>';
+Object.entries({ 'aria-label': 'Graphics settings', 'aria-expanded': false, 'aria-controls': 'gfxPanel' }).forEach(([k, v]) => gfxBtn.setAttribute(k, v));
+const gfxPanel = Object.assign(document.createElement('div'), { id: 'gfxPanel', className: 'panel', hidden: true });
+gfxPanel.innerHTML = '<button id="gfxClose" aria-label="Close graphics">×</button><h2>Graphics</h2>';
+helpBtn.after(gfxBtn, gfxPanel);
+const row = (name, el) => { const l = document.createElement('label'); l.append(name, el); gfxPanel.append(l); };
+const qSel = document.getElementById('quality');
+qSel.add(new Option('Custom', 'custom'));
+qSel.parentNode.remove();
+row('Quality', qSel);
+
+// Resolution is the share of the screen's pixels the frame draws, up to 3 device pixels per pixel. A level can
+// land between the listed shares, so the control adds that share as its own entry.
+// View distance takes the fog range and prop range of the low, medium or high level.
+// Glow scales the bloom the output pass adds, or turns bloom off. The other controls are on/off switches.
+
+const share = () => Math.round(renderer.getPixelRatio() / devicePixelRatio * 100) / 100;
+const VIEWS = ['low', 'medium', 'high'];
+const KNOBS = [
+  ['res', 'Resolution', [['0.5', '50%'], ['0.75', '75%'], ['1', '100%'], ['1.5', '150%'], ['2', '200%']].filter(([v]) => devicePixelRatio * v <= 3)],
+  ['view', 'View distance', [['low', 'Near'], ['medium', 'Medium'], ['high', 'Far']]],
+  ['glow', 'Glow', [['off', 'Off'], ['0.6', 'Subtle'], ['1', 'Normal'], ['1.6', 'Strong']]],
+  ['smaa', 'Smooth edges'],
+  ...aoPass ? [['ao', 'Corner shade']] : [],
+  ...SHADOWS ? [['shadows', 'Shadows']] : [],
+];
+const shown = {
+  res: () => String(share()),
+  view: () => VIEWS.find(l => QUALITY_LEVELS[l].fog === QUALITY.fog && QUALITY_LEVELS[l].detail === QUALITY.detail) ?? 'high',
+  glow: () => QUALITY.bloom ? String(QUALITY.glow) : 'off',
+};
+const valueOf = el => el.type === 'checkbox' ? (el.checked ? 'on' : 'off') : el.value;
+const knobs = KNOBS.map(([k, name, opts]) => {
+  const el = document.createElement(opts ? 'select' : 'input');
+  if (opts) el.innerHTML = opts.map(([v, t]) => `<option value="${v}">${t}</option>`).join('');
+  else { el.type = 'checkbox'; el.setAttribute('role', 'switch'); }
+  el.dataset.k = k;
+  el.onchange = () => {
+    pick = Object.fromEntries(knobs.map(e => [e.dataset.k, valueOf(e)]));
+    pick.level = QUALITY.level;
+    setMode('custom');
+  };
+  row(name, el);
+  return el;
+});
+addEventListener('map-quality', () => {
+  for (const el of knobs) {
+    if (el.type === 'checkbox') { el.checked = !!QUALITY[el.dataset.k]; continue; }
+    const v = shown[el.dataset.k]();
+    if (![...el.options].some(o => o.value === v)) el.add(new Option(`${Math.round(v * 100)}%`, v), [...el.options].find(o => +o.value > +v));
+    el.value = v;
+  }
+});
+
+// The preset and the custom controls persist per browser.
+
+const QUALITY_KEY = `${SETTING.storage}-map-quality`, GFX_KEY = `${SETTING.storage}-map-gfx`;
+let pick = {};
+const save = () => { try { localStorage.setItem(QUALITY_KEY, qSel.value); localStorage.setItem(GFX_KEY, JSON.stringify(pick)); } catch {} };
+const setMode = v => {
+  if (v === 'custom' && !(pick.level in QUALITY_LEVELS)) v = 'auto';
+  QUALITY.mode = qSel.value = v;
+  for (const k in PICK) delete PICK[k];
+  if (v === 'custom') {
+    const view = QUALITY_LEVELS[VIEWS.includes(pick.view) ? pick.view : pick.level], glow = pick.glow ?? (pick.bloom === 'off' ? 'off' : '1');
+    Object.assign(PICK, { ss: +pick.res, dpr: 3, fog: view.fog, detail: view.detail, bloom: glow !== 'off', glow: glow === 'off' ? 1 : +glow,
+      smaa: pick.smaa === 'on', ao: pick.ao !== 'off', shadows: pick.shadows !== 'off' });
+  }
+  applyQuality(v === 'custom' ? pick.level : v === 'auto' ? START : v);
+  save();
+};
+qSel.onchange = () => setMode(qSel.value);
+let stored = 'auto';
+try { stored = localStorage.getItem(QUALITY_KEY) || 'auto'; pick = JSON.parse(localStorage.getItem(GFX_KEY)) || {}; } catch {}
+setMode([...qSel.options].some(o => o.value === stored) ? stored : 'auto');
+
+const hint = text => gfxPanel.appendChild(Object.assign(document.createElement('p'), { className: 'hint', textContent: text }));
+hint('Resolution is a share of the screen’s pixels.');
+hint('').append(fpsEl);
+
+const showGfx = on => { gfxPanel.hidden = !on; gfxBtn.setAttribute('aria-expanded', on); if (on) showHelp(false); };
+gfxBtn.onclick = () => showGfx(gfxPanel.hidden);
+helpBtn.addEventListener('click', () => showGfx(false));
+document.getElementById('gfxClose').onclick = () => showGfx(false);
+addEventListener('keydown', e => { if (e.key === 'Escape') showGfx(false); });
+renderer.domElement.addEventListener('pointerdown', () => showGfx(false));
 
 if (QUERY.has('edit') && /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) import('./edit.js');
 
