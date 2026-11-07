@@ -1,5 +1,5 @@
-// Ride sound: a hum that follows the train's speed, a whoosh when a train passes on the partner guideway,
-// and one announcement on arrival at the Beanstalk. ride.js calls rideSound once per frame while riding.
+// Ride sound: a hum that follows the train's speed and one announcement on arrival at the Beanstalk.
+// ride.js calls rideSound once per frame while riding.
 
 import { STANDALONE } from './core.js';
 
@@ -12,7 +12,7 @@ const ANNOUNCE = { 'The Beanstalk': 'beanstalk-announce.mp3' }, VMAX = 41.6;
 // SOUND holds the current target gains, the last announcement, whether it plays and the live nodes, so the checks
 // can read them.
 
-export const SOUND = { hum: 0, whoosh: 0, announced: null, speaking: false, nodes: null };
+export const SOUND = { hum: 0, announced: null, speaking: false, nodes: null };
 
 // Clips decode once per page. The ride's nodes build on its first frame and stop when it ends.
 
@@ -30,9 +30,9 @@ function build(actx, out) {
   for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
   const src = actx.createBufferSource();
   src.buffer = noise; src.loop = true;
-  const hum = actx.createGain(), whoosh = actx.createGain(), low = actx.createBiquadFilter(), band = actx.createBiquadFilter();
-  hum.gain.value = whoosh.gain.value = 0;
-  low.type = 'lowpass'; band.type = 'bandpass'; band.frequency.value = 900; band.Q.value = .8;
+  const hum = actx.createGain(), low = actx.createBiquadFilter();
+  hum.gain.value = 0;
+  low.type = 'lowpass';
   const osc = [1, 2].map(k => {
     const o = actx.createOscillator();
     o.type = 'sine'; o.k = k;
@@ -41,10 +41,9 @@ function build(actx, out) {
     return o;
   });
   src.connect(low).connect(hum);
-  src.connect(band).connect(whoosh);
   src.start();
-  hum.connect(out); whoosh.connect(out);
-  nodes = SOUND.nodes = { out, hum, whoosh, low, osc, src, voice: null };
+  hum.connect(out);
+  nodes = SOUND.nodes = { out, hum, low, osc, src, voice: null };
 }
 
 function hush() {
@@ -56,17 +55,14 @@ function hush() {
 }
 
 // The hum is two low sines and noise through a low-pass. Its pitch, filter and gain rise with speed, and it is
-// silent while the train stands. The whoosh grows as a train closes in under 40 m, but only while the rider's
-// train moves, so two trains standing side by side stay quiet. Muting fades both out in .1 s and stops the
+// silent while the train stands. Muting fades it out in .1 s and stops the
 // announcement, and unmuting does not restart it.
 
-export function rideSound({ actx, out, speed, passing, arrive, muted }) {
+export function rideSound({ actx, out, speed, arrive, muted }) {
   if (!nodes) build(actx, out);
-  const v = Math.min(1, speed / VMAX), near = Math.max(0, 1 - passing / 40), t = actx.currentTime;
+  const v = Math.min(1, speed / VMAX), t = actx.currentTime;
   SOUND.hum = muted ? 0 : .045 * v;
-  SOUND.whoosh = muted ? 0 : .6 * near * near * Math.min(1, speed / 15);
   nodes.hum.gain.setTargetAtTime(SOUND.hum, t, muted ? .03 : .15);
-  nodes.whoosh.gain.setTargetAtTime(SOUND.whoosh, t, muted ? .03 : .08);
   for (const o of nodes.osc) o.frequency.setTargetAtTime((38 + 30 * v) * o.k, t, .2);
   nodes.low.frequency.setTargetAtTime(150 + 250 * v, t, .2);
   if (muted) hush();
@@ -92,7 +88,7 @@ export function stopSound() {
   if (!nodes) return;
   hush();
   for (const n of [...nodes.osc, nodes.src]) n.stop();
-  for (const n of [nodes.hum, nodes.whoosh]) n.disconnect();
+  nodes.hum.disconnect();
   nodes = SOUND.nodes = null;
-  SOUND.hum = SOUND.whoosh = 0;
+  SOUND.hum = 0;
 }

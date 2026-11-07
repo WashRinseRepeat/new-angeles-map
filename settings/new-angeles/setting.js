@@ -15,6 +15,14 @@ export default {
 
   storage: 'na',
   data: { city: 'city.json', streets: 'blend', seats: 'places.json', summaries: 'districts.json' },
+
+  // The settings panel's music picker offers these loops from the ride audio folder.
+
+  music: [
+    { file: 'theme', name: 'New Angeles Theme' },
+    { file: 'beanstalk-line', name: 'Beanstalk' }, { file: 'city-loop', name: 'City Loop' }, { file: 'guayaquil-loop', name: 'Guayaquil' },
+    { file: 'esmeraldas-line', name: 'Esmeraldas' }, { file: 'la-costa-line', name: 'La Costa' },
+  ],
   map: MAP,
 
   // ---------- the central landmark, the Beanstalk, rising from the Root in Chakana ----------

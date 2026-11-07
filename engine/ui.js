@@ -10,6 +10,7 @@ import { FOG, FOG_BASE, LOCK, PICK, QUALITY, QUALITY_LEVELS, SHADOWS, SURFACE, U
 import { SHAPES, TILE, TILES, glows, pools, put, signs, yawAt } from './instances.js';
 import { ARCHETYPES, ARCH_BASE, ARCH_WEIGHTS, MERGED_MAT, TALLY, decor, insidePoly, merged } from './grammar.js';
 import { rideFocus, rideTick, riding } from './ride.js';
+import { RIDE_AUDIO } from './ridesound.js';
 import { TRAFFIC, centre, hwCars, hwTraffic, moveCars, nearHighway, track, uploadUsed } from './transport.js';
 import { BLOCK_MAX, CITYTUNE, FRAMES, QUERY, SC, SITES, frontOf, generate } from './generator.js';
 import { LANDMARKS, LANDMARK_LABELS } from './api.js';
@@ -814,11 +815,11 @@ renderer.domElement.addEventListener('pointerdown', () => showHelp(false));
 // with the frame rate. The controls under it show what the level sets. A change to one of them switches the preset
 // to Custom, which holds the controls over the level then showing. Auto stops stepping under Custom.
 
-const gfxBtn = Object.assign(document.createElement('button'), { id: 'gfx', title: 'Graphics' });
+const gfxBtn = Object.assign(document.createElement('button'), { id: 'gfx', title: 'Settings' });
 gfxBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h11M18 7h3M3 17h4M11 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>';
-Object.entries({ 'aria-label': 'Graphics settings', 'aria-expanded': false, 'aria-controls': 'gfxPanel' }).forEach(([k, v]) => gfxBtn.setAttribute(k, v));
+Object.entries({ 'aria-label': 'Settings', 'aria-expanded': false, 'aria-controls': 'gfxPanel' }).forEach(([k, v]) => gfxBtn.setAttribute(k, v));
 const gfxPanel = Object.assign(document.createElement('div'), { id: 'gfxPanel', className: 'panel', hidden: true });
-gfxPanel.innerHTML = '<button id="gfxClose" aria-label="Close graphics">×</button><h2>Graphics</h2>';
+gfxPanel.innerHTML = '<button id="gfxClose" aria-label="Close settings">×</button><h2>Settings</h2>';
 helpBtn.after(gfxBtn, gfxPanel);
 const row = (name, el) => { const l = document.createElement('label'); l.append(name, el); gfxPanel.append(l); };
 const qSel = document.getElementById('quality');
@@ -890,6 +891,27 @@ qSel.onchange = () => setMode(qSel.value);
 let stored = 'auto';
 try { stored = localStorage.getItem(QUALITY_KEY) || 'auto'; pick = JSON.parse(localStorage.getItem(GFX_KEY)) || {}; } catch {}
 setMode([...qSel.options].some(o => o.value === stored) ? stored : 'auto');
+
+// Music plays while the visitor looks around. Rides and tours bring their own sound, so it pauses while one runs.
+// The pick persists. A saved pick starts on the first tap, because browsers block autoplay.
+
+if (SETTING.music?.length) {
+  const KEY = `${SETTING.storage}-map-music`, tune = Object.assign(new Audio(), { loop: true, volume: .5 }), sel = document.createElement('select');
+  sel.id = 'music';
+  sel.innerHTML = [['', 'Off'], ...SETTING.music.map(m => [m.file, m.name])].map(([v, t]) => `<option value="${v}">${t}</option>`).join('');
+  try { sel.value = localStorage.getItem(KEY) ?? ''; } catch {}
+  if (sel.selectedIndex < 0) sel.value = '';
+  const play = () => {
+    if (!sel.value || document.body.classList.contains('focus')) return tune.pause();
+    const url = new URL(`${RIDE_AUDIO}${sel.value}.mp3`, location.href).href;
+    if (tune.src !== url) tune.src = url;
+    tune.play().catch(() => {});
+  };
+  sel.onchange = () => { try { localStorage.setItem(KEY, sel.value); } catch {} play(); };
+  addEventListener('pointerdown', play, { once: true });
+  new MutationObserver(play).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+  row('Music', sel);
+}
 
 const hint = text => gfxPanel.appendChild(Object.assign(document.createElement('p'), { className: 'hint', textContent: text }));
 hint('Resolution is a share of the screen’s pixels.');

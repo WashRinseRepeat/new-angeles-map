@@ -59,14 +59,14 @@ function plant(H) {
     }
   };
 
-  // Lattice pylon with two crossarms. It returns its six conductor points.
+  // Lattice pylon with two crossarms along z, for a line that runs along x. It returns its four conductor points.
 
   const pylon = (x, z, h) => {
     prop('lattice', x, h / 2, z, 9, h, 9, [.2, .19, .18]);
     const tips = [];
     for (const [y, half] of [[h * .72, 9], [h * .9, 6.5]]) {
-      prop('box', x, y, z, half * 2, .9, .9, [.14, .13, .12]);
-      for (const s of [-1, 1]) tips.push([x + s * half, y - 1.6, z]);
+      prop('box', x, y, z, .9, .9, half * 2, [.14, .13, .12]);
+      for (const s of [-1, 1]) tips.push([x, y - 1.6, z + s * half]);
     }
     glow(x, h + .4, z, .7, .7, .7, RED);
     return tips;
@@ -121,14 +121,14 @@ function plant(H) {
   };
 
   return {
-    // A free site in the forest where Quinde, La Costa and Guayaquil meet. The turn sends the power lines south-east
-    // into Guayaquil.
+    // A free site in the forest where Quinde, La Costa and Guayaquil meet. The turn points the front (-z) west-south-west
+    // at La Costa and the Grand Loop, and sends the power lines (+x) north toward the city.
 
-    at: [852.2, 1117.8], free: [140, 140, -2.5], label: 'New Angeles Hyper-Fusion Plant', labelY: 200,
+    at: [852.2, 1117.8], free: [140, 140, -2.5 - Math.PI / 2], label: 'New Angeles Hyper-Fusion Plant', labelY: 200,
     build(x, z, w, d, st, r) {
       _o = new THREE.Object3D(); A.c = new THREE.Color(); A.towers = [];
       const cst = { ...st, base: CONC, win: [1.3, .75, .3], lit: .12 };
-      const f = H.frame()?.front ?? { x: 0, z: -1 }, fy = Math.atan2(f.x, f.z);
+      const f = { x: 0, z: -1 }, fy = Math.PI;
       prop('box', 0, .1, 0, w, .2, d, [.035, .033, .031]);
 
       // Cooling towers: the tall middle one stands back, the two side ones step forward.
@@ -200,6 +200,7 @@ function plant(H) {
       glow(hx + hw / 2 + 6, 25.3, hz, .5, .5, .5, AMBER);
       textSign('NA HYPER-FUSION 1', hx - hw / 2 - .4, hh - 4, hz, 26, 3, -Math.PI / 2, dim(AMBER, .6));
       textSign('NA HYPER-FUSION 1', hx + hw / 2 + 1.8, hh - 4, hz, 26, 3, Math.PI / 2, dim(AMBER, .6));
+      textSign('NA HYPER-FUSION 1', hx, hh - 4, hz - hd / 2 - .4, 24, 3, Math.PI, dim(AMBER, .7));
 
       // Pipes: drum to hall, hall to the header, and a drop to each tower.
 
@@ -228,7 +229,7 @@ function plant(H) {
       bld(-57, 8, 18, 12, 9, cst, r, { skin: SKINS.bands, roof: true, lit: .3, kibble: false });
       prop('dish', -61, 11.5, 9, 5, 5, 5, STEEL, 1, -.7);
 
-      // Transformer yard: rows of units with bushings, a fence line and two take-off gantries.
+      // Transformer yard: rows of units with bushings, a fence line and two take-off gantries at its +x end.
 
       for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) {
         const tx = 10 + i * 14, tz = -50 - j * 9;
@@ -239,19 +240,20 @@ function plant(H) {
       for (let k = 0; k < 18; k++) prop('box', 2 + k * 3.6, 1.4, -66, .2, 2.8, .2, DARK);
       flickerGlow(2, 3, -66, .5, .5, .5, AMBER, r);
       const lines = [];
-      for (const gx of [18, 48]) {
-        for (const s of [-1, 1]) prop('lattice', gx + s * 8, 9, -64, 2, 18, 2);
-        prop('box', gx, 18, -64, 18, 1, 1, STEEL);
-        lines.push([[gx - 7, 17, -64], [gx, 17, -64], [gx + 7, 17, -64]]);
+      for (const gz of [-44, -66]) {
+        for (const s of [-1, 1]) prop('lattice', 62, 9, gz + s * 8, 2, 18, 2);
+        prop('box', 62, 18, gz, 1, 1, 18, STEEL);
+        lines.push([[62, 17, gz - 7], [62, 17, gz], [62, 17, gz + 7]]);
       }
       pool(34, -56, 30, dim(ICE, .05));
 
-      // Two lines leave the site on pylons, three conductors each.
+      // Two lines leave the site on pylons along +x, three conductors each. They bend toward +z, away from the ring
+      // highway, and spread apart as they go.
 
       lines.forEach((g, n) => {
         let last = g.map(p => [...p]);
         for (let k = 1; k <= 3; k++) {
-          const px = (n ? 48 : 18) + (n ? 1 : -1) * k * 22, pz = -64 - k * 70, tips = pylon(px, pz, 50);
+          const px = 62 + k * 70, pz = g[1][2] + k * (n ? 14 : 30), tips = pylon(px, pz, 50);
           const next = [tips[0], tips[2], tips[1]];
           for (let c = 0; c < 3; c++) cable(last[c], next[c], 4);
           last = next;

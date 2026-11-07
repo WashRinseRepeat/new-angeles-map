@@ -259,7 +259,11 @@ details.d > summary b { font-size: 11px; color: var(--muted); font-weight: 400; 
 
 #ridePick .stns { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 4px 8px; }
 #ridePick .stns button { font-size: 12px; }
-body.focus #nav, body.focus #help, body.focus #helpPanel, body.focus #gfx, body.focus #gfxPanel { display: none; }
+body.focus #nav, body.focus #help, body.focus #helpPanel { display: none; }
+
+/* The graphics button stays during rides and tours, in the help button's place. */
+
+body.focus #gfx { right: 12px; }
 #ride { z-index: 6; right: 16px; bottom: 16px; width: 300px; padding: 10px 12px; }
 #ride .hd { display: flex; align-items: flex-start; gap: 8px; }
 #ride .hd > div { flex: 1; min-width: 0; }
@@ -315,6 +319,7 @@ body.focus #clock, body.editing #clock, body.focus #depth, body.editing #depth {
   #atSub { bottom: 168px; max-width: calc(100vw - 32px); font-size: 14px; }
   #minimap { left: 8px; bottom: 8px; width: calc(100vw - 16px); }
   #gfx { top: 62px; right: 52px; }
+  body.focus #gfx { right: 8px; }
   #gfxPanel { top: 104px; left: 8px; right: 8px; width: auto; }
   #gfxPanel select { min-height: 36px; font-size: 16px; }
   #clock { right: 8px; bottom: 8px; padding: 6px 12px; }

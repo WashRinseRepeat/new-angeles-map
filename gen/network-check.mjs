@@ -1440,43 +1440,6 @@ try {
     return fit && first < .1 * at[1].hum && at[1].hum > at[0].hum || JSON.stringify({ first, at });
   }));
 
-  // The Grand Loop train and Center Loop train 0 meet 2 s after the clocks are set. The meeting point is where the
-  // Grand Loop runs at full speed within 8 m of the Center Loop's track and at its height, so on the trunk.
-
-  await check('sound: whoosh on a pass', inPage(async () => {
-    const { ROUTES, SOUND, FAST, cab, pump } = window.__ride;
-    const { startRide, state } = await import(new URL('engine/ride.js', location.href).href);
-    const { routeU } = await import(new URL('engine/transport.js', location.href).href);
-    const G = ROUTES.find(R => R.name === 'Grand Loop'), C = ROUTES.find(R => R.name === 'Center Loop');
-    const where = (R, tau) => { const { c, g } = state(R, tau); return { g, p: R.curve.getPointAt(routeU(R, ((c % R.len) + R.len) % R.len / R.len)) }; };
-    const track = C.curve.getSpacedPoints(Math.ceil(C.len / 4));
-    let tG = null;
-    for (let t = 0; t < G.P && tG == null; t++) {
-      const a = where(G, t), b = where(G, t + 1);
-      if (a.g.D != null && a.p.distanceTo(b.p) > 38 && track.some(q => Math.hypot(q.x - a.p.x, q.z - a.p.z) < 8 && Math.abs(q.y - a.p.y) < 2)) tG = t;
-    }
-    if (tG == null) return 'the Grand Loop never runs fast beside the Center Loop';
-    const meet = where(G, tG).p;
-    let tC = 0, best = Infinity;
-    for (let t = 0; t < C.P; t += .25) {
-      const { g, p } = where(C, t), d = p.distanceTo(meet);
-      if (g.D != null && d < best) { best = d; tC = t; }
-    }
-    startRide(G.stops[0]);
-    await pump(30, FAST);
-    G.t = tG - 2; C.t = tC - 2; C.sign = 1;
-    const gap = () => Math.min(...C.trains[0].map(m => m.position.distanceTo(cab.position)));
-    let peak = 0, close = 0, nearest = Infinity;
-    for (let n = 0; n < 80; n++) {
-      await pump(1, 50);
-      const d = gap();
-      nearest = Math.min(nearest, d);
-      if (d < 30) { close++; peak = Math.max(peak, SOUND.whoosh); }
-    }
-    if (!close) return `no Center Loop train within 30 m, nearest ${nearest.toFixed(0)} m`;
-    return peak > .2 || `whoosh peaked at ${peak.toFixed(3)}`;
-  }));
-
   // The ride starts two stops short of the Beanstalk and jumps past each run. Plays counts every start of a
   // one-shot buffer source. Two flips at the platform run the train back out and in again, and add no play.
 
@@ -1526,13 +1489,13 @@ try {
     const { startRide } = await import(new URL('engine/ride.js', location.href).href);
     startRide(ROUTES.find(R => R.name === 'Grand Loop').stops[0]);
     await pump(50, FAST);
-    const { hum, whoosh, osc } = SOUND.nodes, ctx = osc[0].context;
+    const { hum, osc } = SOUND.nodes, ctx = osc[0].context;
     if (ctx.state !== 'running') return `audio context ${ctx.state}`;
     const on = hum.gain.value;
     $('rMusic').click();
     await pump(1);
     await new Promise(r => setTimeout(r, 500));
-    const after = [hum.gain.value, whoosh.gain.value];
+    const after = [hum.gain.value];
     $('rMusic').click();
     return on > 0 && after.every(g => g < 1e-3) || JSON.stringify({ on, after, label: $('rMusic').textContent });
   }));
@@ -1547,9 +1510,9 @@ try {
     const on = SOUND.hum;
     $('rMusic').click();
     await pump(2);
-    const r = { on, hum: SOUND.hum, whoosh: SOUND.whoosh };
+    const r = { on, hum: SOUND.hum };
     $('rMusic').click();
-    if (!(r.on > 0 && r.hum === 0 && r.whoosh === 0)) return JSON.stringify(r);
+    if (!(r.on > 0 && r.hum === 0)) return JSON.stringify(r);
     const speak = async route => {
       if (!await toStop(route, 'The Beanstalk')) return false;
       for (let n = 0; n < 20 && !SOUND.speaking; n++) await pump(1);

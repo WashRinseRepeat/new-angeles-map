@@ -799,10 +799,7 @@ function sound(dt) {
   if (ride.wait) ride.at = null;
   const speed = ride.at && dt > 0 ? cab.position.distanceTo(ride.at) / dt : 0;
   (ride.at ??= V(0, 0, 0)).copy(cab.position);
-  let passing = Infinity;
-  for (const R of RUNS) if (R !== ride.R) for (const cars of R.trains) for (const m of cars)
-    if (Math.abs(m.position.y - cab.position.y) < 4) passing = Math.min(passing, m.position.distanceTo(cab.position));
-  rideSound({ actx, out: actx.destination, speed, passing, arrive, muted: muted || !!ride.wait });
+  rideSound({ actx, out: actx.destination, speed, arrive, muted: muted || !!ride.wait });
 }
 
 // ---------- music ----------
