@@ -1656,6 +1656,13 @@ await check('settings: graphics panel', async () => {
     await quality('medium');
     await expect('medium after custom', { q: 'medium', dpr: 1, bloom: true, glow: 1, smaa: false, ui: { res: '1', view: 'medium', glow: '1', smaa: 'off', ao: ao(true) } });
 
+    // Smooth edges raises Resolution to 150% and puts it back when it turns off.
+
+    await set('smaa', 'on');
+    await expect('smooth edges on', { q: 'custom', dpr: 1.5, smaa: true, ui: { res: '1.5', view: 'medium', glow: '1', smaa: 'on', ao: ao(true) } });
+    await set('smaa', 'off');
+    await expect('smooth edges off', { dpr: 1, smaa: false, ui: { res: '1', view: 'medium', glow: '1', smaa: 'off', ao: ao(true) } });
+
     await p.setViewportSize({ width: 375, height: 700 });
     const box = id => p.locator(id).boundingBox(), [gear, help, panel] = [await box('#gfx'), await box('#help'), await box('#gfxPanel')];
     if (gear.x + gear.width > help.x || gear.y !== help.y) bad.push(`phone button ${JSON.stringify(gear)} against help ${JSON.stringify(help)}`);

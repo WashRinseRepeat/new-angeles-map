@@ -848,12 +848,29 @@ const shown = {
   glow: () => QUALITY.bloom ? String(QUALITY.glow) : 'off',
 };
 const valueOf = el => el.type === 'checkbox' ? (el.checked ? 'on' : 'off') : el.value;
+
+// Smooth edges also raises Resolution to 150%, or to the highest share under it the screen allows, as ultra does.
+// Turning it off puts back the resolution it raised, unless the viewer changed Resolution since.
+
+let resBeforeSmaa = null;
+const smaaRes = (on, res) => {
+  if (!on) {
+    if (resBeforeSmaa !== null) res.value = resBeforeSmaa;
+    resBeforeSmaa = null;
+    return;
+  }
+  const top = [...res.options].map(o => o.value).filter(v => +v <= 1.5).at(-1);
+  if (+res.value < +top) { resBeforeSmaa = res.value; res.value = top; }
+};
+
 const knobs = KNOBS.map(([k, name, opts]) => {
   const el = document.createElement(opts ? 'select' : 'input');
   if (opts) el.innerHTML = opts.map(([v, t]) => `<option value="${v}">${t}</option>`).join('');
   else { el.type = 'checkbox'; el.setAttribute('role', 'switch'); }
   el.dataset.k = k;
   el.onchange = () => {
+    if (k === 'smaa') smaaRes(el.checked, knobs.find(e => e.dataset.k === 'res'));
+    if (k === 'res') resBeforeSmaa = null;
     pick = Object.fromEntries(knobs.map(e => [e.dataset.k, valueOf(e)]));
     pick.level = QUALITY.level;
     setMode('custom');

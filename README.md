@@ -17,9 +17,8 @@ scale. See [Medieval settings](#medieval-settings).
 - **Landmarks with cards.** Over a hundred hand-built landmarks, each with a card of setting text. Filters sort
   them into civic, corporate, shops and food.
 - **The Beanstalk.** The space elevator rises from the Root, with pods that climb the tether.
-- **Maglev rides.** Ride any line or loop in first person from any of its stations, with the Grand Loop first in
-  the picker. Each route has its own music, the train hums with its speed, and an announcement plays at the
-  Beanstalk. You can change speed, turn back, look around and hide the labels.
+- **Maglev rides.** Four tours ride the elevated lines in first person, each with its own music. You can change
+  speed, turn back, look around and hide the labels.
 - **Narrated audio guide.** Two episodes with Carmen, an NBN-certified city guide. The camera flies along with the
   narration. It has subtitles, playback speed, seeking and resume.
 - **A living night.** Ground cars, hover traffic and highway traffic, flickering neon, searchlights, harvesters
@@ -32,11 +31,8 @@ scale. See [Medieval settings](#medieval-settings).
 - **Mouse, trackpad and touch.** Phones and tablets work, and quality adapts to the device.
 - **Other settings.** The engine draws any city from a setting pack. Two medieval packs ship with it, with a day
   clock, sun shadows and terrain. See [Medieval settings](#medieval-settings).
-- **Settings panel.** The sliders button in the corner opens the settings, also during rides and tours. Quality
-  is Auto by default and steps with the frame rate. You can pick a level or set resolution, view distance, glow,
-  smooth edges (SMAA), corner shade and shadows yourself. The choices persist per browser.
-- **Music.** The settings panel plays the New Angeles Theme or one of the route loops while you explore.
-  It pauses during rides and tours, which play their own sound.
+- **Smooth edges.** A switch in the corner renders at 1.5 times the screen's pixel ratio and adds SMAA, for
+  fast graphics cards.
 
 | | |
 |---|---|
@@ -238,13 +234,7 @@ a quoted landmark name. `engine/audiotour.js` documents each one.
 
 ### Add ride music
 
-A ride plays `audio/ride/<key>.mp3` as a loop. A tour in `transport.maglev.tours` of
-`settings/new-angeles/setting.js` names its `music` key, and a loop in `gen/loops.json` can too. Rides
-through the Root play `centreMusic`. Other routes use their name in lower case with dashes, as `city-loop` for
-the City Loop.
-
-The `music` list in `setting.js` fills the settings panel's music picker. Each entry is `{ file, name }`, where
-`file` is the key of a track in `audio/ride/`.
+Each maglev tour in `engine/ride.js` names a `music` key, which plays `audio/ride/<key>.mp3` as a loop.
 
 ## Contributing
 
