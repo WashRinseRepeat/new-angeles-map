@@ -20,6 +20,7 @@ export const loadMsg = t => { document.getElementById('loadMsg').textContent = t
 
 // city.json streams in with a progress count. The server compresses it, so the count is in uncompressed MB.
 
+performance.mark('na:core');
 export const CITY = await (async () => {
   const res = await fetch(atRoot(SETTING.data.city)), reader = res.body.getReader(), parts = [];
   let got = 0;
@@ -29,9 +30,11 @@ export const CITY = await (async () => {
     parts.push(value); got += value.length;
     loadMsg(`Loading the city · ${(got / 1e6).toFixed(1)} MB`);
   }
+  performance.mark('na:city-dl');
   loadMsg('Loading districts');
   return JSON.parse(new TextDecoder().decode(await new Blob(parts).arrayBuffer()));
 })();
+performance.mark('na:city-parsed');
 if (innerWidth < 600) document.getElementById('hud').open = false;
 export const [DX, DZ] = CITY.dims;
 
@@ -125,15 +128,29 @@ export const STYLES = SETTING.styles.styles;
 // A point's style mixes every district whose border lies within blend metres. mix lists [id, weight], strongest first.
 
 export const STYLE_KEYS = ['h0', 'h1', 'density', 'neon', 'lit', 'grime', 'w'], STYLE_RGB = ['base', 'win', 'street'];
+// A district whose box lies more than blend metres off adds no weight, so it is skipped. A point near no district
+// scans them all again for the nearest one.
+
+const BOXES = new WeakMap();
+const boxOf = poly => {
+  let b = BOXES.get(poly);
+  if (!b) { b = [Infinity, Infinity, -Infinity, -Infinity]; for (const [x, z] of poly) { b[0] = Math.min(b[0], x); b[1] = Math.min(b[1], z); b[2] = Math.max(b[2], x); b[3] = Math.max(b[3], z); } BOXES.set(poly, b); }
+  return b;
+};
 export function styleAt(x, z, blend) {
-  const mix = [];
-  let tot = 0, best = -Infinity, near = null;
+  const mix = [], far = blend + 1e-6;
+  let tot = 0;
   for (const d of CITY.districts) {
-    const sd = sdPoly(x, z, d.poly), k = smooth(-blend, blend, sd);
+    const b = boxOf(d.poly);
+    if (b[0] - x > far || x - b[2] > far || b[1] - z > far || z - b[3] > far) continue;
+    const k = smooth(-blend, blend, sdPoly(x, z, d.poly));
     if (k > 0) { mix.push([d.id, k]); tot += k; }
-    if (sd > best) { best = sd; near = d.id; }
   }
-  if (!tot) { mix.push([near, 1]); tot = 1; }
+  if (!tot) {
+    let best = -Infinity, near = null;
+    for (const d of CITY.districts) { const sd = sdPoly(x, z, d.poly); if (sd > best) { best = sd; near = d.id; } }
+    mix.push([near, 1]); tot = 1;
+  }
   mix.sort((a, b) => b[1] - a[1]);
   const m = { mix: mix.map(([id, k]) => [id, k / tot]) };
   for (const key of STYLE_KEYS) m[key] = 0;

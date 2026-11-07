@@ -634,9 +634,11 @@ function thin(on) {
   });
   for (const [o, m] of swapped) o.material = fadeTwin(m);
 }
+performance.mark('na:compile0');
 thin(true);
 renderer.compileAsync(scene, camera).catch(() => {});
 thin(false);
+performance.mark('na:compile1');
 
 // Frames are capped at 60 per second. On faster screens the loop skips a refresh until a 60 Hz slot has passed;
 // carrying the remainder keeps 120 and 144 Hz screens near 60 instead of dropping to 48.
@@ -796,7 +798,9 @@ renderer.setAnimationLoop(now => {
   }
 
   tick(dt);
+  if (!S.drawn) performance.mark('na:frame0');
   composer.render();
+  if (!S.drawn) { S.drawn = true; performance.mark('na:frame1'); requestAnimationFrame(() => performance.mark('na:painted')); }
 
   // Labels rewrite every element's style, so they redraw only when the camera moved, and every sixth frame
   // for labels that appear or hide.
@@ -804,6 +808,7 @@ renderer.setAnimationLoop(now => {
   if (declutterTick % 6 === 0 || !labelCam.equals(camera.matrixWorld)) { labels.render(labelRoot, camera); labelCam.copy(camera.matrixWorld); }
 });
 initNav();
+performance.mark('na:shown');
 document.getElementById('loading').classList.add('done');
 setTimeout(() => document.getElementById('loading').remove(), 700);
 // The tuning panel, with the dev readouts, stays hidden until "?" is pressed; "?" again hides it. On a touch

@@ -263,16 +263,53 @@ const ringTrack = l => {
 // 10 m, over or under it, and climbs no more than 8%. Loops have no ends, so they never merge onto or lift other
 // track. ?loops=0 skips them.
 
+// The foot of point p on segment i of track P, if it is nearer than best.
+
+const footAt = (P, i, p, best) => {
+  const a = P[i], b = P[(i + 1) % P.length], ex = b.x - a.x, ez = b.z - a.z, L = Math.hypot(ex, ez) || 1;
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * ex + (p.z - a.z) * ez) / (L * L)));
+  const x = a.x + ex * t, z = a.z + ez * t, d = Math.hypot(p.x - x, p.z - z);
+  return d < best.d ? { d, x, z, y: lerp(a.y, b.y, t), tx: ex / L, tz: ez / L, i, t } : best;
+};
+
+// The nearest vertex bounds the foot's distance, so a segment whose box lies farther off is skipped. The scan keeps
+// index order, so the foot is the same one a full scan finds.
+
 export const footOn = (P, p) => {
   const n = P.length;
-  let best = { d: Infinity };
+  let best = { d: Infinity }, u2 = Infinity;
+  for (let i = 0; i < n; i++) { const dx = P[i].x - p.x, dz = P[i].z - p.z, q = dx * dx + dz * dz; if (q < u2) u2 = q; }
+  const U = Math.sqrt(u2) + 1e-6;
   for (let i = 0; i < (P.closed ? n : n - 1); i++) {
-    const a = P[i], b = P[(i + 1) % n], ex = b.x - a.x, ez = b.z - a.z, L = Math.hypot(ex, ez) || 1;
-    const t = Math.max(0, Math.min(1, ((p.x - a.x) * ex + (p.z - a.z) * ez) / (L * L)));
-    const x = a.x + ex * t, z = a.z + ez * t, d = Math.hypot(p.x - x, p.z - z);
-    if (d < best.d) best = { d, x, z, y: lerp(a.y, b.y, t), tx: ex / L, tz: ez / L, i, t };
+    const a = P[i], b = P[(i + 1) % n];
+    if (Math.min(a.x, b.x) - p.x > U || p.x - Math.max(a.x, b.x) > U || Math.min(a.z, b.z) - p.z > U || p.z - Math.max(a.z, b.z) > U) continue;
+    best = footAt(P, i, p, best);
   }
   return best;
+};
+
+// footNear(P, p) finds the same foot as footOn when it lies within r metres, and else gives d: Infinity. A grid
+// of 32 m cells lists each segment under every cell within r of it. The grid holds only while the tracks stay put.
+
+const footIndex = (tracks, r) => {
+  const C = 32, cells = new Map(), cell = (x, z) => Math.floor(x / C) * 65536 + Math.floor(z / C);
+  for (const P of tracks) {
+    const m = new Map(), n = P.length;
+    cells.set(P, m);
+    for (let i = 0; i < (P.closed ? n : n - 1); i++) {
+      const a = P[i], b = P[(i + 1) % n];
+      for (let gx = Math.floor((Math.min(a.x, b.x) - r) / C); gx <= Math.floor((Math.max(a.x, b.x) + r) / C); gx++)
+        for (let gz = Math.floor((Math.min(a.z, b.z) - r) / C); gz <= Math.floor((Math.max(a.z, b.z) + r) / C); gz++) {
+          const k = gx * 65536 + gz;
+          (m.get(k) ?? m.set(k, []).get(k)).push(i);
+        }
+    }
+  }
+  return (P, p) => {
+    let best = { d: Infinity };
+    for (const i of cells.get(P).get(cell(p.x, p.z)) ?? []) best = footAt(P, i, p, best);
+    return best.d < r ? best : { d: Infinity };
+  };
 };
 
 // The point d metres along track P from its foot f, against the index order where d < 0, with its heading. The
@@ -344,9 +381,9 @@ const loopTrack = l => {
 
   // Each sample takes the nearest aligned track within 12 m. Samples on one track in a row form a run.
 
-  const pull = raw.map((p, i) => {
+  const near12 = footIndex(laid, 12), pull = raw.map((p, i) => {
     let best = null;
-    for (const P of laid) { const f = footOn(P, p); if (f.d < 12 && aligned(f, head[i]) && (!best || f.d < best.f.d)) best = { P, f }; }
+    for (const P of laid) { const f = near12(P, p); if (f.d < 12 && aligned(f, head[i]) && (!best || f.d < best.f.d)) best = { P, f }; }
     return best;
   });
   const runs = [];
@@ -472,11 +509,11 @@ const loopTrack = l => {
   const hw = overHighway(path).map(y => y || -Infinity), lo = [...hw], hi = path.map(() => Infinity);
   path.forEach((p, i) => { if (p.pin) lo[i] = hi[i] = footOn(p.beside, p).y; });
   path.forEach((p, i) => { if (p.pin && path[at(i + 1)].pin && Math.abs(lo[i] - lo[at(i + 1)]) > slope(i, at(i + 1)) * span(i, at(i + 1))) { p.pin = false; hi[i] = Infinity; } });
-  const least = grade([...lo], 1), want = [];
+  const least = grade([...lo], 1), want = [], near16 = footIndex(laid, 16);
   path.forEach((p, i) => {
     if (hold[i]) return;
     for (const P of laid) {
-      const f = footOn(P, p);
+      const f = near16(P, p);
       if (f.d >= 6.5 && (P === p.beside || f.d >= 16 || aligned(f, head[i]))) continue;
       const over = f.y < Math.max(p.y, least[i]) + 10 && f.y + 10 <= ramp[i];
       want.push(over ? { i, y: f.y + 10, way: 1 } : { i, y: f.y - 10, way: -1 });

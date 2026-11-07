@@ -169,18 +169,21 @@ export function stationKits(A, { HALF, LEN, SIDES, along }) {
     'la-costa': {
       deck: [.24, .2, .16], edge: [1.3, 1, .6], sign: [1.5, 1.2, .8], board: [.22, .14, .07],
       build(r, sides) {
-        // A country halt: a small wooden shelter in the middle, benches, lamp posts and palms beside the line.
+        // A country halt: a small wooden shelter in the middle, benches, lamp posts and palms in planters.
 
         for (const s of on(sides)) {
           for (const z of [-8, 0, 8]) A.box(s * 8.6, 2.8, z, .3, 3.6, .3, [.25, .15, .08]);
           A.box(s * 7.6, 4.7, 0, 4.2, .25, 18, [.2, .12, .06]);
           for (const z of [-5, 5]) A.box(s * 8, 1.5, z, .6, .4, 2.6, [.3, .18, .09]);
           along(11, z => { A.cyl(s * 4.6, 3, z, .14, 4, [.15, .15, .15]); A.ball(s * 4.6, 5.1, z, .45, [1.2, .9, .5]); });
-          along(15, z => {
-            const h = 7 + r() * 3, x = s * (12 + r() * 3);
-            A.cyl(x, h / 2 - 2, z, .5, h + 4, [.2, .14, .08]);
+          // Palms grow from planters at the platform ends, past the shelter and the name boards.
+
+          for (const z of [-29, -22, 22, 29]) {
+            const h = 7 + r() * 3, x = s * 7.6;
+            A.box(x, 1.4, z, 1.6, .8, 1.6, [.3, .18, .09]);
+            A.cyl(x, (h + 1) / 2, z, .5, h - 1, [.2, .14, .08]);
             for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2 + r(); A.beam([x, h, z], [x + Math.cos(a) * 3.2, h - 1.4, z + Math.sin(a) * 3.2], .35, [.08, .22, .07]); }
-          }, -HALF + 4 + r() * 4);
+          }
         }
       },
     },

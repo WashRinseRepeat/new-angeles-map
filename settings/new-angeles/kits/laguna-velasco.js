@@ -430,18 +430,30 @@ function lib(H) {
     }
   };
 
-  // Signed distance from a world point to polygon P: positive inside.
+  // Whether a world point lies inside polygon P, at least m > 0 metres from its edges. Each polygon's edges keep a
+  // flat copy. An edge whose box lies farther than m off skips the distance.
 
-  const inside = (P, px, pz) => {
-    let c = false, e = Infinity;
-    for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
-      const [ax, az] = P[j], [bx, bz] = P[i], ex = bx - ax, ez = bz - az;
-      if (!ex && !ez) continue;
-      if ((az > pz) !== (bz > pz) && px < ex * (pz - az) / ez + ax) c = !c;
-      const t = Math.max(0, Math.min(1, ((px - ax) * ex + (pz - az) * ez) / (ex * ex + ez * ez)));
-      e = Math.min(e, Math.hypot(px - ax - ex * t, pz - az - ez * t));
+  const EDGES = new WeakMap();
+  const edgesOf = P => {
+    let E = EDGES.get(P);
+    if (!E) {
+      E = [];
+      for (let i = 0, j = P.length - 1; i < P.length; j = i++) if (P[i][0] !== P[j][0] || P[i][1] !== P[j][1]) E.push(P[j][0], P[j][1], P[i][0], P[i][1]);
+      EDGES.set(P, E = Float64Array.from(E));
     }
-    return c ? e : -e;
+    return E;
+  };
+  const inside = (P, px, pz, m) => {
+    const E = edgesOf(P), far = m + 1e-6;
+    let c = false;
+    for (let k = 0; k < E.length; k += 4) {
+      const ax = E[k], az = E[k + 1], bx = E[k + 2], bz = E[k + 3], ex = bx - ax, ez = bz - az;
+      if ((az > pz) !== (bz > pz) && px < ex * (pz - az) / ez + ax) c = !c;
+      if (Math.min(ax, bx) - px > far || px - Math.max(ax, bx) > far || Math.min(az, bz) - pz > far || pz - Math.max(az, bz) > far) continue;
+      const t = Math.max(0, Math.min(1, ((px - ax) * ex + (pz - az) * ez) / (ex * ex + ez * ez)));
+      if (Math.hypot(px - ax - ex * t, pz - az - ez * t) < m) return false;
+    }
+    return c;
   };
   // Largest frame-aligned rectangle inside the frame's own polygon, m metres in from its edges, as [x, z, w, d].
   // Block frames are bounding boxes of irregular blocks, so builders get this rectangle to keep walls off streets.
@@ -451,7 +463,7 @@ function lib(H) {
     const P = H.frame()?.poly;
     if (!P) return [x, z, W, D];
     const ok = (cx, cz, w, d) => [[-1, -1], [1, -1], [1, 1], [-1, 1], [0, -1], [0, 1], [-1, 0], [1, 0], [-.5, -1], [.5, -1], [-.5, 1], [.5, 1], [-1, -.5], [-1, .5], [1, -.5], [1, .5]]
-      .every(([a, b]) => inside(P, ...H.worldOf(cx + a * w / 2, cz + b * d / 2)) >= m);
+      .every(([a, b]) => inside(P, ...H.worldOf(cx + a * w / 2, cz + b * d / 2), m));
     if (ok(x, z, W, D)) return [x, z, W, D];
     let best = [x, z, 0, 0];
     for (const ou of [-.2, -.1, 0, .1, .2]) for (const ov of [-.2, -.1, 0, .1, .2]) for (const [aw, ad] of [[1, 1], [1, .75], [.75, 1], [1, .55], [.55, 1]]) {
@@ -472,7 +484,7 @@ function lib(H) {
     for (let k = 0, n = 0; k < want * 3 && n < want; k++) {
       const px = x + (r() - .5) * W, pz = z + (r() - .5) * D;
       if (Math.abs(px - R[0]) < R[2] / 2 + 2 && Math.abs(pz - R[1]) < R[3] / 2 + 2) continue;
-      if (inside(P, ...H.worldOf(px, pz)) < 3) continue;
+      if (!inside(P, ...H.worldOf(px, pz), 3)) continue;
       tree(px, .3, pz, 7 + r() * 6, r, pick(r, ['broad', 'broad', 'palm', 'cypress']));
       n++;
     }

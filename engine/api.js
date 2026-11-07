@@ -121,8 +121,15 @@ export const NEW_DISTRICTS = K.districts;
 export const FIND_FAMILIES = K.finds.filter(f => !STANDALONE || !K.private?.includes(f));
 export const KIT_FAMILIES = [...K.families, ...NEW_DISTRICTS, ...FIND_FAMILIES];
 
-for (const fam of KIT_FAMILIES) {
-  const mod = await import(inPack(`kits/${fam}.js`)), kits = mod.kits(H);
+// Kit, centre and terrain modules load in parallel, and the kits register in family order.
+
+performance.mark('na:api');
+const KIT_MODS = Promise.all(KIT_FAMILIES.map(fam => import(inPack(`kits/${fam}.js`))));
+const CENTRE_MOD = SETTING.centre.module && import(inPack(SETTING.centre.module));
+const TERRAIN_MOD = SETTING.terrain && import(inPack(SETTING.terrain));
+const SEATS_JSON = fetch(atRoot(SETTING.data.seats), { cache: 'no-store' }).then(r => r.json()).catch(() => ({}));
+for (const [f, mod] of (await KIT_MODS).entries()) {
+  const fam = KIT_FAMILIES[f], kits = mod.kits(H);
   Object.assign(KITS, kits, mod.EXTRA);
   FAMILY_KITS[fam] = Object.keys(kits);
   for (const { zone, build } of Object.values(mod.blocks?.(H) ?? {})) BLOCK_KITS[zone].push(build);
@@ -138,6 +145,7 @@ for (const fam of KIT_FAMILIES) {
     for (const [t, names] of Object.entries(add)) (S.tiers[t] ??= []).push(...names);
   }
 }
+performance.mark('na:kits');
 for (const id of OWN_TIERS) STYLES[id].tiers = STYLES[id].tiers.filter(t => t?.length);
 
 SMALL_LOTS.push(...(K.smallLots?.kits ?? []).filter(k => KITS[k]));
@@ -149,7 +157,7 @@ SMALL_LOTS.push(...(K.smallLots?.kits ?? []).filter(k => KITS[k]));
 export const LANDMARKS = [];
 export let CENTRE_API = {};
 if (SETTING.centre.module) {
-  const mod = await import(inPack(SETTING.centre.module));
+  const mod = await CENTRE_MOD;
   if (mod.build) {
     centre.clear();
     const api = mod.build(H, centre) ?? {};
@@ -161,7 +169,7 @@ if (SETTING.centre.module) {
 // Seats saved in GM edit mode (see below). Landmarks and places keep solid ground where the city's edge frays,
 // before the pack's forest grows into it.
 
-const SEATS = await fetch(atRoot(SETTING.data.seats), { cache: 'no-store' }).then(r => r.json()).catch(() => ({}));
+const SEATS = await SEATS_JSON;
 for (const lm of LANDMARKS_KITS) keep(...(SEATS[`lm:${lm.name}`]?.at ?? mapToWorld(lm.at ?? [0, 0])), lm.free ? Math.hypot(lm.free[0], lm.free[1]) / 2 + 20 : 70);
 for (const p of CITY.places ?? []) keep(...(SEATS[p.slug]?.at ?? p.at), 70);
 
@@ -170,7 +178,7 @@ for (const p of CITY.places ?? []) keep(...(SEATS[p.slug]?.at ?? p.at), 70);
 for (const [x, z, r] of CITY.keep ?? []) keep(x, z, r);
 
 if (SETTING.terrain) {
-  const mod = await import(inPack(SETTING.terrain));
+  const mod = await TERRAIN_MOD;
   if (mod.build) {
     for (const m of [outerGround, slab, water]) { m.visible = false; SURFACE.splice(SURFACE.indexOf(m), 1); }
     const g = surface(new THREE.Group());
@@ -181,6 +189,8 @@ if (SETTING.terrain) {
     LANDMARKS.push(mod.build(H, g) ?? {});
   }
 }
+
+performance.mark('na:terrain');
 
 // A pack's look.clouds lists cloud decks over its centre (clouds.js).
 
@@ -472,9 +482,12 @@ for (const lm of LANDMARKS_KITS) {
 
 // Pylons and stations build once the landmarks stand, so they keep off the landmark footprints.
 
+performance.mark('na:landmarks');
 buildPylons();
 buildStations();
+performance.mark('na:stations');
 if (!SHOWCASE) { mergeBuilds(); LANDMARKS.push(fillGreens(H)); }
+performance.mark('na:merged');
 S.BASE = new Map(INSTANCED.map(m => [m, m.count]));
 S.BASE.set(SOIL, SOIL.length);
 loadMsg('Building the city');
@@ -482,5 +495,7 @@ loadMsg('Building the city');
 // A short pause lets the loading message paint. A timeout also runs in background tabs, where animation frames stop.
 
 await new Promise(r => setTimeout(r, 40));
+performance.mark('na:gen0');
 if (SHOWCASE) showcase(SHOWCASE); else generate(U.uBlend.value);
+performance.mark('na:gen1');
 

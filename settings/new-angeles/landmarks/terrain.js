@@ -24,6 +24,7 @@ export function build(H, group) {
     hidden = eggs(H, land, SEA);
     group.add(terrainMesh(H, land), seaMesh(H, hm), ...edgeLights(H, land), ...jungle(H, land), ...ships.meshes, ...hidden.meshes);
     for (const m of cloudDecks(H, hm, land)) { CLOUD_SCENE.add(m); m.updateMatrixWorld(); }
+    performance.mark('na:ground');
   });
 
   // The ships and the eggs move once the heightmap has loaded.
@@ -75,14 +76,23 @@ function landField(H, { n, e }) {
     const i = Math.floor(u), j = Math.floor(v), fu = u - i, fv = v - j, k = j * n + i;
     return (e[k] * (1 - fu) + e[k + 1] * fu) * (1 - fv) + (e[k + n] * (1 - fu) + e[k + n + 1] * fu) * fv;
   };
+
+  // A segment whose box lies farther off than the nearest one so far is skipped.
+
+  const gap = (x, z, a, b) => Math.max(Math.min(a[0], b[0]) - x, x - Math.max(a[0], b[0]), Math.min(a[1], b[1]) - z, z - Math.max(a[1], b[1]));
   const cityDist = (x, z) => {
     let d = Infinity;
     for (const { p, box } of polys) {
       if (x < box[0] - reach || x > box[2] + reach || z < box[1] - reach || z > box[3] + reach) continue;
       if (inside(x, z, p)) return 0;
-      for (let i = 0; i < p.length; i++) d = Math.min(d, segDist(x, z, p[i], p[(i + 1) % p.length]));
+      for (let i = 0; i < p.length; i++) {
+        const a = p[i], b = p[(i + 1) % p.length];
+        if (gap(x, z, a, b) <= d + 1e-6) d = Math.min(d, segDist(x, z, a, b));
+      }
     }
-    for (const l of roads) for (let i = 1; i < l.length; i++) d = Math.min(d, segDist(x, z, l[i - 1], l[i]) + FLAT * .5);
+    for (const l of roads) for (let i = 1; i < l.length; i++) {
+      if (gap(x, z, l[i - 1], l[i]) + FLAT * .5 <= d + 1e-6) d = Math.min(d, segDist(x, z, l[i - 1], l[i]) + FLAT * .5);
+    }
     return d;
   };
 
