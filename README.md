@@ -29,6 +29,8 @@ scale. See [Medieval settings](#medieval-settings).
 - **Undercity layer.** A cut-away view shows the tunnels and caverns under the streets.
 - **Search, atlas and minimap.** Search finds any landmark or district, the atlas lists them by district, and the
   minimap jumps anywhere.
+- **Guided tour.** The welcome card's Show me around points out how to move and where the rides, tours and
+  settings are. The help panel replays it.
 - **Mouse, trackpad and touch.** Phones and tablets work, and quality adapts to the device.
 - **Other settings.** The engine draws any city from a setting pack. Two medieval packs ship with it, with a day
   clock, sun shadows and terrain. See [Medieval settings](#medieval-settings).
@@ -122,7 +124,7 @@ repository. Any static host works, GitHub Pages included.
 
 | Input | Action |
 |---|---|
-| Mouse | Drag to move, right-drag to turn, scroll to zoom |
+| Mouse | Drag to move, right-click-drag to turn, scroll to zoom |
 | Trackpad | Two fingers to move, pinch to zoom, <kbd>⌥</kbd> and two fingers to turn and tilt |
 | Touch | Drag to move, pinch to zoom, twist to turn, slide two fingers up or down to tilt |
 | <kbd>/</kbd> | Jump to search |

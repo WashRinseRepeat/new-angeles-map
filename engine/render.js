@@ -193,7 +193,7 @@ el.addEventListener('pointercancel', release);
 
 const MAC_NOTCH = 4.000244140625;
 const notch = e => e.deltaMode !== 0 || e.deltaY !== 0 && (e.deltaY % MAC_NOTCH === 0 || Number.isInteger(e.deltaY) && Math.abs(e.deltaY) >= 40);
-const padLike = e => e.ctrlKey || e.deltaX !== 0 || !notch(e);
+export const padLike = e => e.ctrlKey || e.deltaX !== 0 || !notch(e);
 const zoomAbout = (p, k) => {
   const dist = camera.position.distanceTo(controls.target);
   k = THREE.MathUtils.clamp(k, controls.minDistance / dist, controls.maxDistance / dist);

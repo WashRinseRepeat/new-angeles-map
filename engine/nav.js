@@ -11,6 +11,7 @@ import { fireworks } from './fireworks.js';
 import { EPISODES, initAudioTour, resumeAt, startAudioTour, stopAudioTour } from './audiotour.js';
 import { ROUTES } from './transport.js';
 import { TOURS, startRide, stopRide } from './ride.js';
+import { endOnboard, initOnboard, startOnboard } from './onboard.js';
 
 const $ = id => document.getElementById(id);
 const esc = t => String(t ?? '').replace(/[&<>"]/g, c => `&${{ '&': 'amp', '<': 'lt', '>': 'gt', '"': 'quot' }[c]};`);
@@ -317,7 +318,7 @@ function step(k) {
 }
 // Tours, the audio guide and the maglev ride (ride.js) hide the search rail and the help button. The compass stays.
 
-const focus = on => document.body.classList.toggle('focus', on);
+const focus = on => { if (on) endOnboard(); document.body.classList.toggle('focus', on); };
 function endTour() {
   focus(false);
   tour = null;
@@ -342,7 +343,7 @@ ridePick.addEventListener('toggle', e => {
 ridePick.onclick = e => {
   const b = e.target.closest('[data-s]');
   if (!b) return;
-  stopAudioTour(); endTour(); hideCard(); tab('');
+  stopAudioTour(); endTour(); endOnboard(); hideCard(); tab('');
   startRide(RIDES[+b.dataset.r].stops[+b.dataset.s]);
 };
 
@@ -355,8 +356,8 @@ initAudioTour({
   onStop: () => { listenButtons(); focus(false); },
 });
 
-// The first visit opens a welcome card that offers the audio guide. A deep link to a place skips it,
-// and ?new=1 shows it again. Exploring alone opens the help with a pointer to the guide.
+// The first visit opens a welcome card. "Show me around" starts the guided tour (onboard.js), and a card with a
+// tour button can start the audio guide instead. A deep link to a place skips the card, and ?new=1 shows it again.
 
 const WELCOME_KEY = `${SETTING.storage}-map-welcomed`, welcome = $('welcome');
 const closeWelcome = () => { welcome.hidden = true; try { localStorage.setItem(WELCOME_KEY, '1'); } catch {} };
@@ -367,13 +368,17 @@ welcome.hidden = params.get('new') !== '1' && (welcomed || params.has('focus') |
 
 // A setting without an audio guide offers only the way in on foot.
 
-$('wTour').hidden = !EPISODES.length;
-$('wTour').onclick = () => { closeWelcome(); startAudioTour(EPISODES[0]); };
-$('wSkip').onclick = () => {
-  closeWelcome();
-  $('helpGuide').hidden = !EPISODES.length;
-  if ($('helpPanel').hidden) $('help').click();
-};
+if ($('wTour')) {
+  $('wTour').hidden = !EPISODES.length;
+  $('wTour').onclick = () => { closeWelcome(); startAudioTour(EPISODES[0]); };
+}
+if ($('wShow')) $('wShow').onclick = () => { closeWelcome(); startOnboard(); };
+$('wSkip').onclick = closeWelcome;
+initOnboard({ toursText: () => {
+  const guide = EPISODES.length, replays = RECAPS.length;
+  return guide && replays ? 'Tours has the audio guide and replays of the crew\'s sessions.'
+    : replays ? 'Tours has replays of the crew\'s sessions.' : 'Tours has the audio guide.';
+} });
 addEventListener('keydown', e => { if (e.key === 'Escape' && !welcome.hidden) closeWelcome(); });
 addEventListener('pointerdown', e => { if (e.target.tagName === 'CANVAS' && !welcome.hidden) closeWelcome(); }, true);
 $('tPrev').onclick = () => step(-1);
