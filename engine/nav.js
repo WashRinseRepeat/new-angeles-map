@@ -374,11 +374,13 @@ if ($('wTour')) {
 }
 if ($('wShow')) $('wShow').onclick = () => { closeWelcome(); startOnboard(); };
 $('wSkip').onclick = closeWelcome;
-initOnboard({ toursText: () => {
-  const guide = EPISODES.length, replays = RECAPS.length;
-  return guide && replays ? 'Tours has the audio guide and replays of the crew\'s sessions.'
-    : replays ? 'Tours has replays of the crew\'s sessions.' : 'Tours has the audio guide.';
-} });
+// The tour's Tours step names only what the Tours tab holds.
+
+initOnboard({ toursText: () => [
+  EPISODES.length && 'Tours has informative audio guides that show new arrivals around the city.',
+  WALKS.length && 'Walking tours lead past the town\'s landmarks.',
+  RECAPS.length && 'Session tours replay the crew\'s sessions.',
+].filter(Boolean).join(' ') });
 addEventListener('keydown', e => { if (e.key === 'Escape' && !welcome.hidden) closeWelcome(); });
 addEventListener('pointerdown', e => { if (e.target.tagName === 'CANVAS' && !welcome.hidden) closeWelcome(); }, true);
 $('tPrev').onclick = () => step(-1);

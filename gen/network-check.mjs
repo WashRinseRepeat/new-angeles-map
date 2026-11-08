@@ -1679,14 +1679,15 @@ await check('settings: graphics panel', async () => {
 });
 
 // The welcome card's "Show me around" starts the guided tour and marks the visitor as welcomed. Moving the map
-// passes the first step, Next walks the rest, and the help panel's link replays the tour.
+// passes the first step. A move with no input event leaves the device unknown, so the second step lists every
+// gesture. Next and Back walk the rest, and the help panel's link replays the tour.
 
 await check('settings: guided tour', async () => {
   const g = await openMap('?new=1');
   try {
     const p = g.page, bad = [];
     const state = () => p.evaluate(() => ({ welcome: !document.getElementById('welcome').hidden, on: !document.getElementById('obBox').hidden,
-      step: document.querySelector('#obBox .step').textContent, text: document.querySelector('#obBox p').textContent,
+      step: document.querySelector('#obBox .step').textContent, text: document.querySelector('#obBox .text').textContent,
       help: !document.getElementById('helpPanel').hidden, welcomed: localStorage.getItem('na-map-welcomed') }));
     const expect = async (when, want) => {
       const t = await state();
@@ -1695,23 +1696,27 @@ await check('settings: guided tour', async () => {
     await p.evaluate(() => localStorage.removeItem('na-map-welcomed'));
     await expect('at start', { welcome: true, on: false });
     await p.click('#wShow');
-    await expect('after Show me around', { welcome: false, welcomed: '1', on: true, step: '1 of 5' });
+    await expect('after Show me around', { welcome: false, welcomed: '1', on: true, step: '1 of 6' });
     await p.evaluate(async () => {
       const { camera, controls } = await import(new URL('engine/render.js', location.href).href);
       const d = camera.position.distanceTo(controls.target), shift = { x: d * .3, y: 0, z: 0 };
       controls.target.add(shift); camera.position.add(shift);
       await window.__pump(3);
     });
-    await expect('after a move', { step: '2 of 5', text: 'Scroll to zoom, right-click-drag to turn.' });
-    for (const [step, text] of [['3 of 5', 'Maglev takes you on a train ride along any line.'], ['4 of 5', null], ['5 of 5', 'Set the graphics for your machine here.']]) {
+    await expect('after a move', { step: '2 of 6', text: 'MouseDrag to move, scroll to zoom, right-click-drag to turn.TrackpadSlide two fingers to move, pinch to zoom, ⌥ and two fingers to turn.' });
+    for (const [step, text] of [['3 of 6', 'Search, browse or filter for landmarks.'], ['4 of 6', null], ['5 of 6', 'Maglev takes you on a relaxing train ride along any line.'],
+      ['6 of 6', 'The sliders set the graphics for your machine. ? explains the controls and replays this tour.']]) {
       await p.click('#obBox [data-next]');
       await expect(`step ${step}`, text ? { step, text } : { step });
     }
+    await p.click('#obBox [data-back]');
+    await expect('after Back', { step: '5 of 6' });
+    await p.click('#obBox [data-next]');
     await p.click('#obBox [data-next]');
     await expect('after Done', { on: false });
     await p.click('#help');
     await p.click('#obReplay');
-    await expect('after Replay', { on: true, help: false, step: '1 of 5' });
+    await expect('after Replay', { on: true, help: false, step: '1 of 6' });
     await p.keyboard.press('Escape');
     await expect('after Escape', { on: false });
     bad.push(...g.errors.filter(e => !/status of 404/.test(e)).slice(0, 3));

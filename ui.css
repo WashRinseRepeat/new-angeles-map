@@ -78,12 +78,13 @@ body.busy, body.busy * { cursor: progress !important; }
 /* Welcome: a card on the first visit offers the audio guide. */
 
 #welcome { position: fixed; z-index: 7; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(380px, calc(100vw - 32px)); padding: 18px 20px 16px; font-size: 13px; line-height: 1.5; }
+#welcome { box-shadow: 0 0 0 9999px rgba(2, 4, 10, .55), 0 10px 40px rgba(0, 0, 0, .5); }
 #welcome h2 { font-size: 15px; margin: 0 0 8px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
 #welcome p { margin: 8px 0; color: var(--text-2); }
 #welcome .row { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0 4px; }
 #welcome .row button { font-size: 13px; padding: 8px 14px; }
 #welcome small { color: var(--faint); font-size: 11px; }
-#welcome .qi { display: inline-grid; place-items: center; width: 18px; height: 18px; margin-right: 2px; border-radius: 50%; vertical-align: middle;
+.qi { display: inline-grid; place-items: center; width: 18px; height: 18px; margin-right: 2px; border-radius: 50%; vertical-align: middle;
   background: var(--panel); color: var(--accent); border: 1px solid var(--line); font: 600 11px var(--font); }
 
 /* The guided tour (onboard.js). A ring with a wide shadow dims everything but the button it points at. On a map
@@ -92,11 +93,15 @@ body.busy, body.busy * { cursor: progress !important; }
 #obSpot { position: fixed; z-index: 8; pointer-events: none; border: 2px solid var(--accent); border-radius: 10px;
   box-shadow: 0 0 0 9999px rgba(2, 4, 10, .55); transition: all .25s ease; }
 #obSpot.map { left: 50%; top: 50%; width: 0; height: 0; border: 0; box-shadow: 0 0 0 9999px rgba(2, 4, 10, .25); }
-#obBox { z-index: 9; width: min(300px, calc(100vw - 32px)); padding: 12px 14px; font-size: 13px; line-height: 1.45; left: 50%; bottom: 18%; transform: translateX(-50%); }
+#obBox { z-index: 9; box-sizing: border-box; width: min(340px, calc(100vw - 24px)); padding: 12px 14px; font-size: 13px; line-height: 1.45; left: 50%; bottom: 18%; transform: translateX(-50%); }
 #obBox.at { bottom: auto; transform: none; }
 #obBox .step { color: var(--faint); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
-#obBox p { margin: 4px 0 10px; color: var(--text-2); }
+#obBox .text { margin: 4px 0 10px; color: var(--text-2); }
+#obBox dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; }
+#obBox dt { color: var(--text-strong); font-weight: 600; }
+#obBox dd { margin: 0; }
 #obBox .row { display: flex; gap: 8px; }
+#obBox [data-skip] { margin-left: auto; }
 #obReplay { display: block; margin: 10px 0 4px; }
 
 /* Help: a round "?" button top right opens a short guide. Touch and pointer devices read their own controls line. */
