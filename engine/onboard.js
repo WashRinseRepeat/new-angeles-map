@@ -55,7 +55,7 @@ function show() {
   const last = i === steps.length - 1;
   box.querySelector('.step').textContent = `${i + 1} of ${steps.length}`;
   box.querySelector('.text').innerHTML = steps[i].text();
-  box.querySelector('[data-back]').hidden = i === 0;
+  box.querySelector('[data-back]').disabled = i === 0;
   box.querySelector('[data-next]').textContent = last ? 'Done' : 'Next';
   box.querySelector('[data-skip]').hidden = last;
   from = look();

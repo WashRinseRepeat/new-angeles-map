@@ -1697,6 +1697,7 @@ await check('settings: guided tour', async () => {
     await expect('at start', { welcome: true, on: false });
     await p.click('#wShow');
     await expect('after Show me around', { welcome: false, welcomed: '1', on: true, step: '1 of 6' });
+    if (!await p.isDisabled('#obBox [data-back]')) bad.push('step 1: Back is not dimmed');
     await p.evaluate(async () => {
       const { camera, controls } = await import(new URL('engine/render.js', location.href).href);
       const d = camera.position.distanceTo(controls.target), shift = { x: d * .3, y: 0, z: 0 };
