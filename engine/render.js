@@ -247,9 +247,21 @@ export const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 
 // Cloud layers live in their own small scene, so the main pass skips them and the cloud pass walks only
-// them. They march at half resolution into their own target and stop where the scene's depth says a building
+// them. They march at half resolution or less into their own target and stop where the scene's depth says a building
 // or a mountain is in the way. Both composer targets carry depth, because the buffers swap. Packed 24-bit
 // depth with stencil stores faster than 32-bit.
+
+// A switch in the settings panel trades pixels for frame rate, apart from the quality levels.
+// budget caps the frame at BUDGET pixels, the size of a 4K screen. Levels that render above the screen's own
+// pixels, such as ultra, keep their resolution. applyQuality puts a change into effect.
+
+export const OPT = { budget: false };
+const BUDGET = 3840 * 2160;
+
+// Clouds are soft, so their target holds at most CLOUD_PIXELS. A large screen marches no more cloud pixels
+// than a 4K screen does at a quarter of its resolution.
+
+const CLOUD_PIXELS = 1.1e6;
 
 export const CLOUD_SCENE = new THREE.Scene();
 CLOUD_SCENE.matrixWorldAutoUpdate = false;
@@ -267,7 +279,8 @@ class CloudPass extends Pass {
   }
   setSize(w, h) {
     for (const t of [composer.renderTarget1, composer.renderTarget2]) Object.assign(t.depthTexture.image, { width: t.width, height: t.height });
-    this.rt.setSize(Math.max(1, Math.round(w / 2)), Math.max(1, Math.round(h / 2)));
+    const div = Math.max(2, Math.sqrt(w * h / CLOUD_PIXELS));
+    this.rt.setSize(Math.max(1, Math.round(w / div)), Math.max(1, Math.round(h / div)));
     CLOUD_U.uLowRes.value.set(this.rt.width, this.rt.height);
   }
   render(r, writeBuffer, readBuffer) {
@@ -479,7 +492,8 @@ export const QUALITY = { mode: 'auto', level: matchMedia('(pointer: coarse)').ma
 export const PICK = {};
 export function applyQuality(level) {
   Object.assign(QUALITY, { ss: 1, smaa: false, glow: 1, ao: level !== 'low', shadows: level !== 'low' }, QUALITY_LEVELS[level], PICK, { level });
-  const dpr = Math.min(devicePixelRatio * QUALITY.ss, QUALITY.dpr);
+  let dpr = Math.min(devicePixelRatio * QUALITY.ss, QUALITY.dpr);
+  if (OPT.budget && QUALITY.ss <= 1) dpr = Math.min(dpr, Math.sqrt(BUDGET / (innerWidth * innerHeight)));
   renderer.setPixelRatio(dpr);
   composer.setPixelRatio(dpr);
   bloom.enabled = QUALITY.bloom;

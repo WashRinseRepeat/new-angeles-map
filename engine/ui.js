@@ -6,7 +6,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { S, H } from './state.js';
 import { CENTRE, CENTRE_PLACE, CENTRE_R, CITY, CORES, DENSITY, PLACES, SITE, STANDALONE, STYLES, centroidOf, density, lerp, styleAt } from './core.js';
 import { SETTING, inPack } from './setting.js';
-import { FOG, FOG_BASE, LOCK, PICK, QUALITY, QUALITY_LEVELS, SHADOWS, SURFACE, U, aoPass, applyQuality, bloom, camera, composer, controls, fadeTwin, flatGeo, hemi, label, labelRoot, labels, lockCamera, moon, renderer, scene } from './render.js';
+import { FOG, FOG_BASE, LOCK, OPT, PICK, QUALITY, QUALITY_LEVELS, SHADOWS, SURFACE, U, aoPass, applyQuality, bloom, camera, composer, controls, fadeTwin, flatGeo, hemi, label, labelRoot, labels, lockCamera, moon, renderer, scene } from './render.js';
 import { SHAPES, TILE, TILES, glows, pools, put, signs, yawAt } from './instances.js';
 import { ARCHETYPES, ARCH_BASE, ARCH_WEIGHTS, MERGED_MAT, TALLY, decor, insidePoly, merged } from './grammar.js';
 import { rideFocus, rideTick, riding } from './ride.js';
@@ -544,6 +544,7 @@ addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight); labels.setSize(innerWidth, innerHeight);
   labelCam.identity();
+  if (OPT.budget) applyQuality(QUALITY.level);
 });
 
 // ---------- loop ----------
@@ -886,6 +887,19 @@ addEventListener('map-quality', () => {
     el.value = v;
   }
 });
+
+// The pixel cap works at every quality level and leaves the preset alone. It persists per browser.
+
+const OPT_KEY = `${SETTING.storage}-map-opt`;
+try { OPT.budget = !!JSON.parse(localStorage.getItem(OPT_KEY))?.budget; } catch {}
+const capEl = Object.assign(document.createElement('input'), { type: 'checkbox', checked: OPT.budget });
+capEl.setAttribute('role', 'switch');
+capEl.onchange = () => {
+  OPT.budget = capEl.checked;
+  try { localStorage.setItem(OPT_KEY, JSON.stringify(OPT)); } catch {}
+  applyQuality(QUALITY.level);
+};
+row('4K pixel cap', capEl);
 
 // The preset and the custom controls persist per browser.
 
