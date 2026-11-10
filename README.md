@@ -162,6 +162,7 @@ repository. Any static host works, GitHub Pages included.
 | `audio/` | Audio guide episodes with their cue files, and the ride music |
 | `MODULES.md` | Reference for kit and landmark modules and the helper API |
 | `SETTINGS.md` | How a setting pack is built, for a city other than New Angeles |
+| `NEW-SETTING.md` | Interview and process for an AI that plans a new setting with its author |
 
 The engine reads `city.json` and fills every lot with a kit picked by district, density and a seeded random, so
 the city looks the same on every load. Landmarks claim a block near their position and build their own meshes.
@@ -184,6 +185,10 @@ To make your own setting, copy `settings/sandbox/` and its page, then change the
 a walled or open town from a short JSON file, as for Emberford. It also takes a traced plan (a wall outline,
 streets, sites, a river through the town and ward boundaries) and fills the blocks with lanes, as for Nuremberg.
 `SETTINGS.md` documents every field of a pack.
+
+If an AI helps you, point it at `NEW-SETTING.md` first. That guide makes the AI interview you about the place,
+its look, its landmarks, its transport and its texts, and write a brief before it builds. It also marks which
+of your wishes are content work in a pack and which need a change to the engine.
 
 ## Extending
 
@@ -227,7 +232,7 @@ blocks. Kit names share one namespace, so prefix them with the district.
 ### Add an audio guide episode
 
 An episode is an MP3 plus a cue file in `audio/tour/`, named `<id>-en.mp3` and `<id>-en.cues.json`. Add it to
-`EPISODES` in `engine/audiotour.js`. The cue file holds the subtitles and the camera moves, both timed in seconds:
+`audio.episodes` in `settings/new-angeles/setting.js`. The cue file holds the subtitles and the camera moves, both timed in seconds:
 
 ```json
 {

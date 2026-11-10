@@ -1,6 +1,6 @@
 # Setting packs
 
-Before building a pack, read `LESSONS.md`: the lessons and pitfalls from the packs so far.
+Before building a pack, read `LESSONS.md`: the lessons and pitfalls from the packs so far. To plan a new setting with its author, start with `NEW-SETTING.md`: the questions to ask, the brief and the build order.
 
 The engine in `engine/` draws a city. A setting pack says which city: its look, scale, styles, kits, transport, audio guide and card texts. New Angeles is the first pack, in `settings/new-angeles/`. `MODULES.md` covers the module API that kits and places use.
 
@@ -75,6 +75,8 @@ An engine change for a new pack must leave New Angeles as it was. `node spikes/m
 | `kits` | `families`, `districts` (families that own a district's tiers), `finds` (landmark families with card files), `private`, `smallLots`, `landUse(helpers)`, `blockZones(helpers)`, `cityTune` (tuning panel rows, whose defaults the first build uses), `tune` (starting values for the engine's city dials: cores, grain, skew, small, needles, needleTop, shapes), `ownTiers` (district ids whose tiers a shared family replaces; within `styles.blend` metres of a border, a lot in such a ward takes its kit mix from either ward by their weights, so styles interleave) |
 | `transport` | `cars`, and optional `highway`, `hover` and `maglev` (heights, names, `centreStation`, `centreMusic`, `stops`, `stations(A, frame)`, `defaultStation`, `tours`). A traffic slider shows only for traffic the setting has. Only a route with a station runs a train |
 | `audio` | optional. `episodes`, `moves(helpers)`, `labels`, `centreGaze`. Without episodes the Tours tab and the welcome card's tour button hide |
+| `music` | optional list `{ file, name }` for the settings panel's music picker. `file` is the key of a loop in the ride audio folder |
+| `people`, `boats` | optional townsfolk and river boats. See "People" and "Boats" below |
 | `walks` | optional walking tours, each `{ title, summary, stops: [{ slug, h, text }] }`. A stop's slug names a place card, a landmark (its label, slugged) or a district id. They show under Tours and play in the stop-by-stop tour panel |
 | `cards` | `districts` and `landmarks` card files. Each find family adds `content/<family>.json`. `site: true` says the places have pages and images on the archive site |
 | `layers` | optional extra layers, each `{ module, clip, mistBase }` plus, for a dungeon level, `cut`, `floor`, `follow`, `background`, `underground` and `labels`. The module exports `group`, `labels`, `build()` and optionally `update(t, dt, layer)`. Several layers may share one module. Buttons with `data-layer` switch them |
