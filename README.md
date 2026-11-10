@@ -36,7 +36,8 @@ scale. See [Medieval settings](#medieval-settings).
   clock, sun shadows and terrain. See [Medieval settings](#medieval-settings).
 - **Settings panel.** The sliders button in the corner opens the settings, also during rides and tours. Quality
   is Auto by default and steps with the frame rate. You can pick a level or set resolution, view distance, glow,
-  smooth edges (SMAA), corner shade and shadows yourself. The choices persist per browser.
+  smooth edges (SMAA), corner shade and shadows yourself. On a screen larger than 4K, the 4K pixel cap draws fewer
+  pixels for a higher frame rate and a slightly softer image. The choices persist per browser.
 - **Music.** The settings panel plays the New Angeles Theme or one of the route loops while you explore.
   It pauses during rides and tours, which play their own sound.
 
