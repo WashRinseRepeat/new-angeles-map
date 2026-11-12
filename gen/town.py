@@ -52,7 +52,12 @@ A town traced from a real plan gives its own outline, streets and sites, and tur
                      round islands, in place of bearing and dist
     cuts [...]       polylines that cut the wall's outline into wards; each of districts then gives at [x, z], a
                      point in its piece, in place of from and to
-    villages [...]   {id, name, poly}: villages past the wall, each a ward of its own whose streets take plots
+    districts        without cuts, a district may give its ward's outline as poly in place of from and to
+    villages [...]   {id, name, poly}: villages past the wall, each a ward of its own whose streets take plots.
+                     town true makes it part of the town for the ground map; infill true lays infill lanes in it
+    lakes [...]      {name, poly}: still water, laid like the river
+    infillMax 400    the most infill lanes
+    infillBatch 1    lanes grown from one distance grid; each lane clears 3 × infill round its cell for the next
     features {...}   copied into city.json as it is, for the pack's kits (such as vineyard outlines)
 """
 
@@ -70,6 +75,7 @@ SQ = P.get('square', 34)
 WIDTH = {'main': 7, 'major': 5, 'minor': 3.5, **P.get('widths', {})}
 SUB = {'length': 0, 'clear': 20, 'names': {}, **P.get('suburbs', {})}
 FAR = P.get('far', 0)
+VILLAGES = P.get('villages', [])
 DEG = math.pi / 180
 
 
@@ -292,7 +298,7 @@ if P.get('river', {}).get('line'):
     rv = P['river']
     water.append(band(rv['line'], rv.get('width', 26), rv.get('name', 'River')))
     for arm in rv.get('arms', []):
-        water.append(band(arm['line'], arm.get('width', 12), rv.get('name', 'River')))
+        water.append(band(arm['line'], arm.get('width', 12), arm.get('name', rv.get('name', 'River'))))
 elif P.get('river'):
     rv = P['river']
     a, dist, wd = rv['bearing'] * DEG, rv.get('dist', R + 90), rv.get('width', 26)
@@ -306,6 +312,7 @@ elif P.get('river'):
     near = [[round(x - math.cos(a) * wd / 2, 1), round(z - math.sin(a) * wd / 2, 1)] for x, z in bank]
     far = [[round(x + math.cos(a) * wd / 2, 1), round(z + math.sin(a) * wd / 2, 1)] for x, z in reversed(bank)]
     water.append({'name': rv.get('name', 'River'), 'poly': near + far})
+water += [{'name': lk['name'], 'poly': lk['poly']} for lk in P.get('lakes', [])]
 
 # ---------- infill lanes ----------
 # With infill set, lanes fill the wall's inside wherever ground lies farther than infill metres from every street,
@@ -326,11 +333,14 @@ def poly_mask(poly, X, Z):
 
 def infill_lanes(reach):
     G = 4
-    xs, zs = [p[0] for p in WALL], [p[1] for p in WALL]
+    open_wards = [v['poly'] for v in VILLAGES if v.get('infill')]
+    xs, zs = [p[0] for l in [WALL] + open_wards for p in l], [p[1] for l in [WALL] + open_wards for p in l]
     x0, z0 = min(xs) - G, min(zs) - G
     W, H = int((max(xs) - x0) / G) + 2, int((max(zs) - z0) / G) + 2
     X, Z = np.meshgrid(x0 + (np.arange(W) + .5) * G, z0 + (np.arange(H) + .5) * G)
     free = poly_mask(WALL, X, Z)
+    for poly in open_wards:
+        free |= poly_mask(poly, X, Z)
     for w in water:
         free &= ~poly_mask(w['poly'], X, Z)
     for st in sites:
@@ -347,31 +357,39 @@ def infill_lanes(reach):
     for lines in streets.values():
         for l in lines:
             mark(l)
-    added = 0
-    while added < 400:
+    added, most, batch = 0, P.get('infillMax', 400), P.get('infillBatch', 1)
+    clear_r = int(3 * reach / G)
+    while added < most:
         d, (ij, ii) = distance_transform_edt(~seed, return_indices=True)
         d = np.where(free, d * G, 0)
-        k = int(d.argmax())
-        if d.flat[k] < reach:
+        grown = 0
+        while grown < batch and added < most:
+            k = int(d.argmax())
+            if d.flat[k] < reach:
+                break
+            j, i = divmod(k, W)
+            sx, sz = X[ij[j, i], ii[j, i]], Z[ij[j, i], ii[j, i]]
+            px, pz = X[j, i], Z[j, i]
+            a0 = math.atan2(pz - sz, px - sx)
+            lane, a, x, z = [[sx, sz]], a0, sx, sz
+            for step in range(200):
+                a = a0 + max(-.25, min(.25, a - a0 + rnd.uniform(-.06, .06)))
+                x, z = x + math.cos(a) * G, z + math.sin(a) * G
+                ci, cj = int((x - x0) / G), int((z - z0) / G)
+                if not (0 <= ci < W and 0 <= cj < H):
+                    break
+                lane.append([x, z])
+                if step > 2 and seed[cj, ci]:
+                    break
+            lane = resample(lane)
+            streets['minor'].append(lane)
+            mark(lane)
+            added += 1
+            grown += 1
+            if batch > 1:
+                d[max(0, j - clear_r):j + clear_r + 1, max(0, i - clear_r):i + clear_r + 1] = 0
+        if not grown:
             break
-        j, i = divmod(k, W)
-        sx, sz = X[ij[j, i], ii[j, i]], Z[ij[j, i], ii[j, i]]
-        px, pz = X[j, i], Z[j, i]
-        a0 = math.atan2(pz - sz, px - sx)
-        lane, a, x, z = [[sx, sz]], a0, sx, sz
-        for step in range(200):
-            a = a0 + max(-.25, min(.25, a - a0 + rnd.uniform(-.06, .06)))
-            x, z = x + math.cos(a) * G, z + math.sin(a) * G
-            ci, cj = int((x - x0) / G), int((z - z0) / G)
-            if not (0 <= ci < W and 0 <= cj < H):
-                break
-            lane.append([x, z])
-            if step > 2 and seed[cj, ci]:
-                break
-        lane = resample(lane)
-        streets['minor'].append(lane)
-        mark(lane)
-        added += 1
     print(f'infill: {added} lanes')
 
 
@@ -384,7 +402,6 @@ if P.get('infill'):
 # A 1 m occupancy grid holds the streets, the square, the sites and the plots laid so far. Main streets take
 # their frontage first, then the ring and the inner lanes, then the minor lanes.
 
-VILLAGES = P.get('villages', [])
 EXT = max([int(R * 1.4) + 100 + int(SUB['length'])] + [int(abs(v)) + 60 for g in VILLAGES for p in g['poly'] for v in p])
 taken = bytearray((2 * EXT) ** 2)
 
@@ -424,7 +441,7 @@ def clear(fx, fz, tx, tz, nx, nz, w, d, out=False):
             k = cell(px, pz)
             if k is None or taken[k] or in_site(px, pz, 3) or math.hypot(px, pz) < SQ + 3:
                 return False
-            if not (suburb(px, pz) if out else inside(px, pz, 6)) and not any(point_in(px, pz, g['poly']) for g in VILLAGES):
+            if not (suburb(px, pz) if out else inside(px, pz, 6)) and not in_village(px, pz):
                 return False
     return True
 
@@ -435,6 +452,16 @@ def fill(poly):
         for i in range(int(min(xs)), int(max(xs)) + 2):
             if point_in(i + .5, j + .5, poly) and (k := cell(i, j)) is not None:
                 taken[k] = 1
+
+
+# Each village's bounding box spares the polygon test for points far from it.
+
+VBOX = [(min(p[0] for p in g['poly']), min(p[1] for p in g['poly']), max(p[0] for p in g['poly']), max(p[1] for p in g['poly']), g['poly'])
+        for g in VILLAGES]
+
+
+def in_village(x, z):
+    return any(x0 <= x <= x1 and z0 <= z <= z1 and point_in(x, z, poly) for x0, z0, x1, z1, poly in VBOX)
 
 
 def point_in(x, z, poly):
@@ -535,6 +562,9 @@ if P.get('cuts'):
         districts.append({'id': d['id'], 'name': d['name'], 'poly': [p for i, p in enumerate(pts) if p != pts[i - 1]]})
 else:
     for d in P.get('districts', [{'id': 'town', 'name': 'Town', 'from': 0, 'to': 360}]):
+        if 'poly' in d:
+            districts.append({'id': d['id'], 'name': d['name'], 'poly': d['poly']})
+            continue
         a0, a1 = d['from'] * DEG, d['to'] * DEG
         if a1 <= a0:
             a1 += 2 * math.pi
@@ -567,7 +597,8 @@ for l in streets['main']:
     deg = str(round(g / DEG) % 360)
     districts.append({'id': f'suburb-{deg}', 'name': SUB['names'].get(deg, 'Suburb'), 'poly': left + right[::-1]})
 
-districts += [{'id': g['id'], 'name': g['name'], 'poly': g['poly'], 'kind': 'village'} for g in VILLAGES]
+districts += [{'id': g['id'], 'name': g['name'], 'poly': g['poly']} | ({} if g.get('town') else {'kind': 'village'})
+              for g in VILLAGES]
 
 # Country roads: each gate road runs on from its end, wandering, out to far metres from the centre.
 

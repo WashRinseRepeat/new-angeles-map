@@ -19,6 +19,7 @@ import { CENTRE, CENTRE_R, CITY } from './core.js';
 const R = CITY.relief;
 export const RELIEF = !!R;
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+const boxOf = P => { const xs = P.map(p => p[0]), zs = P.map(p => p[1]); return [Math.min(...xs), Math.min(...zs), Math.max(...xs), Math.max(...zs)]; };
 
 export function reliefAt(x, z) {
   if (!R) return 0;
@@ -38,7 +39,9 @@ const SOFT = !R ? [] : [
   ...CENTRE_R ? [{ x: CENTRE.x, z: CENTRE.y, r: CENTRE_R }] : [],
   ...(CITY.sites ?? []).map(s => ({ x: s.at[0], z: s.at[1], w: s.w / 2, d: s.d / 2, c: Math.cos(s.rot ?? 0), s: Math.sin(s.rot ?? 0) })),
 ];
-for (const p of SOFT) p.level = reliefAt(p.x, p.z);
+// reach² bounds the squared distance from a platform's centre past which it cannot blend, with 1 m to spare.
+
+for (const p of SOFT) { p.level = reliefAt(p.x, p.z); p.reach = ((p.r ?? Math.hypot(p.w, p.d)) + BLEND + 1) ** 2; }
 const outside = (p, x, z) => {
   const dx = x - p.x, dz = z - p.z;
   if (p.r) return Math.hypot(dx, dz) - p.r;
@@ -48,6 +51,7 @@ const outside = (p, x, z) => {
 export function softAt(x, z) {
   let h = reliefAt(x, z);
   for (const p of SOFT) {
+    if ((x - p.x) ** 2 + (z - p.z) ** 2 > p.reach) continue;
     const d = outside(p, x, z);
     if (d < BLEND) h += (p.level - h) * (1 - smooth(0, BLEND, d));
   }
@@ -59,13 +63,12 @@ export function softAt(x, z) {
 const CELL = 16, LOTS = !R ? [] : CITY.blocks.map(P => {
   const cx = P.reduce((s, p) => s + p[0], 0) / P.length, cz = P.reduce((s, p) => s + p[1], 0) / P.length;
   const step = R.terrace ?? 1.5;
-  return { P, cx, cz, level: Math.round(softAt(cx, cz) / step) * step };
+  return { P, cx, cz, level: Math.round(softAt(cx, cz) / step) * step, box: boxOf(P) };
 });
 const GRID = new Map();
 for (const l of LOTS) {
-  const xs = l.P.map(p => p[0]), zs = l.P.map(p => p[1]);
-  for (let i = Math.floor(Math.min(...xs) / CELL); i <= Math.floor(Math.max(...xs) / CELL); i++)
-    for (let j = Math.floor(Math.min(...zs) / CELL); j <= Math.floor(Math.max(...zs) / CELL); j++) {
+  for (let i = Math.floor(l.box[0] / CELL); i <= Math.floor(l.box[2] / CELL); i++)
+    for (let j = Math.floor(l.box[1] / CELL); j <= Math.floor(l.box[3] / CELL); j++) {
       const k = `${i},${j}`;
       if (!GRID.has(k)) GRID.set(k, []);
       GRID.get(k).push(l);
@@ -74,12 +77,13 @@ for (const l of LOTS) {
 const inPoly = (P, x, z) => {
   let a = false;
   for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
-    const [xi, zi] = P[i], [xj, zj] = P[j];
+    const xi = P[i][0], zi = P[i][1], xj = P[j][0], zj = P[j][1];
     if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) a = !a;
   }
   return a;
 };
-export const lotAt = (x, z) => GRID.get(`${Math.floor(x / CELL)},${Math.floor(z / CELL)}`)?.find(l => inPoly(l.P, x, z));
+export const lotAt = (x, z) => GRID.get(`${Math.floor(x / CELL)},${Math.floor(z / CELL)}`)
+  ?.find(({ P, box }) => x >= box[0] && z >= box[1] && x <= box[2] && z <= box[3] && inPoly(P, x, z));
 
 // The moat: relief.moat cuts a ditch round the outside of the town wall, offset metres out (default 9), width wide
 // (12), depth deep (4), with a flat bottom. Water lies in it only up to water metres (2) above its lowest point, so on
@@ -123,26 +127,83 @@ export function moatSink(x, z) {
 }
 
 // Bridges. At every gate a deck spans the moat level with its banks. Where a street crosses the city file's water, a
-// deck spans it 3 m past each bank and humps relief.hump metres (default 2.5) at its middle. On a bridge groundAt
-// gives the deck, so people, carts and lamps cross on it; the ground beneath keeps its ditch or river.
+// straight deck runs from 3 m before the bank where the street enters to 3 m past the bank where it leaves, and humps
+// relief.hump metres (default 2.5) at its middle. On a bridge groundAt gives the deck, so people, carts and lamps
+// cross on it; the ground beneath keeps its ditch or river.
+//
+// Each street segment is cut with the water's edges, so a wet stretch starts and ends exactly at a bank. Stretches
+// less than GAP metres apart, as across a sliver of land between two water polygons, make one crossing. A crossing
+// gets no deck when:
+// - the street ends in the water, as a lane that stops at the quay;
+// - it enters and leaves on the same bank, so its two bank points lie close round the water's edge;
+// - it meets either bank at less than ANGLE, so it runs along the river rather than across it.
 
-const WIDE = { main: 7, major: 6, minor: 4.5 };
+const WIDE = { main: 7, major: 6, minor: 4.5 }, GAP = 6, ANGLE = Math.sin(20 * Math.PI / 180);
 export const BRIDGES = [];
 if (M) for (const [gx, gz, deg] of CITY.gates ?? []) {
   const a = deg * Math.PI / 180, ux = Math.cos(a), uz = Math.sin(a), far = M.offset + M.width / 2 + 2.5;
   BRIDGES.push({ x0: gx + ux, z0: gz + uz, x1: gx + ux * far, z1: gz + uz * far, w: 7, hump: 0 });
 }
-if (R) for (const [kind, lines] of Object.entries(CITY.streets)) for (const L of lines) {
-  const wet = L.map(([x, z]) => (CITY.water ?? []).some(w => inPoly(w.poly, x, z)));
-  for (let i = 0; i < L.length; i++) {
-    if (!wet[i] || wet[i - 1]) continue;
-    let j = i;
-    while (j + 1 < L.length && wet[j + 1]) j++;
-    const a = L[Math.max(0, i - 1)], b = L[Math.min(L.length - 1, j + 1)], len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
-    const ux = (b[0] - a[0]) / len, uz = (b[1] - a[1]) / len;
-    BRIDGES.push({ x0: a[0] - ux * 3, z0: a[1] - uz * 3, x1: b[0] + ux * 3, z1: b[1] + uz * 3, w: WIDE[kind] ?? 5, hump: R.hump ?? 2.5 });
-    i = j;
+
+// The water's edges in a 16 m grid. Each edge keeps its ring and its distance round that ring from the first point.
+
+const EDGES = new Map(), RINGS = (CITY.water ?? []).map(w => ({ P: w.poly, per: 0, box: boxOf(w.poly) }));
+for (const ring of RINGS) ring.P.forEach(([cx, cz], m) => {
+  const [dx, dz] = ring.P[(m + 1) % ring.P.length], e = { cx, cz, fx: dx - cx, fz: dz - cz, ring, at: ring.per };
+  e.len = Math.hypot(e.fx, e.fz);
+  ring.per += e.len;
+  for (let i = Math.floor(Math.min(cx, dx) / CELL); i <= Math.floor(Math.max(cx, dx) / CELL); i++)
+    for (let j = Math.floor(Math.min(cz, dz) / CELL); j <= Math.floor(Math.max(cz, dz) / CELL); j++) {
+      const k = `${i},${j}`;
+      if (!EDGES.has(k)) EDGES.set(k, []);
+      EDGES.get(k).push(e);
+    }
+});
+const wetAt = (x, z) => RINGS.some(({ P, box }) => x >= box[0] && z >= box[1] && x <= box[2] && z <= box[3] && inPoly(P, x, z));
+
+// The wet stretches of a street, each from its entry cut to its exit cut. A cut at the street's end has no ring.
+
+function wetRuns(L) {
+  const cuts = [{ s: 0, i: 0, x: L[0][0], z: L[0][1] }];
+  let s = 0;
+  for (let i = 0; i + 1 < L.length; i++) {
+    const [ax, az] = L[i], ex = L[i + 1][0] - ax, ez = L[i + 1][1] - az, len = Math.hypot(ex, ez), seen = new Set();
+    for (let gi = Math.floor(Math.min(ax, ax + ex) / CELL); gi <= Math.floor(Math.max(ax, ax + ex) / CELL); gi++)
+      for (let gj = Math.floor(Math.min(az, az + ez) / CELL); gj <= Math.floor(Math.max(az, az + ez) / CELL); gj++)
+        for (const e of EDGES.get(`${gi},${gj}`) ?? []) {
+          if (seen.has(e)) continue;
+          seen.add(e);
+          const den = ex * e.fz - ez * e.fx;
+          if (!den) continue;
+          const t = ((e.cx - ax) * e.fz - (e.cz - az) * e.fx) / den, u = ((e.cx - ax) * ez - (e.cz - az) * ex) / den;
+          if (t >= 0 && t < 1 && u >= 0 && u < 1)
+            cuts.push({ s: s + t * len, i, x: ax + ex * t, z: az + ez * t, ring: e.ring, at: e.at + u * e.len, sin: Math.abs(den) / len / e.len });
+        }
+    s += len;
   }
+  cuts.sort((a, b) => a.s - b.s);
+  cuts.push({ s, i: L.length - 1, x: L.at(-1)[0], z: L.at(-1)[1] });
+
+  // Between two cuts the street is wet or dry throughout. Test a point between them on the street.
+
+  const runs = [];
+  for (let q = 0; q + 1 < cuts.length; q++) {
+    const a = cuts[q], b = cuts[q + 1];
+    const mid = a.i === b.i ? [(a.x + b.x) / 2, (a.z + b.z) / 2] : L[a.i + 1];
+    if (!wetAt(...mid)) continue;
+    const last = runs.at(-1);
+    if (last && a.s - last.b.s < GAP) last.b = b;
+    else runs.push({ a, b });
+  }
+  return runs;
+}
+if (R) for (const [kind, lines] of Object.entries(CITY.streets)) for (const L of lines) for (const { a, b } of wetRuns(L)) {
+  const len = Math.hypot(b.x - a.x, b.z - a.z);
+  if (!a.ring || !b.ring || len < 1 || Math.min(a.sin, b.sin) < ANGLE) continue;
+  const round = Math.abs(a.at - b.at);
+  if (a.ring === b.ring && Math.min(round, a.ring.per - round) < 2 * len) continue;
+  const ux = (b.x - a.x) / len, uz = (b.z - a.z) / len;
+  BRIDGES.push({ x0: a.x - ux * 3, z0: a.z - uz * 3, x1: b.x + ux * 3, z1: b.z + uz * 3, w: WIDE[kind] ?? 5, hump: R.hump ?? 2.5 });
 }
 for (const b of BRIDGES) {
   b.h0 = softAt(b.x0, b.z0); b.h1 = softAt(b.x1, b.z1);
@@ -302,5 +363,22 @@ export function walls(material) {
     stepped.setMatrixAt(i, o.matrix);
   });
   group.add(walled, stepped);
+  BUILT.push(walled, stepped);
   return group;
+}
+
+// clearWalls(test) hides the retaining walls and steps whose spot passes test(x, z), such as those under a landmark
+// that claims its ground. The landmarks are placed after the walls are built.
+
+const BUILT = [], _m = new THREE.Matrix4(), _p = new THREE.Vector3(), ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
+export function clearWalls(test) {
+  for (const m of BUILT) {
+    let hit = false;
+    for (let i = 0; i < m.count; i++) {
+      m.getMatrixAt(i, _m);
+      _p.setFromMatrixPosition(_m);
+      if (test(_p.x, _p.z)) { m.setMatrixAt(i, ZERO); hit = true; }
+    }
+    if (hit) m.instanceMatrix.needsUpdate = true;
+  }
 }

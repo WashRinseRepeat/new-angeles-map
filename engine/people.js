@@ -9,22 +9,27 @@
 //   side [2.6, 3.6]   how far from the street's middle they walk, on minor and other streets, in metres; a city
 //                     file with street widths overrides it, keeping walkers 0.6 m inside each street's edge
 //   crowds []         { at: [x, z], ring: radius, n } stand on a ring facing out, as at stalls round a square;
-//                     { at: [x, z], r: radius, n } stand and mill inside a circle
+//                     { at: [x, z], r: radius, n } stand and mill inside a circle. A crowd's own clothes list
+//                     dresses it, such as guards in a city's colours, and always keeps it out at night
+//   pathClothes       a clothes list for the walkers on the city file's paths, such as guards on a wall walk
 //   clothes, skin     lists of [r, g, b] to pick from
 //   night .15         the share still out at night under a clock
+//   range 800         metres from the camera within which people move and draw. Past it they wait where they
+//                     are; over its last 15% they shrink into the ground, so none pops at the edge
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { rng } from './core.js';
 import { SETTING } from './setting.js';
-import { scene } from './render.js';
+import { camera, scene } from './render.js';
 import { STREETS, sides } from './transport.js';
 import { CITY } from './core.js';
 import { DAY } from './daylight.js';
 import { groundAt } from './relief.js';
+import { WATERS, wet } from './api.js';
 
 const P = SETTING.people && {
-  walk: 3, side: [2.6, 3.6], crowds: [], night: .15,
+  walk: 3, side: [2.6, 3.6], crowds: [], night: .15, range: 800,
   clothes: [[.35, .12, .08], [.15, .2, .35], [.3, .28, .2], [.18, .25, .12], [.4, .35, .25], [.25, .15, .25], [.12, .1, .08]],
   skin: [[.85, .62, .48], [.7, .5, .38], [.55, .38, .28], [.9, .72, .58]], ...SETTING.people,
 };
@@ -45,27 +50,35 @@ const HEAD = () => shade(new THREE.IcosahedronGeometry(.12, 1).translate(0, 1.58
 
 export const people = [];
 let body, head;
+const slot = [];
 if (P) {
   const r = rng(9187), pick = list => list[Math.floor(r() * list.length)];
   const off = kind => CITY.widths ? Math.max(.8, CITY.widths[kind] / 2 - .6) : P.side[kind === 'minor' ? 0 : 1];
   for (const st of STREETS) {
     const metres = (st.path.length - 1) * 4;
     for (let k = r() * 100 / P.walk; k < metres; k += (.5 + r()) * 100 / P.walk) {
-      people.push({ st, u: k / 4, dir: r() < .5 ? 1 : -1, v: (1 + r() * .5) / 4, side: (r() < .5 ? -1 : 1) * off(st.kind),
-        phase: r() * 6.3, rank: r() });
+      const dir = r() < .5 ? 1 : -1, v = (1 + r() * .5) / 4, side = (r() < .5 ? -1 : 1) * off(st.kind);
+      const [x, z] = spot(st, k / 4, side);
+      if (wet(x, z)) continue;
+      people.push({ st, u: k / 4, dir, v, side, phase: r() * 6.3, rank: r(), x, z });
     }
   }
   for (const w of CITY.paths ?? []) {
     const path = w.line.map(([x, z]) => new THREE.Vector3(x, 0, z)), st = { path, side: sides(path, false), lift: w.lift ?? 0 };
     for (let i = 0; i < (w.n ?? 10); i++) {
-      people.push({ st, u: (i + r() * .5) / (w.n ?? 10) * (path.length - 1), dir: r() < .5 ? 1 : -1, v: (.7 + r() * .3) / 4, side: 0,
-        phase: r() * 6.3, rank: -1 + r() * .01 });
+      const u = (i + r() * .5) / (w.n ?? 10) * (path.length - 1), [x, z] = spot(st, u, 0);
+      people.push({ st, u, dir: r() < .5 ? 1 : -1, v: (.7 + r() * .3) / 4, side: 0, phase: r() * 6.3, rank: -1 + r() * .01, clothes: P.pathClothes, x, z });
     }
   }
   for (const c of P.crowds) for (let i = 0; i < c.n; i++) {
-    const a = r() * Math.PI * 2, d = c.ring ? c.ring + (r() - .5) * 1.5 : c.r * Math.sqrt(r());
-    const x = c.at[0] + Math.cos(a) * d, z = c.at[1] + Math.sin(a) * d;
-    people.push({ x, z, yaw: c.ring ? Math.atan2(Math.cos(a), Math.sin(a)) : r() * 6.3, phase: r() * 6.3, rank: r() });
+    let a, x, z, t = 0;
+    do {
+      a = r() * Math.PI * 2;
+      const d = c.ring ? c.ring + (r() - .5) * 1.5 : c.r * Math.sqrt(r());
+      x = c.at[0] + Math.cos(a) * d; z = c.at[1] + Math.sin(a) * d;
+    } while (wet(x, z) && ++t < 8);
+    if (t === 8) continue;
+    people.push({ x, z, yaw: c.ring ? Math.atan2(Math.cos(a), Math.sin(a)) : r() * 6.3, phase: r() * 6.3, rank: c.always ? -1 + r() * .01 : r(), clothes: c.clothes });
   }
 
   // Instances are sorted by rank, so a share of the people is the first part of the list.
@@ -77,14 +90,34 @@ if (P) {
   const c = new THREE.Color();
   people.forEach((p, i) => {
     p.s = .9 + r() * .2;
-    body.setColorAt(i, c.setRGB(...pick(P.clothes)));
-    head.setColorAt(i, c.setRGB(...pick(P.skin)));
+    p.cb = pick(p.clothes ?? P.clothes); p.ch = pick(P.skin);
+    body.setColorAt(i, c.setRGB(...p.cb));
+    head.setColorAt(i, c.setRGB(...p.ch));
+    slot[i] = i;
   });
   for (const m of [body, head]) { m.frustumCulled = false; m.userData.moves = true; scene.add(m); }
 }
 
+// A street walker's ground point at u steps along its street, side metres off its middle.
+
+function spot(st, u, side) {
+  const k = Math.min(Math.floor(u), st.path.length - 2), f = u - k, a = st.path[k], b = st.path[k + 1], sd = st.side[k];
+  return [a.x + (b.x - a.x) * f + sd.x * side, a.z + (b.z - a.z) * f + sd.z * side];
+}
+
+// A step of street is dry when its stretch at a walker's side misses every landmark water's box, so a walker there
+// needs no water test.
+
+function dry(st, k, side) {
+  const a = st.path[k], b = st.path[k + 1], sd = st.side[k];
+  const x0 = a.x + sd.x * side, z0 = a.z + sd.z * side, x1 = b.x + sd.x * side, z1 = b.z + sd.z * side;
+  return !WATERS.some(({ box }) => Math.max(x0, x1) > box[0] && Math.max(z0, z1) > box[1] && Math.min(x0, x1) < box[2] && Math.min(z0, z1) < box[3]);
+}
+
 // Each frame walkers step along their street and bob with their stride. Standing people sway a little.
 // A walker turns only about the vertical, so its matrix is written straight from its heading into both meshes.
+// Only people in range move and draw. They fill the meshes' first slots, and a slot takes its person's colours
+// when its person changes.
 
 const o = new THREE.Object3D();
 let time = 0;
@@ -93,14 +126,30 @@ export function movePeople(dt) {
   time += dt;
   const fixed = people.findIndex(p => p.rank >= 0), always = fixed < 0 ? people.length : fixed;
   const share = DAY ? P.night + (1 - P.night) * DAY.light : 1, n = always + Math.round((people.length - always) * share);
-  const B = body.instanceMatrix.array, Hd = head.instanceMatrix.array;
+  const B = body.instanceMatrix.array, Hd = head.instanceMatrix.array, CB = body.instanceColor.array, CH = head.instanceColor.array;
+  const { x: cx, y: cy, z: cz } = camera.position, R = P.range, F = R * .85;
+  let m = 0, recolour = false;
   for (let i = 0; i < n; i++) {
-    const p = people[i];
+    const p = people[i], d2 = (p.x - cx) ** 2 + ((p.y ?? cy) - cy) ** 2 + (p.z - cz) ** 2;
+    if (d2 > R * R) continue;
+    const e = d2 > F * F ? (R - Math.sqrt(d2)) / (R - F) : 1;
+    if (slot[m] !== i) {
+      slot[m] = i; recolour = true;
+      for (let c = 0; c < 3; c++) { CB[m * 3 + c] = p.cb[c]; CH[m * 3 + c] = p.ch[c]; }
+    }
     if (p.st) {
-      const L = p.st.path.length - 1;
+      const L = p.st.path.length - 1, u0 = p.u;
       p.u += p.dir * p.v * dt;
       if (p.u > L - .01) { p.u = L - .01; p.dir = -1; }
       if (p.u < 0) { p.u = 0; p.dir = 1; }
+
+      // A walker turns back at landmark water's edge. Walkers on a lifted path, such as a wall walk, pass over it.
+
+      if (!p.st.lift) {
+        const k = Math.floor(p.u);
+        if (p.wk !== k || p.wn !== WATERS.length) { p.wk = k; p.wn = WATERS.length; p.dry = dry(p.st, k, p.side); }
+        if (!p.dry && wet(...spot(p.st, p.u, p.side))) { p.u = u0; p.dir = -p.dir; }
+      }
       const k = Math.floor(p.u), f = p.u - k, a = p.st.path[k], b = p.st.path[k + 1], sd = p.st.side[k];
       const x = a.x + (b.x - a.x) * f + sd.x * p.side, z = a.z + (b.z - a.z) * f + sd.z * p.side;
 
@@ -116,7 +165,8 @@ export function movePeople(dt) {
         p.sin = dx / l * p.s; p.cos = dz / l * p.s;
       }
       const y = (p.bent ? groundAt(x, z) : p.ga + (p.gb - p.ga) * f) + (p.st.lift ?? 0) + Math.abs(Math.sin(time * 7 + p.phase)) * .05;
-      const j = i * 16, c = p.cos, sn = p.sin, sc = p.s;
+      p.x = x; p.y = y; p.z = z;
+      const j = m * 16, c = p.cos * e, sn = p.sin * e, sc = p.s * e;
       B[j] = Hd[j] = c; B[j + 1] = Hd[j + 1] = 0; B[j + 2] = Hd[j + 2] = -sn; B[j + 3] = Hd[j + 3] = 0;
       B[j + 4] = Hd[j + 4] = 0; B[j + 5] = Hd[j + 5] = sc; B[j + 6] = Hd[j + 6] = 0; B[j + 7] = Hd[j + 7] = 0;
       B[j + 8] = Hd[j + 8] = sn; B[j + 9] = Hd[j + 9] = 0; B[j + 10] = Hd[j + 10] = c; B[j + 11] = Hd[j + 11] = 0;
@@ -124,11 +174,13 @@ export function movePeople(dt) {
     } else {
       o.position.set(p.x, p.y ??= groundAt(p.x, p.z), p.z);
       o.rotation.set(0, p.yaw + Math.sin(time * .6 + p.phase) * .25, Math.sin(time * 1.3 + p.phase) * .02);
-      o.scale.setScalar(p.s);
+      o.scale.setScalar(p.s * e);
       o.updateMatrix();
-      body.setMatrixAt(i, o.matrix); head.setMatrixAt(i, o.matrix);
+      body.setMatrixAt(m, o.matrix); head.setMatrixAt(m, o.matrix);
     }
+    m++;
   }
-  body.count = head.count = n;
+  body.count = head.count = m;
   body.instanceMatrix.needsUpdate = head.instanceMatrix.needsUpdate = true;
+  if (recolour) body.instanceColor.needsUpdate = head.instanceColor.needsUpdate = true;
 }

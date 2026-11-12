@@ -18,6 +18,7 @@ The questions come from the record of how New Angeles, Emberford and Nuremberg w
 |---|---|---|---|
 | 1 | Read the three files. Open the four example pages | Nothing | You know the engine |
 | 2 | Run the interview in section 3, one round per message | Answers, gives files | Raw answers |
+| 2b | Study the sources for style: wealth and poverty, materials, storeys, roofs, colours, density, mood, district by district. Draft a style sheet and ask the follow-up questions the reading raises (`LESSONS.md` section 12) | Answers, corrects the style sheet | Style sheet with page references |
 | 3 | Write the setting brief (section 5). Mark each item with its work type (section 2) | Reads and corrects it | Approved brief |
 | 4 | Build the grey town: plan, districts, one plain kit, camera, light | Looks at it in the browser | Approved layout and scale |
 | 5 | Build in the order of section 6. Show each stage | Gives feedback (section 7) | The setting |
@@ -33,6 +34,7 @@ Rules for the interview:
 - Offer a default only where it helps the author. Do not print a default for each question.
 - Ask for files in place of descriptions where a file exists.
 - Do not talk about engine work, cost or limits in round 1. The author must first say what they want. Name the cost of a wish when the wish is clear, at the end of that round, and only for that wish. The full split comes in the brief.
+- Ask questions that come from reading the sources, not only from the tables. Name what you found, what is unclear and what you would choose.
 - Do not build before the author approves the brief. Do not build detail before the author approves the grey town.
 
 ## 2. Work types
@@ -118,8 +120,10 @@ Then answer with three things, in plain words:
 |---|---|---|---|
 | 2.1 | Which books, notes, wikis or files are the truth for this setting? Give them to me | Models and texts must agree with them | Brief |
 | 2.2 | When two sources disagree, or a source disagrees with the real map, which one wins? | This came up for coasts and for places that moved | Brief |
+| 2.2a | Which pages or pictures show the setting's style and mood best? Is there history that changes what the maps show, such as places destroyed or built later? | The build must feel like the source. A palace was placed from the shape of its later ruin, 500 m off its site, because the builder did not know the story | Style sheet in the brief, `LESSONS.md` section 12 |
 | 2.3 | Which parts may I invent, and which are fixed? | Invented places get their own names and sites | Brief |
 | 2.4 | Is there a master list of places with a position for each? | A place in the wrong district is the most reported error | `town.json` sites, landmark `at` |
+| 2.4a | Are there labelled detail maps, a numbered plan or a place index? | Landmarks placed by code label land on their site. Placed by shape, they drift | Brief, a map-to-world table |
 | 2.5 | Which content is private, secret from your audience, or under copyright? | A public copy must leave it out. Do not copy book text or official art | Publishing |
 | 2.6 | Which language and spelling do the texts use? | One spelling in every label and card | Content |
 
@@ -153,6 +157,7 @@ Then answer with three things, in plain words:
 | # | Ask | Why | Lands in |
 |---|---|---|---|
 | 5.1 | What is the common building in each district? What is the rare showpiece? | Many small kits give variety. One kit must not take most lots | Kits, tiers |
+| 5.1a | Where does the source describe the poorest and the richest houses? | A borrowed house kit brings another place's era and wealth. Quote the source before the first render | Kits |
 | 5.2 | Which wall and roof materials? Which colours? | Skins for towers and for old towns are ready | `styles.wallSkins`, skins |
 | 5.3 | Do cultures or factions have their own architecture? | A foreign roof on a standard tower was rejected | Kit families |
 | 5.4 | What is on roofs and facades: signs, neon, antennas, chimneys, nothing? | Modern decoration must be off in an old town | `look.decor` |
@@ -171,6 +176,7 @@ Ask for a list first. Then ask the lower rows for each landmark.
 | 6.3 | Quote the lines that describe its shape | The model must show what the text says | Kit |
 | 6.4 | What is its one sign from 500 m: a silhouette, a light, a banner? | A landmark without one is lost in the skyline | Kit |
 | 6.5 | How large is it against its neighbours? Which landmarks must dominate, and which must be equal? | Size was corrected for many landmarks | Kit sizes |
+| 6.5a | Where does a visitor arrive, and which landmark there owns the skyline? | The most monumental landmarks may all stand elsewhere, and the arrival district is left without a skyline | Brief, batch order |
 | 6.6 | Which side is the front? Where is the sign or the entrance? | The card camera must face it | `face` |
 | 6.7 | Does it move or glow? What is the motion? | Moving parts need their own meshes | Kit `update` |
 | 6.8 | Are there kinds of place that repeat, such as inns, chapels, mills, shops? | One builder serves every site of a kind | Kit, sites |
@@ -292,11 +298,11 @@ Each stage ends with a look by the author. Do not start a stage on an unapproved
 | Stage | Build | Show the author |
 |---|---|---|
 | 1 | Copy `settings/sandbox/` and its page. Set the name and `<meta name="setting">`. Run `gen/check-pages.mjs` | The page loads |
-| 2 | Plan: generator input, districts, streets, water, relief | A top-down view and a low view of the grey town |
+| 2 | Plan: generator input, districts, streets, water, relief, and the country beyond the edge | A top-down view and a low view of the grey town. For a traced plan, the build overlaid on the source map (`LESSONS.md` section 1) |
 | 3 | Light model, ground, fog, sky, camera limits, opening view | The opening view at each hour or mode |
 | 4 | One kit family for the showpiece district | That district from the street and from above |
 | 5 | The other districts, blending, fill for empty areas | Each district, and each border |
-| 6 | Landmarks in batches of about five, with cards | Each landmark through its card, so the front is checked |
+| 6 | Landmarks in batches of about five, with cards. Brief builder agents by `LESSONS.md` section 13 | Each landmark through its card, so the front is checked. Each batch from far, at a low angle, at night and on the overlay |
 | 7 | Transport, roads out of town, people, boats, work | A ride, a street at day and at night |
 | 8 | Walking tours, audio guide, music | Each tour played to its end |
 | 9 | Theme, loading screen, welcome card, help texts | A first visit with `?new=1` |
@@ -319,6 +325,14 @@ Errors that came back more than once in the first settings. Check for each befor
 
 | Error | Check |
 |---|---|
+| A landmark sits off its site, or shows a building from another year | Overlay the build on the source map. Check the site by its code label and the map's year |
+| Houses look modern, too clean or too tall for the era | Read the source's house lines next to a street view |
+| A landmark looks pasted on: square walls, empty ground inside, a hard ground edge | `LESSONS.md` section 8, the fitting rules |
+| A monumental landmark looks plain | `LESSONS.md` section 9, the quality bar |
+| Trees or small parts vanish from far, and landmark grounds look bare | Far view. `LESSONS.md` section 4 |
+| Black asphalt pads in an old town | Every ward style has a `yardKit` |
+| Streets, lamps or walkers in a river | Top-down view of every river with the streets on |
+| A builder agent still shows as running after it reported | Check the task list. Agents close their own browsers |
 | The card camera shows the back or the side of a place | Open every card. Set `face` where the front is not on the street side |
 | A model does not match its text | Read the card next to the model |
 | A place sits in the wrong district, or moved after a regeneration | Compare seats with the place list after each generator run |

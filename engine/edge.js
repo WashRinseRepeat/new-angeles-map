@@ -73,9 +73,12 @@ export function edgeAt(x, z) {
   return i < 0 || j < 0 || i >= W || j >= D ? -1 : (MASK[j * W + i] - 128) / 127;
 }
 
-// Ground within r of a landmark or place stays solid, with a 30 m ramp back into the fray.
+// Ground within r of a landmark or place stays solid, with a 30 m ramp back into the fray. KEEPS lists the circles,
+// which the country's fields keep off.
 
+export const KEEPS = [];
 export function keep(x, z, r) {
+  KEEPS.push([x, z, r]);
   if (!EDGE) return;
   const R = r + 30;
   for (let j = Math.max(0, Math.floor((z - R - OZ) / S)); j <= Math.min(D - 1, Math.floor((z + R - OZ) / S)); j++)

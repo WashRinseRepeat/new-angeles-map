@@ -244,25 +244,28 @@ export function buildingMesh(geo, cap, defines = {}) {
   if (defines.MOUTHS) for (const k of [0, 1]) geo.setAttribute(`aMouth${k}`, new THREE.InstancedBufferAttribute(new Float32Array(cap * 4), 4));
   return new THREE.InstancedMesh(geo, new THREE.ShaderMaterial({ uniforms: U, defines, vertexShader: B_VS, fragmentShader: B_FS, userData: { casts: true } }), cap);
 }
+// A large city can raise the instance capacities in scale.capacity: { shapes: { box, … }, props: { box, … } }.
+
+const CAP = { shapes: {}, props: {}, ...SETTING.scale?.capacity };
 export const SHAPES = {
-  box: buildingMesh(new THREE.BoxGeometry(1, 1, 1), 200000, { MOUTHS: 1 }),
+  box: buildingMesh(new THREE.BoxGeometry(1, 1, 1), CAP.shapes.box ?? 200000, { MOUTHS: 1 }),
   cyl: buildingMesh(new THREE.CylinderGeometry(.5, .5, 1, 16), 24000, { CYL: 1 }),
   oct: buildingMesh(new THREE.CylinderGeometry(.5, .5, 1, 8).rotateY(Math.PI / 8), 24000, { CYL: 1 }),
-  pyr: buildingMesh(new THREE.CylinderGeometry(0, .5 * Math.SQRT2, 1, 4).rotateY(Math.PI / 4), 16000),
+  pyr: buildingMesh(new THREE.CylinderGeometry(0, .5 * Math.SQRT2, 1, 4).rotateY(Math.PI / 4), CAP.shapes.pyr ?? 16000),
 
   // A pitched roof: a triangular prism with its ridge along local x, 1 m wide, deep and high.
 
   gable: buildingMesh(new THREE.ExtrudeGeometry(new THREE.Shape([new THREE.Vector2(-.5, -.5), new THREE.Vector2(.5, -.5),
-    new THREE.Vector2(0, .5)]), { depth: 1, bevelEnabled: false }).translate(0, 0, -.5).rotateY(Math.PI / 2), 40000),
+    new THREE.Vector2(0, .5)]), { depth: 1, bevelEnabled: false }).translate(0, 0, -.5).rotateY(Math.PI / 2), CAP.shapes.gable ?? 40000),
 };
 
 // ---------- props, signs, glows ----------
 
 export const propMat = new THREE.MeshStandardMaterial({ roughness: .75, metalness: .35 });
 export const PROPS = {
-  box: new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), propMat, 300000),
-  cyl: new THREE.InstancedMesh(new THREE.CylinderGeometry(.5, .5, 1, 8), propMat, 100000),
-  cone: new THREE.InstancedMesh(new THREE.CylinderGeometry(0, .5, 1, 8), propMat, 16000),
+  box: new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), propMat, CAP.props.box ?? 300000),
+  cyl: new THREE.InstancedMesh(new THREE.CylinderGeometry(.5, .5, 1, 8), propMat, CAP.props.cyl ?? 100000),
+  cone: new THREE.InstancedMesh(new THREE.CylinderGeometry(0, .5, 1, 8), propMat, CAP.props.cone ?? 16000),
   dish: new THREE.InstancedMesh(
     new THREE.LatheGeometry(Array.from({ length: 5 }, (_, k) => new THREE.Vector2(k / 8, (k / 8) ** 2 * .8)), 12),
     new THREE.MeshStandardMaterial({ roughness: .5, metalness: .5, side: THREE.DoubleSide }), 16000),

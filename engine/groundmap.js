@@ -17,18 +17,25 @@
 //   mud []             extra mud spots as [x, z, radius]; the gates and the centre have mud already
 //   cell .38           size of a cobble in metres
 //   mesh 1.25          on a relief, the ground's grid in metres, over the town's wards
+//   lod [[700, 2], [1600, 4]]   on a relief, [from metres, cells merged] levels: past each distance from the camera
+//                      the grid merges that many cells a side, where a tile's cell count allows it
+//   lodError .5        metres a merged cell may leave the full grid; tiles that leave it further keep every cell
+//   edge 0             metres over which the town's ground fades into the country, with a wandering noisy edge;
+//                      0 keeps the edge sharp
+//   gardens []         ids of wards whose open ground and yards grow lawn and meadow instead of bare earth, for
+//                      villa quarters and villages that sit in green land
 //   wall               on a relief, the retaining walls' colour as [r, g, b]
 
 import * as THREE from 'three';
-import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CENTRE, CENTRE_R, CITY } from './core.js';
 import { SETTING } from './setting.js';
-import { WATER_MAT, scene, surface } from './render.js';
+import { WATER_MAT, camera, scene, surface } from './render.js';
 import { RELIEF, moatWater, terrainAt, walls } from './relief.js';
 import { POOL_SINK, pools } from './instances.js';
+import { COUNTRY, COUNTRY_GLSL, COUNTRY_U } from './country.js';
 
 const G = SETTING.look.groundMap && {
-  px: .75, paved: { main: 7, major: 5 }, pavedSites: [], track: 3.5, cell: .38, mesh: 1.25, wall: [.3, .28, .25],
+  px: .75, paved: { main: 7, major: 5 }, pavedSites: [], track: 3.5, cell: .38, mesh: 1.25, lod: [[700, 2], [1600, 4]], lodError: .5, wall: [.3, .28, .25], edge: 0, gardens: [],
   cobble: [.24, .22, .2], earth: [.2, .16, .11], yard: [.17, .14, .1], grass: [.1, .15, .06], ...SETTING.look.groundMap,
 };
 
@@ -39,7 +46,7 @@ const G = SETTING.look.groundMap && {
 
 function plan(px = G.px) {
   const [ox, oz] = CITY.origin, [dx, dz] = CITY.dims, W = Math.ceil(dx / px), H = Math.ceil(dz / px);
-  const mask = draw => {
+  const mask = (draw, blur = 1) => {
     const c = document.createElement('canvas');
     c.width = W; c.height = H;
     const g = c.getContext('2d');
@@ -50,7 +57,7 @@ function plan(px = G.px) {
     const out = document.createElement('canvas');
     out.width = W; out.height = H;
     const o = out.getContext('2d');
-    o.filter = 'blur(1px)';
+    o.filter = `blur(${blur}px)`;
     o.drawImage(c, 0, 0);
     return o.getImageData(0, 0, W, H).data;
   };
@@ -58,13 +65,15 @@ function plan(px = G.px) {
   const line = (g, L, w) => { g.lineWidth = w; g.beginPath(); L.forEach(([x, z], i) => (i ? g.lineTo(x, z) : g.moveTo(x, z))); g.stroke(); };
   const streets = Object.entries(CITY.streets);
 
-  // The kinds map, at half the plan's detail: R main streets, G minor streets. Others are major.
+  // The kinds map, at half the plan's detail: R main streets, G minor streets, B garden wards with a soft rim.
+  // Other streets are major.
 
   if (px !== G.px) {
     const width = kind => (G.paved[kind] ?? G.track) + 1;
     const masks = ['main', 'minor'].map(kind => mask(g => { for (const L of CITY.streets[kind] ?? []) line(g, L, width(kind)); }));
+    const gardens = mask(g => { for (const d of CITY.districts) if (G.gardens.includes(d.id)) poly(g, d.poly); }, Math.max(1, G.edge / px / 3));
     const data = new Uint8Array(W * H * 4);
-    for (let i = 0; i < W * H; i++) { data[i * 4] = masks[0][i * 4]; data[i * 4 + 1] = masks[1][i * 4]; }
+    for (let i = 0; i < W * H; i++) { data[i * 4] = masks[0][i * 4]; data[i * 4 + 1] = masks[1][i * 4]; data[i * 4 + 2] = gardens[i * 4]; }
     const t = new THREE.DataTexture(data, W, H);
     t.minFilter = t.magFilter = THREE.LinearFilter; t.needsUpdate = true;
     return t;
@@ -86,10 +95,19 @@ function plan(px = G.px) {
       for (const [kind, lines] of streets) for (const L of lines) line(g, L, (G.paved[kind] ?? G.track) + 2);
       g.fillStyle = '#fff';
       for (const d of CITY.districts) if (!d.id.startsWith('suburb-') && d.kind !== 'village') poly(g, d.poly);
+      if (G.edge) return;
       g.fillStyle = '#999';
       for (const P of CITY.blocks) poly(g, P);
-    }),
+    }, Math.max(1, G.edge / px / 3)),
   ];
+
+  // A soft edge blurs only the town's extent. The lots stay sharp and keep at least their 0.6, so the blur never
+  // spreads their lower value over the open ground between them.
+
+  if (G.edge) {
+    const lots = mask(g => { g.fillStyle = '#999'; for (const P of CITY.blocks) poly(g, P); });
+    for (let i = 0; i < W * H; i++) masks[3][i * 4] = Math.max(masks[3][i * 4], lots[i * 4]);
+  }
   const data = new Uint8Array(W * H * 4);
   for (let i = 0; i < W * H; i++) for (let c = 0; c < 4; c++) data[i * 4 + c] = masks[c][i * 4];
   const t = new THREE.DataTexture(data, W, H);
@@ -107,9 +125,9 @@ const MUD_N = Math.max(1, MUD.length);
 // their average. On a relief, steep lanes are drawn as steps. Puddles lie in the hollows of a slow noise on the track. Verges grow where a blurred read of the
 // lot mask says a lot is within a few metres.
 
-const GROUND_GLSL = `
+const GROUND_GLSL = `${COUNTRY ? COUNTRY_GLSL : ''}
   #define MUD_N ${MUD_N}
-  uniform sampler2D uGroundMap, uKinds, uPoolMap; uniform vec4 uGroundBox; uniform vec3 uPoolTint; uniform vec3 uCobble, uEarth, uYard, uGrass, uCountry; uniform float uCell; uniform vec3 uMud[MUD_N];
+  uniform sampler2D uGroundMap, uKinds, uPoolMap; uniform vec4 uGroundBox; uniform vec3 uPoolTint; uniform vec3 uCobble, uEarth, uYard, uGrass, uCountry; uniform float uCell, uEdge; uniform vec3 uMud[MUD_N];
   varying vec3 vGW;
   float gRough = .95;
   float gHash(vec2 p) { vec3 q = fract(vec3(p.xyx) * .1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
@@ -130,9 +148,13 @@ const GROUND_GLSL = `
   vec3 groundColour(vec3 p, out float inside) {
     vec2 w = p.xz;
     vec4 m = texture2D(uGroundMap, (w - uGroundBox.xy) * uGroundBox.zw);
-    inside = m.a;
-    float country = smoothstep(.9, .7, m.a), town = smoothstep(.8, .92, m.a);
     float n1 = gNoise(w * .07), n2 = gNoise(w * .45), n3 = gNoise(w * 2.3);
+
+    // A soft edge wanders: slow noise shifts where the town gives way to the country.
+
+    float a = m.a + uEdge * ((gNoise(w * .025) - .5) * .5 + (n1 - .5) * .25) * smoothstep(.15, .45, m.a) * smoothstep(1., .85, m.a);
+    inside = m.a;
+    float country = smoothstep(.9, .7, a), town = smoothstep(.8, .92, a);
     float paved = smoothstep(.4, .6, m.r + (n2 - .5) * .35) * town, lot = smoothstep(.45, .55, m.g + (n3 - .5) * .15);
     float track = smoothstep(.25, .75, m.b + (n2 - .5) * .5), worn = smoothstep(.55, .9, m.b + (n2 - .5) * .3);
     vec4 k = texture2D(uKinds, (w - uGroundBox.xy) * uGroundBox.zw);
@@ -182,7 +204,15 @@ const GROUND_GLSL = `
     float meadow = (1. - track) * smoothstep(.22, .04, nearStreet) * smoothstep(.35, .6, n1 * .7 + n2 * .4);
     vec3 lane = mix(earth, grass, clamp(verge * .85 + meadow * .65, 0., 1.));
     vec3 yard = mix(uYard * (.8 + .35 * n3 + .15 * n1), grass, smoothstep(.62, .8, n2 * .7 + n1 * .5) * .7);
-    vec3 field = uCountry * (.85 + .25 * n2 + .1 * n3);
+
+    // A garden ward grows lawn and meadow on its open ground and in its yards, trodden only along the tracks.
+
+    float garden = k.b * smoothstep(.15, .5, k.b + (n1 - .5) * .4);
+    vec3 lawn = mix(grass * 1.1, uCountry * (.85 + .25 * n2), .35 + .3 * n1);
+    lane = mix(lane, lawn, garden * (1. - track * .75) * .9);
+    yard = mix(yard, lawn * (.92 + .16 * n3), garden * .8);
+    vec3 field = uCountry * (.85 + .25 * n2 + .1 * n3);${COUNTRY ? `
+    field = countryColour(w, field);` : ''}
     vec3 col = mix(mix(mix(lane, field, country * (1. - track) * .9), cob, paved), yard, lot);
 
     // A country road keeps a strip of grass down its middle, between the wheels.
@@ -229,8 +259,14 @@ const GROUND_GLSL = `
 // On a relief the ground is a grid in 48 m tiles, laid only where a ward or a street is near, each vertex at the
 // ground's height there. Lot edges fall between vertices, so the grid leans across them for a cell; the retaining
 // walls stand over that lean.
+//
+// Far from the camera the grid gets coarser. Tiles group into chunks of 8 by 8, and the index buffer holds each
+// chunk once per level of detail. A level merges cells by a stride that divides a tile's cells. A tile takes the
+// coarser cells only where they stay within lodError of the full grid, so lot platforms, walls and moat banks keep
+// every cell. A skirt hangs under each tile edge whose two sides can differ, so no crack opens between levels.
+// Coarse cells keep the full grid's normals, so the light does not jump when a chunk changes level.
 
-const TILE = 48;
+const TILE = 48, CHUNK = 8;
 function draped() {
   const keep = new Set(), key = (i, j) => `${i},${j}`, pad = 45;
   const near = (x, z, r) => {
@@ -246,15 +282,109 @@ function draped() {
         if (inPoly(poly, cx, cz) || poly.some(([x, z]) => Math.abs(x - cx) < TILE / 2 + pad && Math.abs(z - cz) < TILE / 2 + pad)) keep.add(key(i, j));
       }
   }
-  const n = Math.round(TILE / G.mesh), tiles = [...keep].map(k => {
-    const [i, j] = k.split(',').map(Number);
-    return new THREE.PlaneGeometry(TILE, TILE, n, n).rotateX(-Math.PI / 2).translate((i + .5) * TILE, 0, (j + .5) * TILE);
-  });
-  const geo = mergeVertices(mergeGeometries(tiles.map(g => { g.deleteAttribute('uv'); return g; })), .01);
-  const pos = geo.attributes.position;
-  for (let i = 0; i < pos.count; i++) pos.setY(i, terrainAt(pos.getX(i), pos.getZ(i)) + .03);
+  const n = Math.round(TILE / G.mesh), step = TILE / n;
+  const levels = [{ from: 0, s: 1 }];
+  for (const [from, k] of G.lod) {
+    let s = Math.min(n, Math.max(1, Math.round(k)));
+    while (n % s) s--;
+    if (s > levels.at(-1).s) levels.push({ from, s });
+  }
+
+  // Lattice vertices, shared across tiles. Cells split along the same diagonal as a PlaneGeometry.
+
+  const ids = new Map(), xyz = [];
+  const vid = (I, J) => {
+    const k = I * 65536 + J;
+    let v = ids.get(k);
+    if (v === undefined) {
+      ids.set(k, v = xyz.length / 3);
+      xyz.push(I * step, terrainAt(I * step, J * step) + .03, J * step);
+    }
+    return v;
+  };
+  const H = (I, J) => xyz[vid(I, J) * 3 + 1];
+  const cells = (out, i, j, s) => {
+    for (let u = 0; u < n; u += s) for (let v = 0; v < n; v += s) {
+      const I = i * n + u, J = j * n + v, a = vid(I, J), b = vid(I, J + s), c = vid(I + s, J + s), d = vid(I + s, J);
+      out.push(a, b, d, b, c, d);
+    }
+  };
+  const tiles = [...keep].map(k => { const [i, j] = k.split(',').map(Number); return { i, j }; });
+  const fine = [];
+  for (const t of tiles) cells(fine, t.i, t.j, 1);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(xyz, 3));
+  geo.setIndex(fine);
   geo.computeVertexNormals();
-  return geo;
+  const nrm = [...geo.attributes.normal.array];
+
+  // A tile's error at a stride is the furthest any full-grid vertex lies from the coarse cells' surface.
+
+  const err = (i, j, s) => {
+    let e = 0;
+    for (let cu = 0; cu < n; cu += s) for (let cv = 0; cv < n; cv += s) {
+      const I = i * n + cu, J = j * n + cv, ha = H(I, J), hb = H(I, J + s), hc = H(I + s, J + s), hd = H(I + s, J);
+      for (let u = 0; u <= s; u++) for (let v = 0; v <= s; v++) {
+        const fu = u / s, fv = v / s;
+        const flat = fu + fv <= 1 ? ha + (hd - ha) * fu + (hb - ha) * fv : hc + (hb - hc) * (1 - fu) + (hd - hc) * (1 - fv);
+        e = Math.max(e, Math.abs(H(I + u, J + v) - flat));
+      }
+    }
+    return e;
+  };
+  const byKey = new Map(), chunks = new Map();
+  for (const t of tiles) {
+    t.s = [1];
+    for (let l = 1; l < levels.length; l++) t.s[l] = err(t.i, t.j, levels[l].s) <= G.lodError ? levels[l].s : t.s[l - 1];
+    const ck = key(Math.floor(t.i / CHUNK), Math.floor(t.j / CHUNK));
+    t.chunk = ck;
+    byKey.set(key(t.i, t.j), t);
+    if (!chunks.has(ck)) chunks.set(ck, { tiles: [], box: new THREE.Box3(), range: [] });
+    chunks.get(ck).tiles.push(t);
+  }
+
+  // Two sides of an edge differ by at most twice lodError, so a skirt that deep closes any gap. It faces out of its
+  // tile and takes its top's normal.
+
+  const D = 2 * G.lodError + .1, lows = new Map();
+  const low = v => {
+    let w = lows.get(v);
+    if (w === undefined) {
+      lows.set(v, w = xyz.length / 3);
+      xyz.push(xyz[v * 3], xyz[v * 3 + 1] - D, xyz[v * 3 + 2]);
+      nrm.push(nrm[v * 3], nrm[v * 3 + 1], nrm[v * 3 + 2]);
+    }
+    return w;
+  };
+  const EDGES = [[-1, 0, 0, 0, 0, 1], [1, 0, 1, 0, 0, 1], [0, -1, 0, 0, 1, 0], [0, 1, 0, 1, 1, 0]];
+  const skirts = (out, t, l) => {
+    const s = t.s[l];
+    for (const [ox, oz, eu, ev, du, dv] of EDGES) {
+      const u = byKey.get(key(t.i + ox, t.j + oz));
+      if (!u || (u.chunk === t.chunk && u.s[l] === s)) continue;
+      const I0 = t.i * n + eu * n, J0 = t.j * n + ev * n, flip = -dv * ox + du * oz < 0;
+      for (let k = 0; k < n; k += s) {
+        let a = vid(I0 + du * k, J0 + dv * k), b = vid(I0 + du * (k + s), J0 + dv * (k + s));
+        if (flip) [a, b] = [b, a];
+        out.push(a, low(a), b, b, low(a), low(b));
+      }
+    }
+  };
+  const index = [], list = [...chunks.values()].sort((a, b) => a.tiles[0].j - b.tiles[0].j || a.tiles[0].i - b.tiles[0].i);
+  for (let l = 0; l < levels.length; l++) for (const c of list) {
+    const start = index.length;
+    for (const t of c.tiles) { cells(index, t.i, t.j, t.s[l]); skirts(index, t, l); }
+    c.range[l] = [start, index.length - start];
+  }
+  for (const c of list) {
+    for (const t of c.tiles) c.box.union(new THREE.Box3().set({ x: t.i * TILE, y: Infinity, z: t.j * TILE }, { x: (t.i + 1) * TILE, y: -Infinity, z: (t.j + 1) * TILE }));
+    for (let k = c.range[0][0]; k < c.range[0][0] + c.range[0][1]; k++) { const y = xyz[index[k] * 3 + 1]; c.box.min.y = Math.min(c.box.min.y, y); c.box.max.y = Math.max(c.box.max.y, y); }
+  }
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(xyz, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
+  geo.setIndex(index);
+  geo.computeBoundingSphere();
+  return { geo, chunks: list, levels };
 }
 const inPoly = (P, x, z) => {
   let a = false;
@@ -265,18 +395,46 @@ const inPoly = (P, x, z) => {
   return a;
 };
 
+// Before each render through the main camera, every chunk in view picks its level by its distance from the camera,
+// and the mesh draws one group per run of chunks. A material list makes three draw the groups. A list also keeps
+// the ground out of the shadow casters and the card's thinning.
+
+function lod(mesh, { geo, chunks, levels }) {
+  mesh.material = [mesh.material];
+  const frustum = new THREE.Frustum(), m = new THREE.Matrix4(), prev = scene.onBeforeRender;
+  scene.onBeforeRender = (...a) => {
+    prev.apply(scene, a);
+    const cam = a[2];
+    if (cam !== camera) return;
+    frustum.setFromProjectionMatrix(m.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
+    const groups = [];
+    for (const c of chunks) {
+      if (!frustum.intersectsBox(c.box)) continue;
+      const d = c.box.distanceToPoint(cam.position);
+      let l = levels.length - 1;
+      while (l && d < levels[l].from) l--;
+      const [start, count] = c.range[l], last = groups.at(-1);
+      if (last && last.start + last.count === start) last.count += count;
+      else groups.push({ start, count, materialIndex: 0 });
+    }
+    geo.groups = groups;
+  };
+}
+
 export const ground = G && (() => {
   const [ox, oz] = CITY.origin, [dx, dz] = CITY.dims;
   const mat = new THREE.MeshStandardMaterial({ roughness: .95, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 2 });
-  const mesh = surface(new THREE.Mesh(RELIEF ? draped() : new THREE.PlaneGeometry(dx, dz).rotateX(-Math.PI / 2).translate(ox + dx / 2, .03, oz + dz / 2), mat));
+  const grid = RELIEF && draped();
+  const mesh = surface(new THREE.Mesh(grid ? grid.geo : new THREE.PlaneGeometry(dx, dz).rotateX(-Math.PI / 2).translate(ox + dx / 2, .03, oz + dz / 2), mat));
+  if (grid) lod(mesh, grid);
   if (RELIEF) scene.add(walls(new THREE.MeshStandardMaterial({ color: new THREE.Color(...G.wall), roughness: .9 })));
   const moat = moatWater();
   if (moat) scene.add(new THREE.Mesh(moat, WATER_MAT));
   const U = { uGroundMap: { value: plan() }, uKinds: { value: plan(G.px * 2) }, uGroundBox: { value: new THREE.Vector4(ox, oz, 1 / dx, 1 / dz) },
     uCobble: { value: new THREE.Vector3(...G.cobble) }, uEarth: { value: new THREE.Vector3(...G.earth) },
     uYard: { value: new THREE.Vector3(...G.yard) }, uGrass: { value: new THREE.Vector3(...G.grass) }, uCountry: { value: new THREE.Vector3(...G.country) },
-    uMud: { value: (MUD.length ? MUD : [[1e6, 1e6, 1]]).map(v => new THREE.Vector3(...v)) }, uCell: { value: G.cell },
-    uPoolMap: { value: new THREE.DataTexture(new Uint8Array(4), 1, 1) }, uPoolTint: { value: pools.material.color } };
+    uMud: { value: (MUD.length ? MUD : [[1e6, 1e6, 1]]).map(v => new THREE.Vector3(...v)) }, uCell: { value: G.cell }, uEdge: { value: G.edge ? 1 : 0 },
+    uPoolMap: { value: new THREE.DataTexture(new Uint8Array(4), 1, 1) }, uPoolTint: { value: pools.material.color }, ...COUNTRY ? COUNTRY_U : {} };
 
   // The surface keeps the hooks surface() gave it (holes), then swaps its flat colour for the ground's.
 

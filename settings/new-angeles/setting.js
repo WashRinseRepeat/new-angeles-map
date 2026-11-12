@@ -218,6 +218,41 @@ export default {
         { name: 'Beanstalk Southwest Line', music: 'beanstalk-line', via: [['The Beanstalk', 'Beanstalk Southwest Line'],
           ['Haas Central', 'Beanstalk Southwest Line'], ['Oak Lane', 'Beanstalk Southwest Line'], ['The Beanstalk', 'Beanstalk Southwest Line']] },
       ],
+
+      // The train map is a schematic on a grid. x runs east and y runs south. A station is [x, y, label side]. A bend
+      // is a named grid point that no train stops at. A path entry with a leading | runs straight first, then diagonal.
+      // side is the side of its direction of travel that a line takes on shared track, so each shared run keeps one
+      // order. Landmarks stand on the side of the track they stand on in the city.
+
+      schematic: {
+        stations: {
+          'Hopper Park': [2, 0, 'n'], 'The Beanstalk': [10, 2, 'e'], 'Chakana': [6, 2, 'n'],
+          'The Malecón': [-3, 7, 'w'], 'Esmeraldas': [1, 5, 'n'], 'Centro Mercado': [2, 5, 'se'], 'Base de Cayambe': [10, 5, 'e'],
+          'Nihongai': [0, 9, 'w'], 'Rutherford': [6, 9, 'sw'], 'Manta': [0, 12, 'e'], 'Laguna Velasco': [6, 13, 'e'],
+          'Oak Lane': [10, 14, 'e'], 'Rabotgorod': [6, 15, 'e'], 'Haas Central': [0, 17, 'w'], 'La Costa': [8, 19, 's'],
+          'Antiguo Guayaquil': [12, 19, 'n'], 'Parque Industríal': [15, 20, 'e'], 'Machalilla Park': [3, 20, 'sw'],
+          'Quinde': [8, 23, 's'], 'Nuevo Guayaquil': [12, 23, 'se'], 'Florine Ojeda Bank': [15, 23, 'e'],
+        },
+        bends: { A: [8, 4], J: [8, 9], H: [-3, 0], E: [0, 5], C: [6, 19], P: [15, 19] },
+        lines: {
+          'Grand Loop': { color: '#f2b632', side: 1, path: ['The Beanstalk', 'Base de Cayambe', 'Rutherford', 'Laguna Velasco',
+            'Rabotgorod', 'C', 'La Costa', 'Antiguo Guayaquil', 'Florine Ojeda Bank', 'Nuevo Guayaquil', 'Quinde', '|Machalilla Park',
+            'Haas Central', 'Manta', 'The Malecón', 'H', 'Hopper Park', '|The Beanstalk'] },
+          'City Loop': { color: '#4fc3f7', side: 1, path: ['Chakana', 'Rutherford', 'Nihongai', 'E', 'Esmeraldas', 'Centro Mercado', 'Chakana'] },
+          'Center Loop': { color: '#ef6b6b', side: 1, path: ['The Beanstalk', 'Chakana', '|Centro Mercado', '|Nihongai', 'Manta',
+            'Haas Central', '|Oak Lane', 'Base de Cayambe', 'The Beanstalk'] },
+          'Beanstalk Southwest Line': { color: '#7bd389', side: -1, path: ['The Beanstalk', 'A', 'J', 'Haas Central', '|Oak Lane', '|J'] },
+          'Guayaquil Loop': { color: '#c17be0', side: 1, path: ['Nuevo Guayaquil', 'Florine Ojeda Bank', 'Parque Industríal', 'P',
+            'Antiguo Guayaquil', 'Nuevo Guayaquil'] },
+        },
+        landmarks: [
+          { name: 'The Beanstalk', shape: 'beanstalk', at: [11.6, 1.3] },
+          { name: 'NBN Headquarters', shape: 'nbn', at: [4.5, 8] },
+          { name: 'Jinteki HQ', shape: 'jinteki', at: [-1.4, 8] },
+          { name: 'Haas-Bioroid HQ', shape: 'haas', at: [-1, 18.3] },
+          { name: 'Weyland HQ', shape: 'weyland', at: [10.8, 22.1] },
+        ],
+      },
     },
   },
 

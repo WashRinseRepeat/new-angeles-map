@@ -19,7 +19,10 @@ const tone = (c, k) => c.map(v => v * k);
 
 const steady = (r, k) => { let first = true; return () => first ? (first = false, k) : r(); };
 
-export function kits(H) {
+// The town house builder, shared with other packs. A kit passes stones, plasters, fills or roofs to swap the
+// palettes, and pitch to scale the roof's height.
+
+export function houses(H) {
   const { bld, prop, glow, SKINS } = H;
   const { strip, pick, yard } = parts(H);
   const { tree } = trees(H);
@@ -45,8 +48,8 @@ export function kits(H) {
 
     // The palette: one stone, one plaster, one infill and one roof per house.
 
-    const pal = { stone: pick(r, STONES), plaster: pick(r, PLASTERS), fill: pick(r, FRAME_FILL) };
-    const roofM = r() < (o.slate ?? .05) ? [SKINS.slate, SLATE] : [SKINS.tiles, pick(r, ROOF_TONES)];
+    const pal = { stone: pick(r, o.stones ?? STONES), plaster: pick(r, o.plasters ?? PLASTERS), fill: pick(r, o.fills ?? FRAME_FILL) };
+    const roofM = r() < (o.slate ?? .05) ? [SKINS.slate, SLATE] : [SKINS.tiles, pick(r, o.roofs ?? ROOF_TONES)];
     const ridge = tone(roofM[1], .7);
 
     // The ground floor, then the upper floors. A timber house juts each floor out over the one below.
@@ -75,7 +78,7 @@ export function kits(H) {
     let rh;
     if (kind === 'eaves' || kind === 'hip') {
       const W = w + .3, D = dr + .9;
-      rh = Math.min(kind === 'hip' ? Math.min(W, D) * (.6 + r() * .2) : D * (.68 + r() * .14), 10 + r() * 1.5);
+      rh = Math.min(kind === 'hip' ? Math.min(W, D) * (.6 + r() * .2) : D * (.68 + r() * .14), 10 + r() * 1.5) * (o.pitch ?? 1);
       if (kind === 'hip' && W <= D + .5) block(0, v0, top, W, D, rh, roofM, { shape: 'pyr', lit: 0 });
       else if (kind === 'hip') {
         block(0, v0, top, W - D, D, rh, roofM, { shape: 'gable', lit: 0 });
@@ -119,7 +122,7 @@ export function kits(H) {
       }
     } else {
       const Wd = kind === 'stepped' ? w : w + .3;
-      rh = w * (.95 + r() * .25);
+      rh = w * (.95 + r() * .25) * (o.pitch ?? 1);
       if (kind === 'stepped') {
 
         // A stepped gable of stone stands in front of the roof's end and hides it.
@@ -200,6 +203,12 @@ export function kits(H) {
     }
   }
 
+  return { townhouse, tree, opt, pick };
+}
+
+export function kits(H) {
+  const { bld, prop, SKINS } = H;
+  const { townhouse, tree, opt, pick } = houses(H);
   const T = ['timber', 'braced', 'redframe'];
   return {
     ...emberKits(H),

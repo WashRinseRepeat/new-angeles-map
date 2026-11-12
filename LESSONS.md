@@ -2,6 +2,8 @@
 
 This guide is for an AI that builds or extends a setting pack for this engine: a city like New Angeles, a town like Emberford, or a real place like Nuremberg around 1500. It collects what the first four days of commits (2026-11-01 to 2026-11-04, about 160 commits) taught, mostly through mistakes that had to be fixed. Each lesson ends with the commits that show it, so `git show <sha>` gives the full story.
 
+Sections 12 and 13 add what building Gareth from a book (2026-11-10 to 2026-11-11) taught. Most of its reworks came from building before the setting's style was understood (section 12).
+
 Read `MODULES.md` (files and tools) and `SETTINGS.md` (every pack field) alongside this. The design notes in `design/` hold the longer write-ups: `performance-2026-11-01.md`, `infill-2026-11-02.md`, `districts-plan.md` and the build briefs.
 
 ## 1. Work in a loop you can trust
@@ -27,6 +29,21 @@ Read `MODULES.md` (files and tools) and `SETTINGS.md` (every pack field) alongsi
 
 - A render that comes back as plain sky or fog usually means the test camera is inside a hill. Raise it before suspecting the code.
 - Wait for the city to settle before capturing. Props merge after the first frames.
+
+**Render from the command line with `gen/shot.mjs`.** Each run opens its own headless browser, so parallel builders never fight over one browser pane. It prints draw calls and triangles per view and the page's console errors. Run it in the foreground and wait for it. A background run of a large city once hung for seven hours and left the session showing nine running tasks. [4b61170]
+
+**Check every stage from the same set of views.** One view hides most faults.
+
+| View | Finds |
+|---|---|
+| The opening view | Skyline, the first impression |
+| Eye height in a street | House fronts, how buildings meet the ground, props |
+| Low angle from 1–2 km, camera moving | Z-fighting, trees and parts that drop out with distance |
+| High and far over the whole place | Empty space, hard ground edges, scale between landmarks |
+| 22:00, for a pack with a clock | Night lights, glows, too-bright walls |
+| Top-down overlay on the source map | Places off their site, missing country, wrong outlines |
+
+**Overlay the build on the source map.** `gen/topdown.mjs` renders a straight top-down image of a world rectangle at a given metres per pixel. Render the rectangle the source map covers, at the map's own metres per pixel, and blend both images in a page with a fade slider and a split view. `settings/gareth/compare.html` is the example. Make one after the grey town and after each landmark batch. In Gareth the overlay showed in one look what screenshots had hidden for a day: a palace 500 m off its site, and bare grass where the map draws fields and woods. Open the page through the local server, because a browser opening the file directly does not load the images next to it. [ede2d03, 4e51d17, 9ff851e]
 
 **Other checks.**
 - `gen/check-pages.mjs`: every setting's page is a copy of the page skeleton, and this lists any element the engine reads that a page lacks. [4b6c1d9]
@@ -81,7 +98,8 @@ The budget is a phone at 30 fps or more. Geometry is rarely the bottleneck: buil
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Flicker between two surfaces at distance | Coplanar or nearly coplanar faces, even 4 cm apart | `polygonOffset` on the overlay. For roofs and caps, make the lesser piece 3–4% smaller or lower instead of matching planes [8deabb5, 812f9e1, 6f9153d] |
+| Flicker between two surfaces at distance (z-fighting) | Coplanar or nearly coplanar faces. With a 1 m near plane a 24-bit depth buffer resolves only about 6 cm at 1 km, so even 4 cm gaps flicker | Follow the stacking rule below. For roofs and caps, make the lesser piece 3–4% smaller or lower instead of matching planes [8deabb5, 812f9e1, 6f9153d, Gareth] |
+| Flat roofs and courts flicker in white wedges while the camera moves, only from far up | A fixed near plane of 1–3 m. At 2.5 km a 24-bit depth buffer then steps about 13 cm, so a roof deck 20 cm above its wall top fights it. Looks like shadow stepping, but turning shadows off changes nothing | Move the near plane out each frame to most of the gap to the nearest scene or cloud bounding box, scaled by the frustum's corner angle (engine/render.js, NEAR). A ride lowers NEAR.floor instead of setting camera.near [Gareth] |
 | A black box spreading from one spot | A NaN or Inf pixel blurred by bloom | Clamp NaN and Inf in the bright pass. Clean generated polygons of repeated vertices, which also make NaN heights [8deabb5, fcf384a] |
 | Clouds drawn over nearby buildings during rides | A depth-reading pass decoded depth with the start-up near plane, but rides pull it to 0.4 m | Take near and far from the live camera every frame [00cf112] |
 | Shadow edges crawl while panning | The shadow camera moves smoothly | Snap the ortho shadow camera to whole texels, and resize its square in 50 m steps [09f9ae1] |
@@ -99,6 +117,32 @@ The budget is a phone at 30 fps or more. Geometry is rarely the bottleneck: buil
 | A wing of a building floating 7 m up | Every part took the height under the building's centre | Give each part its own ground height [7ba8a0c] |
 | Writing instance matrices in `update` does nothing | Shared instanced meshes are copied into hidden tiles after the build | Anything that moves needs its own small `InstancedMesh` with `userData.noTile` and `frustumCulled = false` [design/FEEDBACK-BRIEF.md] |
 | A visibly square soil patch | Hard-edged ground patches | Composite them into one blurred texture with a noisy rim [dc2a635] |
+| Roofs missing in one part of a large city, dormers and chimneys floating over flat tops | The gable instance mesh was full, and `put` drops what comes after | Count `SHAPES` and `PROPS` after the build. Raise `scale.capacity` [Gareth] |
+| Trees and small parts vanish past about 700 m, and landmark grounds look bare from far | Instanced props under 20 m belong to the detail layer, which hides them past `scale.detail` | Build anything that must read from far as merged parts, for example Gareth's `bigTree` in `kits/parts.js` [ed622f3] |
+| Black asphalt pads with sheds and cars in an old town | A ward style without `yardKit` gets the engine's New Angeles yard | Give every ward style of an old-town pack a yard kit [4d0e8b9] |
+| Lamps and walkers stand in a river | A traced street lies inside the water outline | After tracing, check every street against the water on a top-down view. Move the points onto land [4e51d17] |
+| People walk on landmark water, and the water is a matte plane | The water is a plain mesh | Lay it with `H.water`, which uses the lake shader and keeps people off [064846f] |
+| The view wobbles while a card is open | Two controls steer the camera's aim point | Only the card steers while it is open [ede2d03] |
+| The ground map fails with "Too many properties to enumerate" | The draped ground grid of a 15 km² town has too many vertices for `mergeVertices` | Coarser `look.groundMap.mesh` (4 m) and `px` (2 m) for a large city [Gareth] |
+
+### Stacking rule against z-fighting
+
+Every kit and landmark follows it. It is the most common graphic error in this engine.
+
+- Never set two faces level with each other: two flat layers, a box top flush with another, or a decal on a wall.
+- Stack flat layers at least 10 cm apart: ground (+0.03), lawn or pad, patches, paving, paths, water.
+- Pull each overlay forward with `H.layer(material, n)`, n = 1, 2, 3… from the bottom layer up. Builds merge per material, offset included. Instanced props share one material and cannot take a layer, so space them by height instead.
+- A part that must cover another, such as a path across a square, sits one layer and at least 10 cm higher.
+- Keep `camera.near` as high as the closest zoom allows (`minDistance` 12 m allows 3 m). Precision grows with the near plane.
+- Check from 1–2 km away, at a low angle, with the camera moving. Flicker hides in still close-ups.
+
+Landmark details break the rule most often. Check each of these when you build one:
+
+- A window, panel or emblem on a gable sits at least 15 cm in front of the roof's gable face. A roof overhangs its wall, so a window set on the wall line ends up behind the gable.
+- A glow, fire or cap on a chimney or tower top starts at least 15 cm above the top face, or ends 15 cm below it. Two glows on one top never share a bottom face.
+- A frame, pane, mullion and glow in one window step at least 10 cm apart in depth.
+- Water in a landmark is a flat layer like any other. Lay it with `H.water`. Keep it 10 cm clear of its rim and of the ground round it. On a slope, set the basin at the highest ground on its rim, or the ground rises through it.
+- Work out each part's top and bottom (centre ± half height) before you place the next part on it. Most faults are a centre placed so the edges meet exactly.
 
 ## 5. Lighting and art direction
 
@@ -193,6 +237,13 @@ The budget is a phone at 30 fps or more. Geometry is rarely the bottleneck: buil
   - a castle bailey, barbicans
   [c61454a, 59e2f79]
 - **Add life:** people by day and fewer at night, carts with lanterns, barges, guards on the wall walk, turning wheels and sails, easter eggs. [714c7d4, bf169cb, 54596b3, 51b0dbe]
+- **A landmark must look part of the city it stands in.** Gareth's first compounds were bright walled rectangles on bare ground, and the author rejected them although their size was canon. Three rounds fixed it. Do all of this in the first build. [ed622f3, cd8808a, 4d0e8b9]
+  - Trace compound walls from the source map's corners. They follow the roads and are rarely square.
+  - Fill the inside as the map shows it: paths, gardens, outbuildings, dense trees. Empty ground inside a wall reads as unfinished.
+  - Build plain houses against the inner walls in the town's own plaster and roof colours, so the edge matches the street outside.
+  - Use weathered stone, not bright white, and ground tones close to the town's ground.
+  - Let the ground change gradually round the compound. `look.groundMap.edge` softens the town edge and `look.groundMap.gardens` turns a ward's open ground to lawn (`SETTINGS.md`, ground).
+  - Shrink a wall that encloses nothing rather than leave empty ground inside it.
 - **Open a tour on the whole place and its key landmark before going into detail.** Cut between several shots rather than holding one view for 80 seconds. [13e9920]
 
 ## 9. Kits and landmarks
@@ -202,6 +253,27 @@ The budget is a phone at 30 fps or more. Geometry is rarely the bottleneck: buil
 - Keep kit files to their own prefix and their own content file. Agents working in parallel must not rewrite shared JSON. [design/FEEDBACK-BRIEF.md]
 - Recursive splitting needs a depth cap. The lot splitter overflowed the stack on bent blocks; it now keeps a block whole after 1,000 failed cuts. [87e5742]
 - A cut line must start outside the region it cuts, or both halves take everything. [cd1a8e8]
+
+### Before you build a landmark
+
+Gareth's landmarks went through a detail round, a fitting round and a defect round after their first build. Each line below would have saved one of them.
+
+1. Find its site on a labelled map by its code or name, not by a shape that looks right (section 12).
+2. Read what the source says about its history. A ruin or a missing wing on the map may mean the map shows it after the pack's moment.
+3. Collect the source's lines on its shape, size and front. Take the size from the map's scale and compare it with its neighbours.
+4. Plan how it meets the city: walls, inner fill, edge houses, ground (section 8).
+5. Plan its signature from 1–2 km (section 5) and the light it shows at night.
+6. Read the stacking rule and the landmark details in section 4 before placing the first part.
+
+### Quality bar for a monumental landmark
+
+The author called Gareth's first skyline landmarks plain, and the second pass had to add the detail. Build to this bar the first time.
+
+- **Silhouette:** a shape people know from 1–2 km away. Use towers, spires, domes, lanterns or stepped roofs. A plain box is never enough.
+- **Facades:** depth and rhythm close up. Use cornices, pilasters or buttresses, framed arched windows with some lit at night, portals with steps, statues, reliefs, finials and banners.
+- **Surroundings:** paving, fountains, trees and outbuildings, so it sits in its square the way the map shows.
+- **Rounds:** at least three. After each, render near, mid and far, by day and at 22:00, name what still looks plain, and fix it.
+- **Cost:** put the detail into merged parts. Measure draw calls and triangles at one fixed view before and after. Gareth's detail pass cost 20 draw calls for five landmarks. [16581fe]
 
 ## 10. Motion, people and the interface
 
@@ -231,3 +303,41 @@ The budget is a phone at 30 fps or more. Geometry is rarely the bottleneck: buil
 10. Performance: `?probe=gpu` at fixed views, draw calls, CPU per agent, upload sizes; record the numbers.
 11. Before merging: the regression check against current `main` for New Angeles, the page check, and renders of the new pack at several distances and hours.
 12. Publishing: add the pack explicitly to the export or the deploy, and check what it depends on.
+13. From a source: write the style sheet and ask the questions it raises before the first kit, then overlay the build on the source map after every stage (section 12).
+
+## 12. Understand the setting before you build
+
+Most of Gareth's reworks share one cause. The build started before anyone understood the setting's style, so models came from habit and from other packs. The poor quarters looked like the rich ones, houses rose six storeys, compounds were clean rectangles, and a palace stood on the wrong site. Each fix was a second build. The cure is a study step before the first kit, and smart questions that come out of it.
+
+### Study the source first
+
+- **Read for style, not only for facts.** Note how the source describes wealth and poverty, materials, storeys, roofs, colours, density, dirt, light and mood, district by district. Note what it draws on its maps: wall shapes, garden layouts, field patterns, woods.
+- **Write a style sheet into the brief before the first kit.** For each district give its character in a sentence, the house lines of its poorest and richest homes (material, storeys, roof, colour, condition), its signature details and its ground. Give the page of each source line.
+- **Learn the setting's story.** History explains the map. Gareth's map draws the Neue Residenz as a ruin because a later battle destroyed it. A builder who knew that would have looked for the palace's walled park. One who did not placed it from the ruin's shape, 500 m off.
+- **Trace every model choice to the style sheet.** A kit borrowed from another pack brings that pack's era, wealth and taste. Check each kit's storeys, materials, roof forms, colours and condition against the style sheet before the first render. Gareth's first houses came from Nuremberg and looked like a tidy modern old town. It took three rounds to reach loam huts, board shacks and fewer, taller storeys. [1614455, 3c61077, 153e609]
+
+### Ask smart questions
+
+- **Ask questions that come from the reading, not from a generic list.** "The source calls the river quarter poor but names no building material. Loam huts like the shanty edge, or timber on a stone footing?" helps. "What style do you want?" does not.
+- **Ask where the source is silent or contradicts itself,** and say what you would choose and why.
+- **Ask what the visitor should feel in each district and at each landmark.** That answer sets the detail budget and the skyline. Gareth's first landmarks all stood outside the walled core where the group arrives, so the core had no skyline until a second wave of agents built one.
+- **Answer the author's canon questions with quotes and pages.** The author asked whether canon Gareth really had so many pitched roofs. A quote settles that. A guess starts another round.
+
+### Check that the build feels like the source
+
+- **Review each stage against the style sheet, not against "looks fine".** Ask whether a reader of the source would recognise the district: its wealth, its density, its materials, its mood.
+- **Compare with the source map at every stage.** Overlay the top-down render on the map (section 1, the overlay workflow). Misplacement, missing country and wrong ground show at once. Plain grass round a city whose map draws fields and woods breaks every wide view; `look.country` paints them from pack data (`SETTINGS.md`, country).
+- **Place landmarks by their code labels.** A book often has labelled district maps that are crops of the city map. Fit each crop once as a scale and an offset, keep the table in the brief, and keep one transform from map pixels to world metres. Then a code such as VV-22 gives a world point, and no agent guesses from shapes.
+- **Keep book text and official art out of the guides and the public copy.** Write cards in your own words. The compare page and its images stay local, because the source map is under copyright.
+
+## 13. Briefing builder agents
+
+Parallel agents built most of Gareth's landmarks. These rules came from what went wrong.
+
+- **Give each agent its own kit file, its own card file and the shared parts module.** Agents must not edit the same file. Merge cards and register families yourself.
+- **Point every brief to the checks by section:** the stacking rule and the landmark details (section 4), "Before you build a landmark" and the quality bar (section 9), the fitting rules (section 8) and the style sheet in the brief (section 12). Agents that were not pointed there still left z-fighting in gable windows, chimney glows and pond water.
+- **Give the site by code label and world point,** with the map-to-world transform, so the agent does not guess from shapes.
+- **Name the views and the hours the agent must render,** with `gen/shot.mjs` in the foreground. Ask for draw calls before and after.
+- **Ask the agent to close every headless browser and server it started** and to report which are still running. Check the task list after each wave.
+- **Review each agent's renders and cost yourself before you commit.** One agent's stadium came back as a modern pitch, and another family added 59 draw calls until it was cut to 26. [c20e870]
+

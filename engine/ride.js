@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { S } from './state.js';
 import { SETTING } from './setting.js';
 import { CITY, hash, rng, sdPoly, smooth } from './core.js';
-import { camera, controls, labels, renderer, scene } from './render.js';
+import { NEAR, camera, controls, labels, renderer, scene } from './render.js';
 import { FOOTPRINTS, HALL, PILLARS, ROUTES, decksNear, onFootprint, STATIONS, STATION_LEN, TRAFFIC, cab, carriage, clearGhosts, ghostCar, routeU, sweep, uploadTrains } from './transport.js';
 import { groundAt } from './relief.js';
 import { TUNNELS } from './generator.js';
@@ -526,8 +526,8 @@ function moveTrains(dt) {
 
 let ride = null, exit = null, drag = null, shown = '';
 export const riding = () => !!(ride || exit);
-const NEAR = camera.near;
-const setNear = n => { camera.near = n; camera.updateProjectionMatrix(); };
+const FLOOR = NEAR.floor;
+const setNear = n => { NEAR.floor = n; };
 
 // Tunnels on a route, as [from, to] in metres along it. Each tunnelled lot gives the points where its portals
 // meet this line.
@@ -650,18 +650,19 @@ function release() {
   ride.pitch = THREE.MathUtils.clamp(Math.asin(ride.aim.y) + .06, -1.2, 1.2);
 }
 
-export function startRide(st) {
+export function startRide(st, way) {
   exit = null;
   const R = st.route;
 
-  // On a line the ride sets off towards the farther end. The train leaves 1 s after the camera boards.
+  // On a line the ride sets off towards the farther end, or the way asked for. The train leaves 1 s after the camera
+  // boards. A loop run backwards starts at the dwell's start and plays the clock in reverse. A tour ignores the way.
 
-  const dir = cyc(R) || st.s < R.len / 2 ? 1 : -1;
+  const dir = way && !R.tour ? way : cyc(R) || st.s < R.len / 2 ? 1 : -1, back = cyc(R) && dir < 0;
   let t0 = 0;
-  for (const g of R.segs) { if (g.st === st && g.dir === dir) { t0 += g.T - 1; break; } t0 += g.T; }
-  R.t = t0 + .01;
+  for (const g of R.segs) { if (g.st === st && g.dir === (back ? 1 : dir)) { t0 += back ? 1 : g.T - 1; break; } t0 += g.T; }
+  R.t = t0 + (back ? -.01 : .01);
   if (ride) ride.R.sign = 1;
-  R.sign = 1;
+  R.sign = back ? -1 : 1;
   ride = { R, dir: 0, boarding: true, yaw: 0, pitch: 0, mul: ride?.mul ?? 1, blend: { fromC: camera.position.clone(), fromT: controls.target.clone(), t: 0, dur: 2.4 } };
   controls.enabled = false;
   setNear(.4);
@@ -704,6 +705,7 @@ export function changeLine(st) {
   }
   for (const o of opts) o.dot = o.way * t.dot(h);
   opts.sort((a, b) => b.dot - a.dot);
+  ride.R.sign = 1;
   ride = { ...ride, R, boarding: null, focus: null, wait: { st, opts, i: 0, t, C: V(0, 0, 0), T: V(0, 0, 0), h: V(0, 0, 0) } };
   waitFor();
   music(R);
@@ -758,7 +760,7 @@ export function rideTick(dt) {
     camera.position.lerpVectors(exit.fromC, exit.toC, w);
     controls.target.lerpVectors(exit.fromT, exit.toT, w);
     camera.lookAt(controls.target);
-    if (w >= 1) { exit = null; controls.enabled = true; setNear(NEAR); }
+    if (w >= 1) { exit = null; controls.enabled = true; setNear(FLOOR); }
     return;
   }
   if (!ride) return;

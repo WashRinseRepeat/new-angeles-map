@@ -1,6 +1,6 @@
 // Boats on the rivers, for a pack whose boats section asks for them. Each river in the city file's water is a band,
 // near bank then far bank back, so its middle line runs between matching points of the two. Boats sail up and down
-// that line at the water's height and turn back at its ends. They are lit and cast shadows under live shadows.
+// that line at the water's height and turn back at its ends. A river with a direction sails its reaches instead. They are lit and cast shadows under live shadows.
 // Without a boats section nothing here is built.
 //
 // boats keys, with their defaults:
@@ -15,6 +15,7 @@ import { CITY, rng } from './core.js';
 import { SETTING } from './setting.js';
 import { scene } from './render.js';
 import { yawAt } from './instances.js';
+import { CLAIMED, RIVERS, reachPaths } from './rivers.js';
 
 const B = SETTING.boats && {
   n: 4, speed: [.8, 1.6],
@@ -40,12 +41,15 @@ function middle(P) {
   return out;
 }
 
+// A river with a direction (engine/rivers.js) gives its reaches instead, each at its own water height, and its
+// current carries the boats: faster downstream, slower up. A reach ends short of a fall, so no boat goes over.
+
 const boats = [];
 let mesh;
-if (B && CITY.water?.length) {
+if (B && (CITY.water?.length || RIVERS.length)) {
   const r = rng(5113);
-  for (const w of CITY.water) {
-    const path = middle(w.poly);
+  const paths = [...(CITY.water ?? []).filter(w => !CLAIMED.has(w.name)).map(w => middle(w.poly)), ...RIVERS.flatMap(reachPaths)];
+  for (const path of paths) {
     if (path.length < 4) continue;
     for (let i = 0; i < B.n; i++) {
       boats.push({ path, u: (i + r()) / B.n * (path.length - 1), dir: r() < .5 ? 1 : -1, v: (B.speed[0] + r() * (B.speed[1] - B.speed[0])) / 4,
@@ -69,12 +73,12 @@ export function moveBoats(dt) {
   if (!mesh) return;
   boats.forEach((b, i) => {
     const L = b.path.length - 1;
-    b.u += b.dir * b.v * dt;
+    b.u += (b.dir * b.v + (b.path[Math.floor(b.u)].v ?? 0) / 4) * dt;
     if (b.u > L - .01) { b.u = L - .01; b.dir = -1; }
     if (b.u < 0) { b.u = 0; b.dir = 1; }
     const k = Math.floor(b.u), f = b.u - k, a = b.path[k], c = b.path[k + 1], dx = (c.x - a.x) * b.dir, dz = (c.z - a.z) * b.dir;
     const len = Math.hypot(dx, dz) || 1;
-    yawAt(mesh, i, a.x + (c.x - a.x) * f - dz / len * b.side, WATER_Y, a.z + (c.z - a.z) * f + dx / len * b.side, dx, dz);
+    yawAt(mesh, i, a.x + (c.x - a.x) * f - dz / len * b.side, a.y + (c.y - a.y) * f, a.z + (c.z - a.z) * f + dx / len * b.side, dx, dz);
   });
   mesh.instanceMatrix.needsUpdate = true;
 }

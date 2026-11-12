@@ -5,15 +5,15 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { S, H } from './state.js';
 import { AXIS_HI, AXIS_LO, BLOCK, CENTRE, CENTRE_PLACE, CENTRE_R, CITY, PLACES, STANDALONE, STYLES, hash, lerp, loadMsg, mapToWorld, mixStyle, rng, sdPoly, smooth, styleAt } from './core.js';
 import { SETTING, atRoot, inPack } from './setting.js';
-import { FOG_GLSL, SURFACE, U, WATER_GLSL, addHole, holed, label, outerGround, slab, surface, water } from './render.js';
-import { groundAt } from './relief.js';
+import { FOG_GLSL, SURFACE, U, WATER_GLSL, WATER_MAT, scene, addHole, holed, label, outerGround, slab, surface, water } from './render.js';
+import { clearWalls, groundAt, terrainAt } from './relief.js';
 import { FACES, GLOWS, INSTANCED, PROPS, SHAPES, SKINS, beacon, beam, bld, laser, glow, glows, grey, helipad, holo, kibble, neon, pool, prop, puff, put, soften, roof, sign, textSign } from './instances.js';
-import { KITS, crownOf, decor, grammarTowerBody, neonTexture, panel, plate, stringLights } from './grammar.js';
+import { KITS, crownOf, decor, insidePoly, grammarTowerBody, neonTexture, panel, plate, stringLights } from './grammar.js';
 import { fillGreens } from './greens.js';
 import { SOIL, soil } from './soil.js';
 import { packClouds } from './clouds.js';
 import { keep } from './edge.js';
-import { BUNDLES, FOOTPRINTS, STREETS, buildPylons, centre, clearOfTrains, corridorIn, inTrain, solid, traffic } from './transport.js';
+import { BUNDLES, FOOTPRINTS, STREETS, buildPylons, centre, clearOfTrains, corridorIn, inTrain, onFootprint, solid, traffic } from './transport.js';
 import { buildStations } from './ride.js';
 import { ALL_BLOCK_FRAMES, BLOCK_FRAMES, BLOCK_KITS, BLOCK_MAX, FAMILY_KITS, SC, FRAMES, HUSH, frontOf, LANDMARKS_KITS, OWN_TIERS, SHOWCASE, SMALL_LOTS, generate, inRect, own, showcase } from './generator.js';
 
@@ -69,6 +69,24 @@ Object.defineProperties(H, Object.getOwnPropertyDescriptors({
 
   // A flickering light, like broken neon. dim, a share such as .7, makes it waver like a flame instead.
 
+  // layer(material, n) pulls a flat overlay n steps toward the camera in depth, so it wins over the surface under it
+  // at any distance. Higher n wins over lower. Builds merge per material, offset included.
+
+  layer: (m, n = 1) => Object.assign(m, { polygonOffset: true, polygonOffsetFactor: -n, polygonOffsetUnits: -4 * n }),
+
+  // water(poly, y, holes, n) lays flat water in the city's lake look over a local outline of [x, z] points, y metres
+  // up, with optional hole outlines, pulled forward like layer n. People keep off it. Landmark and place builds only.
+
+  water: (poly, y = .62, holes = [], n = 4) => {
+    S.DECOR.updateWorldMatrix(true, false);
+    const M = S.DECOR.matrixWorld, v = new THREE.Vector3();
+    const world = P => P.map(([x, z]) => { v.set(x, y, z).applyMatrix4(M); return [v.x, v.z]; });
+    const sh = new THREE.Shape(poly.map(([x, z]) => new THREE.Vector2(x, -z)));
+    for (const h of holes) sh.holes.push(new THREE.Path(h.map(([x, z]) => new THREE.Vector2(x, -z))));
+    (WATER_GEO[n] ??= []).push(new THREE.ShapeGeometry(sh).rotateX(-Math.PI / 2).translate(0, y, 0).applyMatrix4(M));
+    const outer = world(poly), xs = outer.map(p => p[0]), zs = outer.map(p => p[1]);
+    WATERS.push({ outer, holes: holes.map(world), box: [Math.min(...xs), Math.min(...zs), Math.max(...xs), Math.max(...zs)] });
+  },
   flickerGlow: (x, y, z, sx, sy, sz, rgb, r, dim) => S.flicker.push([glows, glow(x, y, z, sx, sy, sz, rgb), rgb, r() * 10, false, ...dim ? [dim] : []]),
 
   // A soft searchlight: a cone from its lamp at the origin up +y to its wide end at y = 1, so a mesh or
@@ -111,6 +129,16 @@ Object.defineProperties(H, Object.getOwnPropertyDescriptors({
   }),
 }));
 const BEAMS = {};
+
+// Landmark water, as world outlines for people and as geometry per layer until the builds end.
+
+export const WATERS = [];
+const WATER_GEO = {};
+
+// True where a point lies on landmark water and not on a bridge's deck over it.
+
+export const wet = (x, z) => WATERS.some(({ outer, holes, box }) => x > box[0] && z > box[1] && x < box[2] && z < box[3]
+  && insidePoly(x, z, outer) && !holes.some(h => insidePoly(x, z, h))) && groundAt(x, z) < terrainAt(x, z) + .05;
 
 // Kit families live in the pack's kits/<family>.js. Each exports kits(H) and tiers, which adds kit names to district
 // tiers. District families own their district's tiers. Find families add landmarks, each with a card file at
@@ -274,7 +302,7 @@ function atlasSigns() {
 function mergeBuilds() {
   atlasSigns();
   decor.updateMatrixWorld(true);
-  const toDecor = new THREE.Matrix4().copy(decor.matrixWorld).invert(), sets = new Map();
+  const toDecor = new THREE.Matrix4().copy(decor.matrixWorld).invert(), sets = new Map(), sigs = new Map();
   for (const g of STATIC_BUILDS) for (const o of g.children) {
     if (!mergeable(o)) continue;
     const m = o.material, geo = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone()).applyMatrix4(_local.multiplyMatrices(toDecor, o.matrixWorld));
@@ -290,7 +318,8 @@ function mergeBuilds() {
     geo.computeBoundingSphere();
     _c.copy(geo.boundingSphere.center);
     const keys = Object.entries(geo.attributes).map(([k, a]) => `${k}${a.itemSize}${a.array.constructor.name}${a.normalized}`).sort().join();
-    const k = `${sigOf(m)}|${!!m.userData.soft}|${keys}|${o.layers.mask}|${Math.floor(_c.x / CHUNK)},${Math.floor(_c.z / CHUNK)}`;
+    if (!sigs.has(m)) sigs.set(m, sigOf(m));
+    const k = `${sigs.get(m)}|${!!m.userData.soft}|${keys}|${o.layers.mask}|${Math.floor(_c.x / CHUNK)},${Math.floor(_c.z / CHUNK)}`;
     if (!sets.has(k)) sets.set(k, { m, list: [], src: [] });
     sets.get(k).list.push(geo); sets.get(k).src.push(o);
   }
@@ -424,7 +453,7 @@ for (const lm of LANDMARKS_KITS) {
   site.used = true;
   if (lm.hush) HUSH.push({ x: site.cx, z: site.cz, r: lm.hush });
   site.size = [Math.min(site.w, BLOCK_MAX), Math.min(site.d, BLOCK_MAX)];
-  if (!lm.free || lm.claim) for (const f of FRAMES) if (inRect(site, f.cx, f.cz, 2)) f.taken = true;
+  if (!lm.free || lm.claim) for (const f of FRAMES) if (inRect(site, f.cx, f.cz, 2, lm.free ? Infinity : BLOCK_MAX)) f.taken = true;
   const g = new THREE.Group(), sy = lm.scaleY ?? 1, ly = (lm.labelY ?? SETTING.scale.labels.landmarkY) * sy;
   g.position.set(site.cx, groundAt(site.cx, site.cz), site.cz);
   g.rotation.y = site.a;
@@ -432,7 +461,7 @@ for (const lm of LANDMARKS_KITS) {
   decor.add(g);
   S.DECOR = g;
   S.FRAME = { cx: 0, cz: 0, tx: site.cx, tz: site.cz, a: site.a, c: site.c, s: site.s, w: site.w, d: site.d, front: site.front ?? frontOf(site), sy: lm.scaleY };
-  const n0 = SHAPES.box.count, foot = { name: lm.name, cx: site.cx, cz: site.cz, c: site.c, s: site.s, w: lm.free ? site.w : Math.min(site.w, BLOCK_MAX), d: lm.free ? site.d : Math.min(site.d, BLOCK_MAX), n0: INSTANCED.map(m => m.count) };
+  const n0 = SHAPES.box.count, foot = { name: lm.name, claim: !!lm.claim, cx: site.cx, cz: site.cz, c: site.c, s: site.s, w: lm.free ? site.w : Math.min(site.w, BLOCK_MAX), d: lm.free ? site.d : Math.min(site.d, BLOCK_MAX), n0: INSTANCED.map(m => m.count) };
   const focus = lm.build(0, 0, Math.min(site.w, BLOCK_MAX) - 4, Math.min(site.d, BLOCK_MAX) - 4, styleAt(site.cx, site.cz, U.uBlend.value), rng(hash(Math.round(site.cx), 31)));
   own(n0);
 
@@ -480,6 +509,12 @@ for (const lm of LANDMARKS_KITS) {
   LANDMARK_SITES.push({ name: lm.label ?? lm.name, key: lm.name, x: fx, z: fz, y: ly, frame: view, el, place, block: lm.free ? null : site, at: [x, z], minSide: lm.minSide ?? SC.siteMin });
 }
 
+// A landmark that claims its ground closes the streets inside it, as a place does: no car or lamp crosses it.
+
+for (const f of FOOTPRINTS) if (f.claim) for (const st of STREETS) st.path.forEach((q, k) => { if (onFootprint(q.x, q.z, [f])) st.block[k] = 1; });
+clearWalls((x, z) => FOOTPRINTS.some(f => f.claim && onFootprint(x, z, [f])));
+for (const c of traffic) if (!c.hover && c.st.block[Math.floor(c.u)]) c.rank = 2;
+
 // Pylons and stations build once the landmarks stand, so they keep off the landmark footprints.
 
 performance.mark('na:landmarks');
@@ -487,6 +522,16 @@ buildPylons();
 buildStations();
 performance.mark('na:stations');
 if (!SHOWCASE) { mergeBuilds(); LANDMARKS.push(fillGreens(H)); }
+
+// Landmark water merges into one mesh per layer, in the lakes' shader with that layer's pull.
+
+for (const [n, list] of Object.entries(WATER_GEO)) {
+  const m = H.layer(new THREE.ShaderMaterial({ uniforms: U, vertexShader: WATER_MAT.vertexShader, fragmentShader: WATER_MAT.fragmentShader, side: THREE.DoubleSide }), +n);
+  const mesh = new THREE.Mesh(mergeGeometries(list), m);
+  mesh.frustumCulled = false;
+  scene.add(mesh);
+  for (const g of list) g.dispose();
+}
 performance.mark('na:merged');
 S.BASE = new Map(INSTANCED.map(m => [m, m.count]));
 S.BASE.set(SOIL, SOIL.length);

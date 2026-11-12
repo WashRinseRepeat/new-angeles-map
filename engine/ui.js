@@ -14,8 +14,8 @@ import { RIDE_AUDIO } from './ridesound.js';
 import { TRAFFIC, centre, hwCars, hwTraffic, moveCars, nearHighway, track, uploadUsed } from './transport.js';
 import { BLOCK_MAX, CITYTUNE, FRAMES, QUERY, SC, SITES, frontOf, generate } from './generator.js';
 import { LANDMARKS, LANDMARK_LABELS } from './api.js';
-import { initNav } from './nav.js';
-import { DAY, tick } from './daylight.js';
+import { initNav, layerCards } from './nav.js';
+import { DAY, FOG_HOLD, tick } from './daylight.js';
 import { movePeople } from './people.js';
 import { moveBoats } from './boats.js';
 import './groundmap.js';
@@ -27,24 +27,34 @@ import { RELIEF, groundAt } from './relief.js';
 // It exports group, labels and build(), loads on first use and builds once.
 
 const PACK_LAYERS = SETTING.layers ?? {}, LAYER_MODS = {}, SKY = scene.background;
+const FOG0 = FOG.clone();
 export const LAYERS = { all: SETTING.scale.layerTop,
   ...Object.fromEntries(Object.entries(PACK_LAYERS).map(([k, l]) => [k, l.clip])) };
 export const clipPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 1e5);
 export let layer = 'all', clipTop = LAYERS.all, cutOpen = false;
-export function setLayer(name) {
+let shownPlace = null;
 
-  // The first switch to a pack layer waits one frame, so the button shows its busy state while the build runs.
+// A pack layer's module loads and builds on first use. Layers that share a module share its build.
+// The first build waits one frame, so the button shows its busy state while it runs.
 
+export async function loadLayer(name) {
   const L = PACK_LAYERS[name];
-  if (L && !LAYER_MODS[name]?.group.children.length) {
-    document.body.classList.add('busy');
-    return setTimeout(async () => {
-      const mod = LAYER_MODS[name] ??= await import(inPack(L.module));
-      mod.build();
-      document.body.classList.remove('busy');
-      setLayer(name);
-    }, 50);
-  }
+  if (!L || LAYER_MODS[name]?.group.children.length) return LAYER_MODS[name];
+  document.body.classList.add('busy');
+  await new Promise(r => setTimeout(r, 50));
+  const mod = LAYER_MODS[name] ??= await import(inPack(L.module));
+  mod.build();
+  document.body.classList.remove('busy');
+  layerCards(name, mod);
+  return mod;
+}
+export function setLayer(name) {
+  const L = PACK_LAYERS[name];
+  if (L && !LAYER_MODS[name]?.group.children.length) return loadLayer(name).then(() => setLayer(name));
+
+  // A card on another level closes quietly: a dungeon place's card, or any card when the view goes underground.
+
+  if (shownPlace && (shownPlace.layer ?? 'all') !== name && (shownPlace.layer || L?.underground)) hideCard();
   layer = name;
   for (const m of SURFACE) m.visible = !L;
 
@@ -56,6 +66,9 @@ export function setLayer(name) {
   }
   U.uMistBase.value = L?.mistBase ?? 0;
   scene.background = L?.background != null ? new THREE.Color(L.background) : SKY;
+  FOG_HOLD.color = L?.underground && L.background != null ? new THREE.Color(L.background) : null;
+  FOG.copy(FOG_HOLD.color ?? FOG0); scene.fog.color.copy(FOG);
+  if (DAY) DAY.lit = null;
   document.body.classList.toggle('underground', !!L?.underground);
   for (const b of document.querySelectorAll('[data-layer]')) b.classList.toggle('on', b.dataset.layer === name);
 }
@@ -91,7 +104,6 @@ for (const p of [...PLACES, CENTRE_PLACE].filter(p => p?.top)) {
 }
 
 export const card = document.getElementById('card');
-let shownPlace = null;
 
 // Minimizing keeps only the title, so the map stays clear on a phone. A new selection opens the card in full.
 
@@ -154,7 +166,13 @@ export function viewPlace(p, dur, face) {
   flyTo(at, dist, dir, dur);
 }
 export function select(p) {
-  if (card.style.display !== 'block' && !riding()) home = { t: controls.target.clone(), c: camera.position.clone() };
+
+  // A dungeon place opens on its own level. Any other card opens in the town when the view is underground.
+  // A card that changes the level keeps no view to fly back to, so closing it stays on the new level.
+
+  const want = p.layer ?? (PACK_LAYERS[layer]?.underground ? 'all' : layer), jump = want !== layer;
+  if (jump) setLayer(want);
+  if (card.style.display !== 'block' && !riding()) home = jump ? null : { t: controls.target.clone(), c: camera.position.clone() };
 
   // Campaign places carry a slug, an image and a page. District and landmark cards may have neither,
   // can hold several paragraphs, and bring their own camera move.
@@ -665,9 +683,9 @@ renderer.setAnimationLoop(now => {
 
   // On a relief the orbit's target rides on the ground, so the camera climbs and falls with the town. A layer's floor
   // sets the target's height instead, or with follow its depth below the ground. It settles at
-  // once on the first frame and eases after that. A ride or a tour steers the camera itself.
+  // once on the first frame and eases after that. A ride, a tour or an open card's lock steers the camera itself.
 
-  if (RELIEF && !held && !fly && !riding() && !tourFocus) {
+  if (RELIEF && !held && !fly && !riding() && !tourFocus && !locked) {
     const L = PACK_LAYERS[layer], g = L?.floor == null || L.follow ? groundAt(controls.target.x, controls.target.z) : 0;
     const dy = (g + (L?.floor ?? 0) - controls.target.y) * (settled ? Math.min(1, dt * 4) : 1);
     controls.target.y += dy; camera.position.y += dy; settled = true;

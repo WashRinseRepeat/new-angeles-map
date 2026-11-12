@@ -12,6 +12,8 @@ The engine (`engine/`) is generic. Everything that belongs to New Angeles lives 
 - One layer: `?layer=all|undercity`. Layers are a horizontal slice. Built-in materials clip through `renderer.clippingPlanes`, and custom shaders should discard above `uClipTop`.
 - `window.spike` exposes `camera`, `controls`, `PLACES` and more for screenshots.
 - Page check: `node spikes/map/gen/check-pages.mjs` lists any element id or tab the engine reads that a setting's page lacks. Run it after changing the page markup, because every page is a copy.
+- Screenshots: `node spikes/map/gen/shot.mjs --page=<file> --out=<dir> --view=name:x,y,z,tx,ty,tz [--hour=22] [--layer=name]` renders fixed views in its own headless browser and prints draw calls, triangles and console errors. Run it in the foreground. Pass each `--view` as its own argument.
+- Top-down: `node spikes/map/gen/topdown.mjs --page=<file> --rect=x0,z0,x1,z1 --mpp=<m> --out=<file>` renders a straight top-down image of a world rectangle. Render the rectangle a source map covers to overlay the two, as `settings/gareth/compare.html` does.
 - Regression check: `node spikes/map/gen/regress.mjs [ref]` captures fixed views of the working tree and of a git ref (default `main`) and compares draw calls, pixels, labels, build stats, ride tours and console errors. Run it before merging an engine change. It needs `npm install` in `gen/` (for three.js) and Playwright with Chromium. `--views=default,ride` limits the views, `--page=<file>` checks another setting's page, `--gpu` skips SwiftShader.
 
 ## Files
@@ -22,10 +24,12 @@ The engine (`engine/`) is generic. Everything that belongs to New Angeles lives 
 | `ui.css` | the interface stylesheet, its colours and font as CSS variables. A pack's `settings/<id>/theme.css` overrides them |
 | `engine/clouds.js` | cloud decks for the cloud pass: `cloudLayer`, and the pack's `look.clouds` |
 | `engine/hills.js` | a terrain module of rolling hills and woods, for packs without their own |
+| `engine/country.js` | country on the hills from the pack's `look.country.types`: layouts (fields, blobs, outlines), painters into one ground texture, and builders (edges, plots, clusters, canopies, scatter, pack modules) in one merged mesh |
 | `engine/daylight.js` | the day clock: blends the pack's `look.clock` keyframes by the hour, moves the sun and moon, and draws the sky dome with its haze and stars |
 | `engine/relief.js` | the lie of the land: the city file's hills, lot and site platforms, `groundAt`, and the retaining walls |
 | `engine/groundmap.js` | the ground map: the town plan painted into a texture and drawn as cobbles, earth lanes, verges and yards, from the pack's `look.groundMap` |
-| `engine/boats.js` | boats on the city file's rivers, from the pack's `boats` |
+| `engine/boats.js` | boats on the city file's rivers, from the pack's `boats`; on a river with a direction, on its reaches |
+| `engine/rivers.js` | rivers with a direction, from the pack's `rivers`: lines with heights and widths, falls, the land round them (`shapeLand`) and the geometry `render.js` draws |
 | `engine/people.js` | people on foot: walkers on the streets and crowds round points, from the pack's `people` |
 | `engine/setting.js` | loads the active setting pack (`SETTING`) and resolves its paths. See `SETTINGS.md` |
 | `engine/state.js` | `H` and the shared mutable state `S` (`FRAME`, `DECOR`, `flicker`, `BASE`, `trafficT`) |
@@ -48,6 +52,7 @@ The engine (`engine/`) is generic. Everything that belongs to New Angeles lives 
 | `settings/new-angeles/` | the New Angeles setting pack: `setting.js`, styles, station kits, tour moves, kits, places, card texts, landmarks |
 | `emberford.html`, `settings/emberford/` | Emberford, a walled medieval town. `gen/town.py` writes its `city.json` from `town.json`. It stays off the live site and out of the public copy |
 | `gen/town.py` | walled-town generator: wall, gates, streets, plots, wards, landmark sites, greens and a river |
+| `desert-test.html`, `settings/desert-test/` | a desert test pack for `look.country` terrain types on Emberford's town, with a pack builder module (`kits/well.js`). It stays off the live site and out of the public copy |
 | `sandbox.html`, `settings/sandbox/` | the sandbox test town, a minimal pack. `make-city.py` writes its `city.json`. It stays off the live site and out of the public copy |
 | `settings/new-angeles/undercity.js` | the Undercity layer for every district, a pack layer |
 | `settings/new-angeles/places/<slug>.js` | one named location block |
@@ -137,6 +142,16 @@ The pack names these modules in `setting.js` (`centre.module`, `terrain`). New A
 - `landmarks/beanstalk.js` gets a group at the centre (the Root). `top` sets the pin height.
 - `landmarks/terrain.js` gets a group at the origin and replaces the flat ground, the slab and the water. The undercity view hides it.
 - Landmarks build their own meshes. The instanced helpers reset on every rebuild, so landmarks should not use them.
+
+## Train map
+
+The Maglev tab opens a full-screen SVG map of the lines, drawn by `engine/trainmap.js`. A click on a station marks it and a click on an arrow starts a ride through `startRide(st, dir)` in `engine/ride.js`.
+
+- `engine/schematic.js` holds the pure geometry. It builds octilinear legs, offsets parallel lines, places arrows and orders stations.
+- `engine/trainmap.js` draws the map from `SETTING.transport.maglev.schematic` and wires its clicks.
+- `transport.maglev.schematic` in `settings/new-angeles/setting.js` holds `stations` (grid points with a label side), `bends`, `lines` (colour, side and path) and `landmarks`. A pack without this key keeps the old `#ridePick` station list.
+- `node spikes/map/gen/schematic-check.mjs` checks the geometry.
+- `node spikes/map/gen/trainmap-check.mjs` loads the map and checks the train map and the ride start.
 
 ## Helper API `H`
 

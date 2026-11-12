@@ -242,9 +242,11 @@ export function blockSites(blend, place = () => true) {
   }
   return out;
 }
-export const inRect = (f, x, z, pad = 0) => {
+// max caps the rectangle's sides. A free landmark passes Infinity, so it claims its whole footprint.
+
+export const inRect = (f, x, z, pad = 0, max = BLOCK_MAX) => {
   const X = x - f.cx, Z = z - f.cz;
-  return Math.abs(X * f.c - Z * f.s) < Math.min(f.w, BLOCK_MAX) / 2 + pad && Math.abs(X * f.s + Z * f.c) < Math.min(f.d, BLOCK_MAX) / 2 + pad;
+  return Math.abs(X * f.c - Z * f.s) < Math.min(f.w, max) / 2 + pad && Math.abs(X * f.s + Z * f.c) < Math.min(f.d, max) / 2 + pad;
 };
 export const inSite = (x, z, pad) => SITES.some(s => inRect(s.f, x, z, pad));
 
@@ -1025,8 +1027,10 @@ export function generate(blend) {
   // Street lights along main and major streets, one pair every 24 m. A quarter's street colour beats its district's.
   // The pack's look.lamps sets the lamp heights on main and minor streets, and a post colour to stand each lamp
   // on a post, such as a lantern post. flicker makes each lamp waver like a flame, down to that share of its light.
+  // townOnly keeps lamps inside the wards, so roads out across the country stay dark.
 
-  const LAMP = { main: 7, minor: 5, ...SETTING.look.lamps };
+  const LAMP = { main: 7, minor: 5, townOnly: false, ...SETTING.look.lamps };
+  const dark = (x, z) => LAMP.townOnly && !CITY.districts.some(d => sdPoly(x, z, d.poly) > 0);
   const post = (x, z, y) => { if (LAMP.post) prop('cyl', x, y / 2, z, .18, y, .18, LAMP.post); };
   const lamp = (x, y, z, s, sy, rgb) => {
     const i = glow(x, y, z, s, sy, s, rgb);
@@ -1034,7 +1038,7 @@ export function generate(blend) {
   };
   const streetAt = (x, z) => quarterAt(x, z)?.style.street ?? styleAt(x, z, blend).street;
   for (const st of STREETS) if (st.kind !== 'minor') for (let k = 0; k < st.path.length; k += Math.max(2, Math.round(SC.lampStep.main / 4 / CITYTUNE.lights))) {
-    if (st.block?.[k]) continue;
+    if (st.block?.[k] || dark(st.path[k].x, st.path[k].z)) continue;
     const p = st.path[k], sd = st.side[k], sc = streetAt(p.x, p.z);
     for (const o of [-SC.lampOffset.main, SC.lampOffset.main]) {
       lamp(p.x + sd.x * o, LAMP.main, p.z + sd.z * o, .5, .3, sc);
@@ -1054,7 +1058,7 @@ export function generate(blend) {
   // Minor streets get one dimmer light every 28 m, alternating sides.
 
   for (const st of STREETS) if (st.kind === 'minor') for (let k = 3, n = 0, step = Math.max(2, Math.round(SC.lampStep.minor / 4 / CITYTUNE.lights)); k < st.path.length; k += step, n++) {
-    if (st.block?.[k]) continue;
+    if (st.block?.[k] || dark(st.path[k].x, st.path[k].z)) continue;
     const p = st.path[k], sd = st.side[k], o = n % 2 ? SC.lampOffset.minor : -SC.lampOffset.minor;
     const sc = streetAt(p.x, p.z).map(v => v * .6);
     lamp(p.x + sd.x * o, LAMP.minor, p.z + sd.z * o, .4, .25, sc);

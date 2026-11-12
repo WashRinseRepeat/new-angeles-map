@@ -6,11 +6,12 @@ import { SETTING, atRoot, inPack } from './setting.js';
 import { camera, controls, scene } from './render.js';
 import { insidePoly } from './grammar.js';
 import { FIND_FAMILIES, LANDMARK_SITES } from './api.js';
-import { DISTRICT_LABELS, LOCAL, card, flyTo, hideCard, pins, select, viewPlace } from './ui.js';
+import { DISTRICT_LABELS, LOCAL, card, flyTo, hideCard, loadLayer, pins, select, viewPlace } from './ui.js';
 import { fireworks } from './fireworks.js';
 import { EPISODES, initAudioTour, resumeAt, startAudioTour, stopAudioTour } from './audiotour.js';
 import { ROUTES } from './transport.js';
 import { TOURS, startRide, stopRide } from './ride.js';
+import { closeTrainMap, openTrainMap } from './trainmap.js';
 import { endOnboard, initOnboard, startOnboard } from './onboard.js';
 
 const $ = id => document.getElementById(id);
@@ -75,6 +76,43 @@ const markCard = l => {
 };
 const openMark = l => select(markCard(l));
 
+// ---------- dungeon cards ----------
+
+// A pack layer's cards file holds the cards for its module's labels. Layers that share a module share one file.
+// A label whose card key has a card opens it on the label's level: the layer of that module whose label band
+// holds the label. The card's camera looks down into the place from a little above its label.
+
+const LAYER_DEFS = Object.entries(SETTING.layers ?? {});
+const UNDER = new Map(LAYER_DEFS.filter(([, L]) => L.cards).map(([k, L]) => [L.module, { module: L.module, file: L.cards, first: k, lore: null, mod: null }]));
+const levelOf = (module, y) => LAYER_DEFS.find(([, L]) => L.module === module && (!L.labels || (y > L.labels[0] && y < L.labels[1])))?.[0];
+const levelName = k => document.querySelector(`[data-layer="${k}"]`)?.textContent ?? k;
+export function layerCards(name, mod) {
+  const u = UNDER.get(SETTING.layers[name].module);
+  if (u) { u.mod = mod; wireCards(u); }
+}
+function wireCards(u) {
+  if (!u.mod || !u.lore) return;
+  for (const el of u.mod.labels) {
+    const lore = u.lore[el.card];
+    if (!lore || el.place) continue;
+    const level = levelOf(u.module, el.depth), at = el.obj.position.clone(), dist = el.sub ? 70 : 130;
+    at.y -= 5;
+    el.classList.add('link');
+    el.place = { title: el.textContent, district: levelName(level), type: lore.kicker, summary: loreText(lore), layer: level, view: () => {
+      const dir = camera.position.clone().sub(controls.target).setY(0).normalize().setY(1.4).normalize();
+      flyTo(at, dist, dir);
+    } };
+  }
+}
+
+// A search hit builds the module first. A card key that several labels share opens the label of that name.
+
+async function openUnder(u, key) {
+  const els = (await loadLayer(u.first)).labels.filter(e => e.card === key && e.place);
+  const el = els.find(e => e.textContent === key) ?? els[0];
+  if (el) select(el.place);
+}
+
 // ---------- camera moves ----------
 
 let outline = null, current = null;
@@ -102,7 +140,7 @@ const pageOf = d => INDEX.locations.find(l => l.slug === d.id || l.slug === `${d
 // ---------- search ----------
 
 const q = $('q'), results = $('results');
-const KIND = ['Location', 'Landmark', 'District'];
+const KIND = ['Location', 'Landmark', 'District', 'Underground'];
 let ROWS = [], hits = [], sel = 0;
 function buildRows() {
   ROWS = [
@@ -111,6 +149,7 @@ function buildRows() {
       ...d.marks.map(l => ({ kind: 'Landmark', name: l.name, sub: nameOf(d), go: () => openMark(l) })),
       { kind: 'District', name: nameOf(d), sub: `${d.places.length + d.marks.length} places`, go: () => { openDistrict(d); select(districtCard(d)); } },
     ]),
+    ...[...UNDER.values()].flatMap(u => Object.entries(u.lore ?? {}).map(([key, lore]) => ({ kind: 'Underground', name: key, sub: lore.kicker, go: () => openUnder(u, key) }))),
   ];
 }
 
@@ -347,6 +386,18 @@ ridePick.onclick = e => {
   startRide(RIDES[+b.dataset.r].stops[+b.dataset.s]);
 };
 
+// A setting with a schematic replaces the picker by the train map.
+
+const SCH = SETTING.transport?.maglev?.schematic;
+if (SCH) rail.querySelector('[data-tab=ride]').onclick = () => {
+  stopAudioTour(); endTour(); endOnboard(); hideCard(); tab('');
+  openTrainMap({
+    schematic: SCH, rides: RIDES,
+    onRide: (st, dir) => { closeTrainMap(); startRide(st, dir); },
+    onClose: () => { closeTrainMap(); tab(''); rail.querySelector('[data-tab=ride]').focus(); },
+  });
+};
+
 // Audio tour cues name places, landmarks and districts by their card titles.
 
 initAudioTour({
@@ -488,6 +539,7 @@ $('mmToggle').onclick = () => { mm.classList.toggle('shut'); lastCam = ''; };
 
 addEventListener('keydown', e => {
   const typing = e.target.matches?.('input, textarea');
+  if (document.getElementById('trainmap')?.hidden === false) return;
   if ((e.key === '/' && !typing) || (e.key === 'k' && (e.ctrlKey || e.metaKey))) { e.preventDefault(); q.focus(); q.select(); return; }
   if (typing) return;
   if (e.key === 'Escape' && !tour && card.style.display === 'block') { $('close').click(); return; }
@@ -527,6 +579,7 @@ export async function initNav() {
   for (const more of await Promise.all(FIND_FAMILIES.map(f => get(inPack(`content/${f}.json`))))) Object.assign(landmarks ?? {}, more);
   SUMMARY = summary ?? {};
   LORE = { districts: districts ?? {}, landmarks: landmarks ?? {} };
+  await Promise.all([...UNDER.values()].map(async u => { u.lore = await get(inPack(u.file)); wireCards(u); }));
   const centreLore = LORE.landmarks[SETTING.centre.lore];
   if (centreLore && CENTRE_PLACE) Object.assign(CENTRE_PLACE, { type: centreLore.kicker, summary: centreLore.text });
   applyChips();

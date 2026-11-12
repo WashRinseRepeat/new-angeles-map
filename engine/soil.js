@@ -34,7 +34,20 @@ export function buildSoil() {
     mesh = null;
   }
   if (!SOIL.length) return;
-  const [ox, oz] = CITY.origin, [dx, dz] = CITY.dims, W = Math.ceil(dx / PX), H = Math.ceil(dz / PX);
+
+  // The canvas covers only the patches' extent plus the feather, on the city's texel grid, so a pack with a few
+  // patches in one corner does not pay for a city-wide texture.
+
+  const [cx, cz] = CITY.origin, pad = BLUR * 3;
+  let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+  for (const [x, z, w, d] of SOIL) {
+    const r = Math.hypot(w, d) / 2 + pad;
+    x0 = Math.min(x0, x - r); z0 = Math.min(z0, z - r); x1 = Math.max(x1, x + r); z1 = Math.max(z1, z + r);
+  }
+  const ox = Math.max(cx, cx + Math.floor((x0 - cx) / PX) * PX), oz = Math.max(cz, cz + Math.floor((z0 - cz) / PX) * PX);
+  const W = Math.ceil((Math.min(x1, cx + CITY.dims[0]) - ox) / PX), H = Math.ceil((Math.min(z1, cz + CITY.dims[1]) - oz) / PX);
+  const dx = W * PX, dz = H * PX;
+  if (W < 1 || H < 1) return;
   const paint = document.createElement('canvas');
   paint.width = W; paint.height = H;
   const g = paint.getContext('2d');

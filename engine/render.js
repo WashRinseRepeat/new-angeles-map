@@ -15,6 +15,7 @@ import { CLOCK, SETTING } from './setting.js';
 import { RELIEF, groundAt as groundY } from './relief.js';
 import { TessellateModifier } from 'three/addons/modifiers/TessellateModifier.js';
 import { EDGE_GLSL, EDGE_U } from './edge.js';
+import { CLAIMED, fallsGeometry, mistGeometry, riverGeometry, rockGeometry } from './rivers.js';
 
 // ---------- renderer ----------
 
@@ -301,13 +302,15 @@ class CloudPass extends Pass {
 // ---------- contact shadows ----------
 
 // A pack whose look.ao is set darkens creases: where walls meet the ground, narrow lanes and under eaves. The pass
-// reads the scene's depth, so it draws nothing again. At half resolution each pixel rebuilds its position and
+// reads the scene's depth, so it draws nothing again. At low resolution each pixel rebuilds its position and
 // facing from depth and tests 16 points in the half sphere above it; points behind the depth there count as
-// covered. A 4 × 4 blur that skips pixels at other depths smooths the noise, and the result multiplies into the
-// frame before the clouds and bloom. It fades out towards reach, skips pixels past it, and is off at low quality.
-// look.ao keys, with their defaults: radius 2.5 (metres), strength .7, reach 500 (metres from the camera).
+// covered. A 4 × 4 blur that skips pixels at other depths smooths the noise. The output pass multiplies the
+// frame by it (see there). It fades out towards reach, skips pixels past it, and is off at low quality.
+// look.ao keys, with their defaults: radius 2.5 (metres), strength .7, reach 500 (metres from the camera),
+// scale .5 (AO texels per CSS pixel along each side, at most half the device pixels; 1 is twice as fine).
 
-const AO = LOOK.ao && { radius: 2.5, strength: .7, reach: 500, ...LOOK.ao };
+const AO = LOOK.ao && { radius: 2.5, strength: .7, reach: 500, scale: .5, ...LOOK.ao };
+const AO_U = { tAO: { value: null }, uAOLow: { value: new THREE.Vector2(1, 1) }, uAORatio: { value: 2 }, uAOTexel: { value: new THREE.Vector2() }, uAOk: { value: 0 }, uAOReach: { value: AO?.reach ?? 0 } };
 const QUAD_VS = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0., 1.); }';
 const VIEW_GLSL = `
   uniform sampler2D tDepth; uniform mat4 uInv;
@@ -322,8 +325,12 @@ class AOPass extends Pass {
       const v = new THREE.Vector3(r() * 2 - 1, r() * 2 - 1, r()).normalize(), t = (i + 1) / 16;
       K.push(v.multiplyScalar(.15 + .85 * t * t));
     }
-    const target = () => new THREE.WebGLRenderTarget(1, 1, { depthBuffer: false });
-    this.raw = target(); this.soft = target();
+    this.scale = AO.scale;
+    this.raw = new THREE.WebGLRenderTarget(1, 1, { depthBuffer: false });
+
+    // The blurred target keeps each texel's distance in g for the upsample.
+
+    this.soft = new THREE.WebGLRenderTarget(1, 1, { depthBuffer: false, type: THREE.HalfFloatType });
     this.u = { tDepth: { value: null }, uInv: { value: new THREE.Matrix4() }, uProj: { value: new THREE.Matrix4() },
       uK: { value: K }, uTexel: { value: new THREE.Vector2() }, uLow: { value: new THREE.Vector2() },
       uAO: { value: new THREE.Vector3(AO.radius, AO.strength, AO.reach) }, tAO: { value: null } };
@@ -367,27 +374,24 @@ class AOPass extends Pass {
       uniform sampler2D tAO; uniform vec2 uLow; uniform vec3 uAO; varying vec2 vUv;
       void main() {
         float z = viewAt(vUv).z, sum = 0., w = 0.;
-        if (-z >= uAO.z) { gl_FragColor = vec4(1.); return; }
+        if (-z >= uAO.z) { gl_FragColor = vec4(1., 6e4, 0., 1.); return; }
         for (int i = -2; i < 2; i++) for (int j = -2; j < 2; j++) {
           vec2 at = vUv + (vec2(i, j) + .5) / uLow;
           float k = 1. / (1. + abs(viewAt(at).z - z) * 4.);
           sum += texture2D(tAO, at).r * k; w += k;
         }
-        gl_FragColor = vec4(vec3(sum / w), 1.);
+        gl_FragColor = vec4(sum / w, -z, 0., 1.);
       }`);
-
-    // The frame keeps its colour times the light left: zero times the source plus the source colour times the frame.
-
-    this.mix = quad(`
-      uniform sampler2D tAO; uniform vec3 uAO; varying vec2 vUv;
-      void main() { gl_FragColor = vec4(vec3(mix(1., texture2D(tAO, vUv).r, uAO.y)), 1.); }`,
-    { blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.ZeroFactor, blendDst: THREE.SrcColorFactor });
   }
   setSize(w, h) {
-    this.raw.setSize(Math.max(1, Math.round(w / 2)), Math.max(1, Math.round(h / 2)));
+    const div = Math.max(2, renderer.getPixelRatio() / this.scale);
+    this.raw.setSize(Math.max(1, Math.round(w / div)), Math.max(1, Math.round(h / div)));
     this.soft.setSize(this.raw.width, this.raw.height);
     this.u.uTexel.value.set(1 / w, 1 / h);
     this.u.uLow.value.set(this.raw.width, this.raw.height);
+    AO_U.uAOLow.value.set(this.raw.width, this.raw.height);
+    AO_U.uAORatio.value = w / this.raw.width;
+    AO_U.uAOTexel.value.set(1 / w, 1 / h);
   }
   render(r, writeBuffer, readBuffer) {
     // The nearest thing in view is at least as far as the frame's lowest ray takes to fall to 150 m over the target.
@@ -396,17 +400,15 @@ class AOPass extends Pass {
     const rise = camera.position.y - controls.target.y, fall = Math.asin(Math.min(1, rise / camera.position.distanceTo(controls.target)));
     const nearest = (rise - 150) / Math.sin(Math.min(Math.PI / 2, fall + THREE.MathUtils.degToRad(camera.fov / 2)));
     if (!QUALITY.ao || nearest > AO.reach) return;
-    const U = this.u, clear = r.autoClear;
+    const U = this.u;
     U.tDepth.value = readBuffer.depthTexture;
     U.uProj.value.copy(camera.projectionMatrix);
     U.uInv.value.copy(camera.projectionMatrixInverse);
     r.setRenderTarget(this.raw); this.ao.render(r);
     U.tAO.value = this.raw.texture;
     r.setRenderTarget(this.soft); this.blur.render(r);
-    U.tAO.value = this.soft.texture;
-    r.autoClear = false;
-    r.setRenderTarget(readBuffer); this.mix.render(r);
-    r.autoClear = clear;
+    AO_U.tAO.value = this.soft.texture;
+    this.ran = true;
   }
 }
 export const aoPass = AO ? new AOPass() : null;
@@ -434,12 +436,17 @@ bloom.materialHighPassFilter.fragmentShader = bloom.materialHighPassFilter.fragm
 // rgb × alpha. Clouds stay under the bloom threshold, so bloom loses nothing by skipping them. Each of the
 // four nearest cloud texels counts by its bilinear weight, cut down when the scene depth at its centre
 // differs from the depth here, so cloud never bleeds across a near silhouette. Clear sky skips that.
+// The output pass also applies ambient occlusion, because it can read the scene's depth. A pass that draws into the
+// frame cannot read the frame's own depth. The four nearest AO texels count the same way, but a texel counts fully
+// while its distance differs from the distance here by no more than the surface's own slope across a texel. The
+// slope comes from the nearer neighbour on each axis, so it holds at silhouettes. Where all four lie at other depths,
+// as on a thin pole, the nearest in depth wins. Bloom takes the frame before the shade.
 
 bloom.blendMaterial.visible = false;
 const output = new OutputPass();
-Object.assign(output.uniforms, { tBloom: { value: bloom.renderTargetsHorizontal[0].texture }, uBloom: { value: 1 }, tCloud: { value: clouds.rt.texture }, tDepth: { value: null }, uLow: CLOUD_U.uLowRes, uNear: CLOUD_U.uNear, uFar: CLOUD_U.uFar });
+Object.assign(output.uniforms, AO_U, { tBloom: { value: bloom.renderTargetsHorizontal[0].texture }, uBloom: { value: 1 }, tCloud: { value: clouds.rt.texture }, tDepth: { value: null }, uLow: CLOUD_U.uLowRes, uNear: CLOUD_U.uNear, uFar: CLOUD_U.uFar });
 output.material.fragmentShader = output.material.fragmentShader
-  .replace('uniform sampler2D tDiffuse;', 'uniform sampler2D tDiffuse, tBloom, tCloud, tDepth; uniform vec2 uLow; uniform float uBloom, uNear, uFar;')
+  .replace('uniform sampler2D tDiffuse;', 'uniform sampler2D tDiffuse, tBloom, tCloud, tDepth, tAO; uniform vec2 uLow, uAOLow, uAOTexel; uniform float uBloom, uNear, uFar, uAOk, uAORatio, uAOReach;')
   .replace('varying vec2 vUv;', `varying vec2 vUv;
     float dist(vec2 uv) { return uNear * uFar / (uFar - (uFar - uNear) * texture2D(tDepth, uv).r); }
     vec4 clouds() {
@@ -454,14 +461,34 @@ output.material.fragmentShader = output.material.fragmentShader
         sum += texture2D(tCloud, uv) * w; wsum += w;
       }
       return sum / max(wsum, 1e-6);
+    }
+    float shade() {
+      if (uAOk <= 0.) return 1.;
+      float d = dist(vUv);
+      if (d >= uAOReach || texture2D(tAO, vUv).r > .998) return 1.;
+      vec2 t = uAOTexel;
+      float gx = min(abs(dist(vUv + vec2(t.x, 0.)) - d), abs(d - dist(vUv - vec2(t.x, 0.))));
+      float gy = min(abs(dist(vUv + vec2(0., t.y)) - d), abs(d - dist(vUv - vec2(0., t.y))));
+      float tol = max(.01 * d, min(max(gx, gy), .1 * d) * uAORatio);
+      vec2 p = vUv * uAOLow - .5, i = floor(p), f = p - i;
+      float sum = 0., w = 0., best = 1e9, near = 1.;
+      for (int k = 0; k < 4; k++) {
+        vec2 o = vec2(mod(float(k), 2.), floor(float(k) / 2.)), s = texture2D(tAO, (i + o + .5) / uAOLow).rg;
+        float e = abs(s.g - d) / tol, c = mix(1. - f.x, f.x, o.x) * mix(1. - f.y, f.y, o.y) / (1. + e * e * e * e);
+        sum += s.r * c; w += c;
+        if (e < best) { best = e; near = s.r; }
+      }
+      return mix(1., w > 1e-3 ? sum / w : near, uAOk);
     }`)
   .replace('gl_FragColor = texture2D( tDiffuse, vUv );', `vec4 c = clouds(), b = texture2D(tBloom, vUv);
     gl_FragColor = texture2D( tDiffuse, vUv );
-    gl_FragColor.rgb = (gl_FragColor.rgb + uBloom * b.rgb * b.a) * (1. - c.a) + c.rgb;`);
+    gl_FragColor.rgb = (gl_FragColor.rgb * shade() + uBloom * b.rgb * b.a) * (1. - c.a) + c.rgb;`);
 const outputRender = output.render.bind(output);
 output.render = (r, writeBuffer, readBuffer, ...rest) => {
   output.uniforms.tDepth.value = readBuffer.depthTexture;
   output.uniforms.uBloom.value = bloom.enabled ? QUALITY.glow : 0;
+  output.uniforms.uAOk.value = aoPass?.enabled && aoPass.ran ? AO.strength : 0;
+  if (aoPass) aoPass.ran = false;
   outputRender(r, writeBuffer, readBuffer, ...rest);
 };
 composer.addPass(output);
@@ -536,7 +563,7 @@ export const SHADOW_LAYER = 7;
 const DEPTH = 4000;
 
 // shadowAt gives 1 in light and 0 in full shadow. It offsets the point along its normal by about a texel against
-// acne and fades to light at the map's edge. Hard shadows take nine hardware-filtered taps.
+// acne and fades to light at the map's edge. Pixels past the edge skip the taps. Hard shadows take nine hardware-filtered taps.
 // Soft shadows harden where they touch their caster (PCSS). Sixteen taps in a disc of blur metres find the
 // casters above the point and their mean depth. The gap between them and the point, times soft, sizes the
 // penumbra, and 32 taps in a disc that size count the light. Each pixel turns its discs by its own angle, so the
@@ -557,7 +584,7 @@ export const SHADOW_GLSL = !SHADOWS ? '' : SHADOWS.soft ? `${SHADOW_HEAD}
   const vec2 TAPS[32] = vec2[32](${disc(32)});
   float shadowAt(vec3 w, vec3 n) {
     vec4 p = shadowPos(w, n);
-    if (p.z >= 1.) return 1.;
+    if (p.z >= 1. || shadowEdge(p) >= 1.) return 1.;
     float z = p.z - uShadowK.w, a = fract(52.98 * fract(dot(gl_FragCoord.xy, vec2(.0671, .00584)))) * 6.283;
     mat2 turn = mat2(cos(a), sin(a), -sin(a), cos(a));
     float reach = uShadowS.w * uShadowS.y, sum = 0., found = 0.;
@@ -573,7 +600,7 @@ export const SHADOW_GLSL = !SHADOWS ? '' : SHADOWS.soft ? `${SHADOW_HEAD}
   uniform highp sampler2DShadow uShadowMap;
   float shadowAt(vec3 w, vec3 n) {
     vec4 p = shadowPos(w, n);
-    if (p.z >= 1.) return 1.;
+    if (p.z >= 1. || shadowEdge(p) >= 1.) return 1.;
     float s = 0.;
     for (int i = -1; i <= 1; i++) for (int j = -1; j <= 1; j++)
       s += texture(uShadowMap, vec3(p.xy + vec2(i, j) * uShadowK.z, p.z - uShadowK.w));
@@ -660,6 +687,58 @@ if (SHADOWS) {
   };
   const render = composer.render.bind(composer);
   composer.render = (...a) => { draw(); render(...a); };
+}
+
+// ---------- near plane ----------
+
+// The depth buffer's precision falls with the square of distance over the near plane. A fixed near of a few metres
+// leaves only about 13 cm of depth steps at 2.5 km, so a roof deck 20 cm above its wall top fights it, and the
+// pattern crawls while the camera moves. Before each frame the near plane moves out to most of the gap between the
+// camera and the nearest bounding box of the scene and the cloud decks. A point at that distance lies at least
+// that far times the cosine of the frustum's widest corner angle along the view, so nothing in view is clipped.
+// NEAR.floor is the least near plane; a ride lowers it. A mesh flagged userData.sky follows the camera and is skipped.
+// Boxes are cached per mesh. An instanced mesh recomputes its box when its count changes, and when only its
+// matrices change, as traffic's do every frame, on one frame in eight. Traffic moves a few metres in that time,
+// on roads whose own boxes lie as near, and the plane keeps a fifth of the gap spare.
+// NEAR.hold leaves the camera's projection alone, for a tool that sets its own, such as gen/topdown.mjs.
+
+export const NEAR = { floor: camera.near, hold: false };
+{
+  const boxes = new WeakMap(), _b = new THREE.Box3();
+  let clear = Infinity, frame = 0;
+  const near = o => {
+    if (!(o.isMesh || o.isLine || o.isPoints) || o.userData.sky) return;
+    let b = boxes.get(o);
+    if (o.isInstancedMesh) {
+      if (!o.count) return;
+      const v = o.instanceMatrix.version;
+      if (b?.count !== o.count || b.v !== v && (frame + o.id) % 8 === 0) { o.computeBoundingBox(); boxes.set(o, b = { count: o.count, v, box: o.boundingBox.clone() }); }
+      _b.copy(b.box);
+    } else {
+      const pos = o.geometry.attributes.position;
+      if (!pos) return;
+      if (b?.key !== pos.version || b.geo !== o.geometry) { o.geometry.computeBoundingBox(); boxes.set(o, b = { key: pos.version, geo: o.geometry }); }
+      _b.copy(o.geometry.boundingBox);
+    }
+    const d = _b.applyMatrix4(o.matrixWorld).distanceToPoint(camera.position);
+    if (d < clear) clear = d;
+  };
+  const corner = new THREE.Vector3();
+  const render = composer.render.bind(composer);
+  composer.render = (...a) => {
+    if (NEAR.hold) return render(...a);
+    clear = Infinity; frame++;
+    scene.traverseVisible(near);
+    CLOUD_SCENE.traverseVisible(near);
+    let cos = 1;
+    for (const [x, y] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      corner.set(x, y, -1).applyMatrix4(camera.projectionMatrixInverse);
+      cos = Math.min(cos, -corner.z / corner.length());
+    }
+    const n = Math.min(Math.max(NEAR.floor, clear * cos * .8), camera.far / 4);
+    if (n < camera.near || n > camera.near * 1.01) { camera.near = n; camera.updateProjectionMatrix(); }
+    render(...a);
+  };
 }
 
 // Every lit built-in material (standard, lambert, phong) loses its direct light in shadow and keeps its sky light.
@@ -915,7 +994,82 @@ export const WATER_MAT = new THREE.ShaderMaterial({
 
 // A city may have no water or no greens. Each surface builds only when its list has an outline.
 
-if (CITY.water?.length) surface(new THREE.Mesh(flatGeo(CITY.water.map(w => smoothPoly(w.poly)), .12), WATER_MAT));
+const STILL = (CITY.water ?? []).filter(w => !CLAIMED.has(w.name));
+if (STILL.length) surface(new THREE.Mesh(flatGeo(STILL.map(w => smoothPoly(w.poly)), .12), WATER_MAT));
+
+// Rivers with a direction (engine/rivers.js): the lakes' look on a sloped ribbon, its pattern carried downstream by
+// travel time, so ripples and glints run faster where the current does. Faint streaks run with the current, and
+// foam whitens the water below a fall. The ribbon draws one layer above the lakes. Without a rivers key nothing
+// here is built.
+
+const RIVER_GLSL = WATER_GLSL.replace(/vec3 waterColor\(vec3 w, float shallow, float warm\) \{\s*vec2 p = w\.xz;/,
+  'vec3 waterColor(vec3 w, vec2 p, float shallow, float warm) {');
+const NOISE_GLSL = `
+  float rNoise(vec2 p) {
+    vec2 i = floor(p), f = fract(p), u = f * f * (3. - 2. * f);
+    return mix(mix(wHash(i), wHash(i + vec2(1, 0)), u.x), mix(wHash(i + vec2(0, 1)), wHash(i + vec2(1, 1)), u.x), u.y);
+  }`;
+const riverGeo = riverGeometry();
+if (riverGeo) surface(new THREE.Mesh(riverGeo, new THREE.ShaderMaterial({
+  uniforms: U, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -8, side: THREE.DoubleSide,
+  vertexShader: `attribute vec4 aFlow; attribute float aRank; varying vec3 vW; varying vec4 vFlow;
+    void main(){ vec4 w = modelMatrix * vec4(position, 1.); vW = w.xyz; vFlow = aFlow; gl_Position = projectionMatrix * viewMatrix * w;
+      gl_Position.z -= aRank * 1e-6 * gl_Position.w; }`,
+  fragmentShader: `
+    uniform float uTime; varying vec3 vW; varying vec4 vFlow;
+    ${FOG_GLSL}
+    ${RIVER_GLSL}
+    ${NOISE_GLSL}
+    void main(){
+      if (vW.y > uClipTop) discard;
+      float run = vFlow.y - uTime, fast = clamp(vFlow.z / 3., 0., 1.);
+      vec3 col = waterColor(vW, vec2(vFlow.x, run * vFlow.z), 0., 1.) + vec3(.01, .008, .005);
+      float streak = rNoise(vec2(vFlow.x * .45, run * .35)) * .6 + rNoise(vec2(vFlow.x * 1.3 + 9., run * .9)) * .4;
+      col += uFog * (.07 + .08 * fast) * smoothstep(.5, .85, streak);
+      float foam = vFlow.w * smoothstep(.25, .75, rNoise(vec2(vFlow.x * .7, run * 1.6)) * .7 + vFlow.w * .45);
+      col = mix(col, uFog * 1.05, clamp(foam, 0., .9));
+      gl_FragColor = vec4(fogged(col, vW), 1.);
+    }`,
+})));
+
+// A fall: the sheet, its streaks running down; mist rising in a loop at its foot; rock at its lip.
+
+const fallGeo = fallsGeometry();
+if (fallGeo) {
+  surface(new THREE.Mesh(fallGeo, new THREE.ShaderMaterial({
+    uniforms: U, side: THREE.DoubleSide,
+    vertexShader: `attribute vec3 aFall; varying vec3 vW, vFall; void main(){ vec4 w = modelMatrix * vec4(position, 1.); vW = w.xyz; vFall = aFall; gl_Position = projectionMatrix * viewMatrix * w; }`,
+    fragmentShader: `
+      uniform float uTime; varying vec3 vW, vFall;
+      ${FOG_GLSL}
+      ${RIVER_GLSL}
+      ${NOISE_GLSL}
+      void main(){
+        float down = vFall.y * vFall.y * vFall.z;
+        float s = rNoise(vec2(vFall.x * .8, down * .15 - uTime * 2.4)) * .6 + rNoise(vec2(vFall.x * 2.6 + 5., down * .4 - uTime * 5.)) * .4;
+        float white = clamp(.25 + .75 * vFall.y, 0., 1.) * (.35 + .65 * smoothstep(.3, .8, s));
+        vec3 col = mix(uWaterBase * 2. + uFog * .12, uFog * 1.08, white);
+        gl_FragColor = vec4(fogged(col, vW), 1.);
+      }`,
+  })));
+  const mist = new THREE.Mesh(mistGeometry(), new THREE.ShaderMaterial({
+    uniforms: U, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    vertexShader: `attribute vec3 aMist; attribute float aSize; uniform float uTime, uFogNear, uFogFar; varying vec2 vUv; varying float vA;
+      void main(){
+        float ph = fract(uTime * .06 + aMist.z), s = aSize * (.6 + ph * .9);
+        vec3 c = position + vec3(0., ph * aSize * 1.2, 0.);
+        vec3 right = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]), up = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
+        vec3 w = c + (right * aMist.x + up * aMist.y) * s;
+        vUv = aMist.xy; vA = sin(ph * 3.1416) * (1. - smoothstep(uFogNear, uFogFar, distance(cameraPosition, w)));
+        gl_Position = projectionMatrix * viewMatrix * vec4(w, 1.);
+      }`,
+    fragmentShader: `uniform vec3 uFog; varying vec2 vUv; varying float vA;
+      void main(){ gl_FragColor = vec4(uFog * .16 * vA * smoothstep(1., .1, length(vUv)), 1.); }`,
+  }));
+  mist.frustumCulled = false;
+  scene.add(mist);
+  surface(new THREE.Mesh(rockGeometry(LOOK.rock ?? LOOK.land?.rock ?? [.4, .37, .33]), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true, side: THREE.DoubleSide })));
+}
 if (CITY.parks?.length) surface(new THREE.Mesh(drape(flatGeo(CITY.parks.map(w => smoothPoly(w.poly)), .1)),
   new THREE.MeshStandardMaterial({ color: GROUND_RGB.parks[0], emissive: GROUND_RGB.parks[1], roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 })));
 

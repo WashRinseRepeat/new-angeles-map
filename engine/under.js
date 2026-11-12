@@ -340,10 +340,11 @@ export function dungeon(opts = {}) {
     },
 
     // A label floating at a world point. cls is a label class from ui.css. A 'quarter' label shows only near the camera.
+    // el.card is the label's key in the layer's cards file, its own text unless the pack sets another.
 
     label(text, x, y, z, cls = 'district landmark under', color) {
       const [wx, wz] = tw(x, z), el = mkLabel(text, cls, new THREE.Vector3(wx, y - groundAt(wx, wz), wz), color);
-      el.obj.visible = false; el.depth = y; el.sub = cls.includes('quarter');
+      el.obj.visible = false; el.depth = y; el.sub = cls.includes('quarter'); el.card = text;
       labels.push(el);
       return el;
     },

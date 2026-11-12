@@ -94,7 +94,7 @@ const dome = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 24), new THREE.Shade
       gl_FragColor = vec4(col, 1.);
     }`,
 }));
-dome.frustumCulled = false; dome.renderOrder = -2;
+dome.frustumCulled = false; dome.renderOrder = -2; dome.userData.sky = true;
 if (CLOCK) scene.add(dome);
 
 // The sun and the moon are glows in the sky along the light, far beyond the town and clear of fog. The sun is a
@@ -138,10 +138,15 @@ const _c = new THREE.Color();
 const maxWindows = CLOCK ? Math.max(1e-3, ...(CLOCK.keys ?? []).map(k => k.tune?.windows ?? base.tune.windows)) : 1;
 let sunDir = new THREE.Vector3(0, 1, 0);
 
+// An underground layer holds the fog at its own background colour and hides the sky dome, so the dark stays dark.
+
+export const FOG_HOLD = { color: null };
+
 export function lightAt(h) {
   const [a, b, f] = around(h), { day, up, dir, fade, stars } = sky(h);
   sunDir = dir;
   _c.lerpColors(a.fog, b.fog, f);
+  if (FOG_HOLD.color) _c.copy(FOG_HOLD.color);
   FOG.copy(_c); scene.fog.color.copy(_c);
   SKY_U.uTop.value.lerpColors(a.sky[0], b.sky[0], f); SKY_U.uMid.value.lerpColors(a.sky[1], b.sky[1], f);
   SKY_U.uLow.value.lerpColors(a.sky[2], b.sky[2], f);
@@ -188,4 +193,5 @@ export function tick(dt) {
   if (DAY.hour !== DAY.lit) { DAY.lit = DAY.hour; lightAt(DAY.hour); }
   for (const o of [sunOrb, moonOrb]) o.position.copy(camera.position).addScaledVector(sunDir, FAR);
   dome.position.copy(camera.position); dome.scale.setScalar(camera.far * .8);
+  dome.visible = !FOG_HOLD.color;
 }

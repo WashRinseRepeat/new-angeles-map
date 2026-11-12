@@ -201,6 +201,7 @@ body.underground .district:not(.under), body.underground .place { display: none 
 #compass svg { width: 100%; height: 100%; display: block; }
 #hud { left: auto; right: 56px; z-index: 5; }
 #card { z-index: 6; }
+#depth ~ #card { bottom: 80px; }
 
 /* Navigation: search and the atlas / sessions rail, chips, tour card, minimap. */
 
@@ -319,10 +320,11 @@ body.focus #clock, body.editing #clock, body.focus #depth, body.editing #depth {
 .place.off, .district.off { display: none !important; }
 .place, .district { transition: opacity .35s; }
 .place.faded, .district.faded { opacity: 0 !important; }
-.district.landmark.link { text-decoration: underline dotted var(--accent); }
+.district.landmark.link, .district.under.link { text-decoration: underline dotted var(--accent); }
 
 @media (max-width: 600px) {
   #card { left: 8px; right: 8px; bottom: 8px; width: auto; }
+  #depth ~ #card { bottom: 86px; }
   #card img { display: none; }
   #card .body { max-height: 28vh; padding: 10px 12px; }
   #card p { font-size: 12.5px; margin: 6px 0; }
@@ -361,4 +363,72 @@ body.focus #clock, body.editing #clock, body.focus #depth, body.editing #depth {
 @media (max-height: 500px) {
   #card img { display: none; }
   #card .body { max-height: 40vh; }
+}
+
+/* Train map overlay */
+#trainmap { position: fixed; inset: 0; z-index: 7; background: radial-gradient(ellipse 70% 60% at 50% 45%, #0b1626, var(--bg) 75%); }
+#trainmap[hidden] { display: none; }
+#trainmap svg { position: absolute; inset: 0; width: 100%; height: 100%; font-size: 12.5px; fill: var(--text); }
+#trainmap .dots { fill: url(#tmDots); pointer-events: none; }
+#trainmap #tmDots circle { fill: rgba(140, 180, 210, .09); }
+#trainmap .lm, #trainmap .cable { fill: none; stroke: #5d7a96; stroke-width: 1.3; stroke-linejoin: round; stroke-linecap: round; opacity: .65; pointer-events: none; }
+#trainmap .lm path { vector-effect: non-scaling-stroke; }
+#trainmap .lm .rings { stroke-width: 3; }
+#trainmap .cable { stroke-width: 1; opacity: .45; }
+#trainmap .lm text { fill: #7f9ab4; stroke: none; font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; }
+#trainmap path.line, #trainmap path.glow, #trainmap path.core { fill: none; stroke: var(--c); stroke-linejoin: round; stroke-linecap: round; }
+#trainmap path.line { stroke-width: 5; opacity: .6; cursor: pointer; }
+#trainmap path.line.lit { stroke-width: 6.5; opacity: 1; }
+#trainmap path.glow { stroke-width: 18; opacity: .7; filter: url(#tmGlow); pointer-events: none; }
+#trainmap path.core { stroke: #fff; stroke-width: 2; pointer-events: none; }
+#trainmap .tick { stroke: var(--c); stroke-width: 4.5; opacity: .6; }
+#trainmap .tick.on { opacity: 1; }
+#trainmap .tick-glow, #trainmap .tick-core { stroke-linecap: round; pointer-events: none; }
+#trainmap .tick-glow { stroke: var(--c); stroke-width: 11; opacity: .7; filter: url(#tmGlow); }
+#trainmap .tick-core { stroke: #fff; stroke-width: 1.5; }
+#trainmap .cap-o, #trainmap .cap-i { fill: none; stroke-linecap: round; }
+#trainmap .cap-o { stroke: #dfe8f0; stroke-width: 14; }
+#trainmap .cap-i { stroke: #0a1220; stroke-width: 9.5; }
+#trainmap .stn:not(.on) .cap-o { stroke: #8a9aac; }
+#trainmap .ring { fill: none; stroke: var(--accent); stroke-width: 2.5; filter: drop-shadow(0 0 4px var(--accent)); }
+#trainmap .stn text { fill: #7d8fa3; paint-order: stroke; stroke: var(--bg); stroke-width: 4px; stroke-linejoin: round; }
+#trainmap .stn.on text { fill: #fff; font-weight: 600; }
+#trainmap .hit { fill: transparent; cursor: pointer; }
+#trainmap .ride { cursor: pointer; outline: none; }
+#trainmap .ride .tap { fill: transparent; }
+#trainmap .ride .pill { fill: color-mix(in srgb, var(--c) 78%, #000); stroke: #fff; stroke-width: 2; vector-effect: non-scaling-stroke; filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .6)); }
+#trainmap .ride:hover .pill { fill: var(--c); }
+#trainmap .ride:focus-visible .pill { stroke: var(--accent); stroke-width: 3; }
+#trainmap .ride path { fill: #fff; }
+#trainmap .ride text { fill: #fff; font-weight: 700; paint-order: stroke; stroke: rgba(0, 0, 0, .45); stroke-linejoin: round; pointer-events: none; }
+#trainmap .chev { fill: none; stroke: #fff; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; pointer-events: none;
+  filter: drop-shadow(0 0 1.5px #000); opacity: .85; }
+#trainmap .chev path { animation: tmChev 1.1s linear infinite; }
+#trainmap .rides:has(.ride[data-dir="1"]:is(:hover, :focus-visible)) .chev[data-dir="1"],
+#trainmap .rides:has(.ride[data-dir="-1"]:is(:hover, :focus-visible)) .chev[data-dir="-1"] { opacity: 1; stroke-width: 3.4; }
+@keyframes tmChev { 0%, 100% { opacity: .25; } 30% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { #trainmap .chev path { animation: none; } }
+#trainmap .side { position: absolute; top: 12px; right: 12px; padding: 6px; width: 240px; }
+#trainmap .rows { display: flex; flex-direction: column; gap: 2px; }
+#trainmap .row { display: flex; align-items: center; gap: 10px; text-align: left; background: none; border: 0; padding: 7px 8px; font-size: 13px; color: var(--text-2); }
+#trainmap .row:hover { background: var(--button); }
+#trainmap .row i { flex: none; width: 20px; height: 5px; border-radius: 3px; background: var(--c); opacity: .7; }
+#trainmap .row b { margin-left: auto; font-weight: 400; opacity: .55; font-variant-numeric: tabular-nums; }
+#trainmap .row.lit { background: var(--button-on); color: #fff; }
+#trainmap .row.lit i { opacity: 1; box-shadow: 0 0 6px var(--c), inset 0 0 0 1.5px rgba(255, 255, 255, .7); }
+#trainmap .x { position: absolute; top: 12px; left: 12px; width: 36px; height: 36px; border-radius: 50%; background: var(--panel); color: var(--text); border: 1px solid var(--line-2); font-size: 15px; cursor: pointer; }
+#trainmap .title { position: absolute; left: 16px; bottom: 14px; display: flex; flex-direction: column; gap: 2px; pointer-events: none; }
+#trainmap .title b { font-size: 22px; font-weight: 600; letter-spacing: .04em; color: var(--text-strong); }
+#trainmap .title small { font-size: 12px; color: var(--muted); }
+
+/* A phone, upright or sideways, folds the line list to the lit line. */
+
+@media (max-width: 600px), (max-height: 520px) {
+  #trainmap .side { width: auto; max-width: calc(100vw - 72px); }
+  #trainmap .side:not(.open) .row:not(.lit) { display: none; }
+  #trainmap .row { min-height: 40px; }
+  #trainmap .row.lit::after { content: '▾'; opacity: .7; }
+  #trainmap .side.open .row.lit::after { content: '▴'; }
+  #trainmap .side:not(.open) .row b { display: none; }
+  #trainmap .title small { display: none; }
 }

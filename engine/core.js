@@ -61,15 +61,18 @@ export const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) /
 export const smoother = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * t * (t * (6 * t - 15) + 10); };
 export const lerp = (a, b, t) => a + (b - a) * t;
 
-// Signed distance to a polygon, positive inside.
+// Signed distance to a polygon, positive inside. An edge whose box lies farther off than the nearest edge so far
+// cannot be nearer, so it only counts for the side. With a cap, a distance past the cap returns as the cap.
 
-export function sdPoly(x, z, poly) {
-  let d = Infinity, inside = false;
+export function sdPoly(x, z, poly, cap = Infinity) {
+  let d = cap, inside = false;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const [ax, az] = poly[j], [bx, bz] = poly[i], ex = bx - ax, ez = bz - az;
+    const A = poly[j], B = poly[i], ax = A[0], az = A[1], bx = B[0], bz = B[1], ex = bx - ax, ez = bz - az;
+    if ((az > z) !== (bz > z) && x < ax + (z - az) * ex / ez) inside = !inside;
+    const r = d + 1e-6;
+    if (x - r > Math.max(ax, bx) || x + r < Math.min(ax, bx) || z - r > Math.max(az, bz) || z + r < Math.min(az, bz)) continue;
     const t = Math.max(0, Math.min(1, ((x - ax) * ex + (z - az) * ez) / (ex * ex + ez * ez)));
     d = Math.min(d, Math.hypot(x - ax - ex * t, z - az - ez * t));
-    if ((az > z) !== (bz > z) && x < ax + (z - az) * ex / ez) inside = !inside;
   }
   return inside ? d : -d;
 }
@@ -148,7 +151,7 @@ export function styleAt(x, z, blend) {
   for (const d of CITY.districts) {
     const b = boxOf(d.poly);
     if (b[0] - x > far || x - b[2] > far || b[1] - z > far || z - b[3] > far) continue;
-    const k = smooth(-blend, blend, sdPoly(x, z, d.poly));
+    const k = smooth(-blend, blend, sdPoly(x, z, d.poly, far));
     if (k > 0) { mix.push([d.id, k]); tot += k; }
   }
   if (!tot) {

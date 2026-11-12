@@ -15,6 +15,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { vnoise } from './core.js';
 import { channel, ditchAt, moatSink, reliefAt, softAt } from './relief.js';
+import { COUNTRY, buildCountry } from './country.js';
+import { FALLS, nearRiver, shapeLand } from './rivers.js';
 
 export function build(H, group) {
   const L = { size: 7000, height: 150, pad: 40, rise: 700, low: [.05, .07, .04], high: [.07, .09, .05], rock: [.1, .1, .09],
@@ -32,28 +34,46 @@ export function build(H, group) {
   // grid never shows through the town's own ground; it sinks over the first 16 m inside the wards' edge, and along a
   // moat.
 
-  const wards = H.CITY.relief ? H.CITY.districts.map(d => d.poly) : [];
+  // inside(x, z) is the depth into the deepest ward holding the point, capped at the 16 m the sink needs. A ward
+  // whose box misses the point cannot hold it, and an edge whose box lies farther off than the
+  // nearest edge so far cannot set it.
+
+  const SINK = 16;
+  const wards = (H.CITY.relief ? H.CITY.districts.map(d => d.poly) : []).map(P => {
+    const xs = P.map(p => p[0]), zs = P.map(p => p[1]);
+    return { P, box: [Math.min(...xs), Math.min(...zs), Math.max(...xs), Math.max(...zs)] };
+  });
   const inside = (x, z) => {
     let best = 0;
-    for (const P of wards) {
-      let a = false, d = Infinity;
+    for (const { P, box } of wards) {
+      if (x < box[0] || z < box[1] || x > box[2] || z > box[3]) continue;
+      let a = false;
       for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
-        const [xi, zi] = P[i], [xj, zj] = P[j];
+        const xi = P[i][0], zi = P[i][1], xj = P[j][0], zj = P[j][1];
         if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) a = !a;
+      }
+      if (!a) continue;
+      let d = SINK;
+      for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+        const xi = P[i][0], zi = P[i][1], xj = P[j][0], zj = P[j][1];
+        const r = d + 1e-6;
+        if (Math.max(xi, xj) < x - r || Math.min(xi, xj) > x + r || Math.max(zi, zj) < z - r || Math.min(zi, zj) > z + r) continue;
         const ex = xj - xi, ez = zj - zi, t = Math.max(0, Math.min(1, ((x - xi) * ex + (z - zi) * ez) / (ex * ex + ez * ez)));
         d = Math.min(d, Math.hypot(x - xi - ex * t, z - zi - ez * t));
       }
-      if (a) best = Math.max(best, d);
+      best = Math.max(best, d);
     }
     return best;
   };
   const land = (x, z) => {
     const h = hills(x, z) + reliefAt(x, z) - moatSink(x, z);
     if (!wards.length) return h;
-    const k = H.smooth(0, 16, inside(x, z));
+    const k = H.smooth(0, SINK, inside(x, z));
     return k ? h + (Math.min(h - 2.5, softAt(x, z) + ditchAt(x, z) - 3.5) - h) * k : h;
   };
-  const height = (x, z) => channel(x, z, land(x, z));
+  // A pack's rivers cut their beds and the cliffs of their falls (engine/rivers.js).
+
+  const height = (x, z) => shapeLand(x, z, channel(x, z, land(x, z)));
 
   const N = wards.length ? 440 : 220, geo = new THREE.PlaneGeometry(L.size, L.size, N, N).rotateX(-Math.PI / 2).translate(cx, 0, cz);
   const pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
@@ -63,10 +83,47 @@ export function build(H, group) {
     const c = k > .7 ? L.rock.map((v, j) => H.lerp(L.high[j], v, H.smooth(.7, .95, k))) : L.low.map((v, j) => H.lerp(v, L.high[j], H.smooth(.05, .5, k)));
     col.set(c.map(v => v * (.85 + .3 * n)), i * 3);
   }
+
+  // With a fall, ground steeper than 1 in 1 shows bare rock.
+
+  if (FALLS.length) for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const a = j * (N + 1) + i, cell = L.size / N, k = H.smooth(.9, 1.6, Math.max(Math.abs(pos.getY(a + 1) - pos.getY(a)), Math.abs(pos.getY(a + N + 1) - pos.getY(a))) / cell);
+    if (k) col.set(L.rock.map((v, c) => H.lerp(col[a * 3 + c], v * .85, k)), a * 3);
+  }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
   geo.computeVertexNormals();
-  group.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, polygonOffset: true,
-    polygonOffsetFactor: 4, polygonOffsetUnits: 4 })));
+  const ground = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, polygonOffset: true,
+    polygonOffsetFactor: 4, polygonOffsetUnits: 4 }));
+  group.add(ground);
+
+  // look.country paints fields over the land and adds hedges, trees and farms (engine/country.js). They stand on
+  // the ground as drawn, read from the grid's triangles.
+
+  if (COUNTRY) {
+    const cell = L.size / N, x0 = cx - L.size / 2, z0 = cz - L.size / 2;
+
+    // The slope at each grid point is the steeper of its two edges along x and along z, so both points of a steep
+    // cell count as steep. slope(x, z) reads it back bilinearly.
+
+    const SL = new Float32Array((N + 1) * (N + 1)), Y = k => pos.getY(k);
+    for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) {
+      const a = j * (N + 1) + i, e = (b, ok) => ok ? Math.abs(Y(b) - Y(a)) : 0;
+      SL[a] = Math.hypot(Math.max(e(a - 1, i > 0), e(a + 1, i < N)), Math.max(e(a - N - 1, j > 0), e(a + N + 1, j < N))) / cell;
+    }
+    const grid = (x, z) => {
+      const fx = Math.min(N - 1e-6, Math.max(0, (x - x0) / cell)), fz = Math.min(N - 1e-6, Math.max(0, (z - z0) / cell));
+      const i = Math.floor(fx), j = Math.floor(fz);
+      return [fx - i, fz - j, j * (N + 1) + i];
+    };
+    buildCountry(H, group, ground.material, (x, z) => {
+      const [u, v, a] = grid(x, z);
+      return u + v < 1 ? Y(a) + (Y(a + 1) - Y(a)) * u + (Y(a + N + 1) - Y(a)) * v
+        : Y(a + N + 2) + (Y(a + N + 1) - Y(a + N + 2)) * (1 - u) + (Y(a + 1) - Y(a + N + 2)) * (1 - v);
+    }, (x, z) => {
+      const [u, v, a] = grid(x, z);
+      return H.lerp(H.lerp(SL[a], SL[a + 1], u), H.lerp(SL[a + N + 1], SL[a + N + 2], u), v);
+    });
+  }
 
   // Country roads: a 5 m strip along each of the city file's roads, laid a little above the hills. Trees keep 7 m
   // off them, found through a 16 m grid of road points.
@@ -138,7 +195,7 @@ export function build(H, group) {
   let n = 0;
   for (let tries = 0; n < L.trees && tries < L.trees * 12; tries++) {
     const x = cx + (r() - .5) * L.size * .9, z = cz + (r() - .5) * L.size * .9, d = out(x, z);
-    if (d < L.pad + 30 || vnoise(x / 400 + 5, z / 400 + 1) < .45 || onRoad(x, z)) continue;
+    if (d < L.pad + 30 || vnoise(x / 400 + 5, z / 400 + 1) < .45 || onRoad(x, z) || (nearRiver(x, z)?.d ?? 1e9) < 30) continue;
     const s = 8 + r() * 9;
     o.position.set(x, height(x, z) - .5, z); o.scale.set(s, s * (.9 + r() * .5), s); o.rotation.y = r() * 6.3; o.updateMatrix();
     woods.setMatrixAt(n, o.matrix);
