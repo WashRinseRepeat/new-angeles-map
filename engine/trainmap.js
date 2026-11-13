@@ -14,6 +14,7 @@ const esc = s => String(s).replace(/[&<>"]/g, c => `&#${c.charCodeAt(0)};`);
 const P = ([x, y]) => [x * G, y * G];
 const f = p => p.map(v => v.toFixed(1)).join(' ');
 const sub = (a, b) => [a[0] - b[0], a[1] - b[1]], len = v => Math.hypot(...v);
+const toScreen = M => ([x, y]) => ({ x: M.a * x + M.c * y + M.e, y: M.b * x + M.d * y + M.f });
 
 // Landmark outlines in px before SIZE scales them. The base sits at y 0 and the shape rises into negative y. A helix
 // has two strands and a rung where they stand far apart.
@@ -39,7 +40,8 @@ const SHORT = { 'NBN Headquarters': 'NBN', 'Jinteki HQ': 'Jinteki', 'Haas-Bioroi
 let el, opts, lines, lit, mark;
 
 // Each line gets its drawn points (offset to its side of the bundle), the index of each path entry, its station keys
-// and its rounded path with sample points.
+// and its rounded path with sample points. The track holds points every 3 units along the path and the fine track
+// every half unit, so the overlap tests and the ride buttons read no SVG geometry.
 
 function prepare({ schematic: sc }) {
   const nodes = { ...sc.stations, ...sc.bends };
@@ -48,7 +50,9 @@ function prepare({ schematic: sc }) {
     const keys = l.path.map(e => e.replace('|', ''));
     const o = offsetLine(pts.map(P), (l.side ?? 0) * GAP / 2), j = keys.indexOf(keys.at(-1));
     if (keys[0] !== keys.at(-1) && j < keys.length - 1) joinEnd(o, at[j]);
-    return { name, color: l.color, pts: o, at, keys, closed: keys[0] === keys.at(-1), stops: stationOrder(l, sc.stations).length, ...curve(o) };
+    const c = curve(o);
+    return { name, color: l.color, pts: o, at, keys, closed: keys[0] === keys.at(-1), stops: stationOrder(l, sc.stations).length, ...c,
+      track: along(c.samples, 3), fine: along(c.samples, .5) };
   });
 }
 
@@ -72,6 +76,20 @@ function curve(pts) {
   line(pts.at(-1));
   samples.push(at);
   return { d: d + 'L' + f(pts.at(-1)), samples };
+}
+
+// Points every step units along a polyline, from its start.
+
+function along(S, step) {
+  const out = [S[0]];
+  let need = step;
+  for (let i = 1; i < S.length; i++) {
+    const a = S[i - 1], g = len(sub(S[i], a));
+    let t = 0;
+    while (g - t >= need) { t += need; need = step; out.push([a[0] + (S[i][0] - a[0]) * t / g, a[1] + (S[i][1] - a[1]) * t / g]); }
+    need -= g - t;
+  }
+  return out;
 }
 
 // An open line that ends on its own earlier track, like a balloon, stops where its last leg meets the drawn track
@@ -239,7 +257,7 @@ function placeOvals(svg) {
     const [o, t, tap] = ['.oval', 'text', '.ltap'].map(q => g.querySelector(q));
     if (t.style.visibility) { o.remove(); tap.remove(); continue; }
     const b = t.getBBox(), r = t.getBoundingClientRect(), near = [...pills, ...texts.filter(x => x !== t && !x.style.visibility).map(x => x.getBoundingClientRect())];
-    const [px, py] = [[8, 4], [5, 3], [2, 1.5], [0, 0]].find(([px, py]) => !near.some(z => meets({ left: r.left - px, right: r.right + px, top: r.top - py, bottom: r.bottom + py }, z)));
+    const [px, py] = [[8, 4], [5, 3], [2, 1.5]].find(([px, py]) => !near.some(z => meets({ left: r.left - px, right: r.right + px, top: r.top - py, bottom: r.bottom + py }, z))) ?? [0, 0];
     const w = b.width + 2 * px * k, h = b.height + 2 * py * k, tw = Math.max(w, 46 * k), th = Math.max(h, 46 * k);
     set(o, b.x - px * k, b.y - py * k, w, h, h / 2);
     set(tap, b.x + b.width / 2 - tw / 2, b.y + b.height / 2 - th / 2, tw, th, 0);
@@ -277,8 +295,8 @@ function touches(svg, boxes) {
   const meets = a => boxes.some(o => a.left < o.right + 4 && o.left - 4 < a.right && a.top < o.bottom + 4 && o.top - 4 < a.bottom);
   if ([...svg.querySelectorAll('.base text')].some(e => meets(e.getBoundingClientRect()))) return true;
   return [...svg.querySelectorAll('.ln path.line')].some(p => {
-    const n = p.getTotalLength(), r = parseFloat(getComputedStyle(p).strokeWidth) / 2 * M.a;
-    return Array.from({ length: Math.ceil(n / 3) + 1 }, (_, i) => p.getPointAtLength(Math.min(n, i * 3)).matrixTransform(M)).some(q => near(q, r));
+    const r = parseFloat(getComputedStyle(p).strokeWidth) / 2 * M.a;
+    return lines.find(l => l.name === p.dataset.line).track.map(toScreen(M)).some(q => near(q, r));
   });
 }
 
@@ -291,10 +309,7 @@ function dodgePills(svg) {
   const pills = [...svg.querySelectorAll('.ride .pill')].map(p => p.getBoundingClientRect());
   if (!pills.length) return;
   const M = svg.getScreenCTM(), area = (a, b) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
-  const texts = [...svg.querySelectorAll('.base text')], track = [...svg.querySelectorAll('.ln path.line')].flatMap(p => {
-    const n = p.getTotalLength();
-    return Array.from({ length: Math.ceil(n / 3) + 1 }, (_, i) => p.getPointAtLength(Math.min(n, i * 3)).matrixTransform(M));
-  });
+  const texts = [...svg.querySelectorAll('.base text')], track = lines.flatMap(l => l.track.map(toScreen(M)));
   const cost = t => {
     const b = t.getBoundingClientRect(), pad = { left: b.left - 3, right: b.right + 3, top: b.top - 3, bottom: b.bottom + 3 };
     const hit = pills.reduce((s, p) => s + area(b, p), 0);
@@ -395,10 +410,7 @@ function placeRideButtons(svg, rides) {
 
   // The drawn lit track, sampled every half unit, so distances match what the eye sees round the corners.
 
-  const P = svg.querySelector('path.line.lit'), S = Array.from({ length: Math.floor(P.getTotalLength() * 2) + 1 }, (_, i) => {
-    const q = P.getPointAtLength(i / 2);
-    return [q.x, q.y];
-  });
+  const S = L.fine;
   svg.querySelectorAll('.chev').forEach((g, i) => { g.innerHTML = chevrons(rides[i].leg, k, +ring.getAttribute('r')); });
   svg.querySelectorAll('.ride').forEach((g, i) => {
     const [tap, pill, arrow, text] = g.children, d = firstStep(rides[i].leg);

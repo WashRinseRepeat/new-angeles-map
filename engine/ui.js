@@ -636,6 +636,11 @@ performance.mark('na:compile1');
 const SLOT = 1000 / 60, flickered = new Map(), FLICKER = SETTING.look.flicker, FOG_ZOOM = SETTING.scale.fogZoom;
 let lastFrame = 0, lift = 0, settled = false;
 renderer.setAnimationLoop(now => {
+
+  // The opaque train map covers the 3D map, so the 3D map rests while it is open. The clock keeps ticking, so the
+  // first frame after it closes takes a normal step.
+
+  if (document.getElementById('trainmap')?.hidden === false) { clock.getDelta(); return; }
   const since = now - lastFrame;
   if (since < SLOT - 2) return;
   lastFrame = now - since % SLOT;

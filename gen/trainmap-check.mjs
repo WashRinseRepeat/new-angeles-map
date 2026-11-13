@@ -786,6 +786,29 @@ await check('map-list-fold', async () => {
     await page.setViewportSize({ width: 640, height: 400 });
   }
 });
+
+// Open, a line click and a station click each run within budget at 1440 by 900. The page clock is frozen, so the
+// check times the synchronous handlers with Date.now and prints the median of 5 runs.
+
+await check('perf-trainmap', async () => {
+  await page.keyboard.press('Escape');
+  await page.setViewportSize({ width: 1440, height: 900 });
+  try {
+    const runs = await page.evaluate(() => {
+      const time = sel => { const t = Date.now(); document.querySelector(sel).dispatchEvent(new MouseEvent('click', { bubbles: true })); return Date.now() - t; };
+      return Array.from({ length: 6 }, () => {
+        const r = [time('[data-tab=ride]'), time('#trainmap .row:not(.lit)'), time('#trainmap .stn.cue:not(.mark) .hit')];
+        document.querySelector('#trainmap .x').click();
+        return r;
+      }).slice(1);
+    });
+    const [open, line, station] = [0, 1, 2].map(k => runs.map(r => r[k]).sort((a, b) => a - b)[2]);
+    console.log(`  perf-trainmap open ${open} ms, line ${line} ms, station ${station} ms`);
+    return open < 250 && line < 120 && station < 120 || `open ${open} ms (< 250), line ${line} ms, station ${station} ms (< 120)`;
+  } finally {
+    await page.setViewportSize({ width: 640, height: 400 });
+  }
+});
 await check('map-escape', async () => {
   await show();
   await page.keyboard.press('Escape');
