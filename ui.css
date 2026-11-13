@@ -376,16 +376,11 @@ body.focus #clock, body.editing #clock, body.focus #depth, body.editing #depth {
 #trainmap .lm .rings { stroke-width: 3; }
 #trainmap .cable { stroke-width: 1; opacity: .45; }
 #trainmap .lm text { fill: #7f9ab4; stroke: none; font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; }
-#trainmap path.line, #trainmap path.glow, #trainmap path.core { fill: none; stroke: var(--c); stroke-linejoin: round; stroke-linecap: round; }
-#trainmap path.line { stroke-width: 5; opacity: .6; cursor: pointer; }
-#trainmap path.line.lit { stroke-width: 6.5; opacity: 1; }
-#trainmap path.glow { stroke-width: 18; opacity: .7; filter: url(#tmGlow); pointer-events: none; }
-#trainmap path.core { stroke: #fff; stroke-width: 2; pointer-events: none; }
-#trainmap .tick { stroke: var(--c); stroke-width: 4.5; opacity: .6; }
-#trainmap .tick.on { opacity: 1; }
-#trainmap .tick-glow, #trainmap .tick-core { stroke-linecap: round; pointer-events: none; }
-#trainmap .tick-glow { stroke: var(--c); stroke-width: 11; opacity: .7; filter: url(#tmGlow); }
-#trainmap .tick-core { stroke: #fff; stroke-width: 1.5; }
+#trainmap .ln path { fill: none; stroke: var(--c); stroke-width: 5; stroke-linejoin: round; stroke-linecap: round; cursor: pointer; }
+#trainmap .ln:not(.lit) { opacity: .6; }
+#trainmap .ln.lit :is(.line, .tick) { stroke-width: 6.5; }
+#trainmap .ln path.glow { stroke-width: 18; opacity: .7; filter: url(#tmGlow); pointer-events: none; }
+#trainmap .ln path.core { stroke: #fff; stroke-width: 2; pointer-events: none; }
 #trainmap .cap-o, #trainmap .cap-i { fill: none; stroke-linecap: round; }
 #trainmap .cap-o { stroke: #dfe8f0; stroke-width: 14; }
 #trainmap .cap-i { stroke: #0a1220; stroke-width: 9.5; }
@@ -393,7 +388,18 @@ body.focus #clock, body.editing #clock, body.focus #depth, body.editing #depth {
 #trainmap .ring { fill: none; stroke: var(--accent); stroke-width: 2.5; filter: drop-shadow(0 0 4px var(--accent)); }
 #trainmap .stn text { fill: #7d8fa3; paint-order: stroke; stroke: var(--bg); stroke-width: 4px; stroke-linejoin: round; }
 #trainmap .stn.on text { fill: #fff; font-weight: 600; }
-#trainmap .hit { fill: transparent; cursor: pointer; }
+#trainmap .hit { fill: transparent; cursor: pointer; outline: none; vector-effect: non-scaling-stroke; }
+
+/* A lit-line station's name sits in a soft oval that breathes, like the outline of a button. Hover or focus on the
+   name or the marker brightens it. */
+
+#trainmap .oval { fill: rgba(255, 255, 255, .04); stroke: #fff; stroke-width: 1.2; stroke-opacity: .45; vector-effect: non-scaling-stroke; pointer-events: none;
+  animation: tmCue 2.6s ease-in-out infinite; }
+#trainmap .stn:has(.ltap:hover, .hit:hover, .hit:focus-visible) .oval { stroke-opacity: 1; fill: rgba(255, 255, 255, .1); animation: none; }
+#trainmap .ltap { fill: transparent; cursor: pointer; }
+#trainmap .cue.mark .hit:focus-visible { stroke: #fff; stroke-width: 2; stroke-opacity: 1; stroke-dasharray: 4 3; }
+@keyframes tmCue { 50% { stroke-opacity: .15; } }
+@media (prefers-reduced-motion: reduce) { #trainmap .oval { animation: none; } }
 #trainmap .ride { cursor: pointer; outline: none; }
 #trainmap .ride .tap { fill: transparent; }
 #trainmap .ride .pill { fill: color-mix(in srgb, var(--c) 78%, #000); stroke: #fff; stroke-width: 2; vector-effect: non-scaling-stroke; filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .6)); }
@@ -417,9 +423,9 @@ body.focus #clock, body.editing #clock, body.focus #depth, body.editing #depth {
 #trainmap .row.lit { background: var(--button-on); color: #fff; }
 #trainmap .row.lit i { opacity: 1; box-shadow: 0 0 6px var(--c), inset 0 0 0 1.5px rgba(255, 255, 255, .7); }
 #trainmap .x { position: absolute; top: 12px; left: 12px; width: 36px; height: 36px; border-radius: 50%; background: var(--panel); color: var(--text); border: 1px solid var(--line-2); font-size: 15px; cursor: pointer; }
-#trainmap .title { position: absolute; left: 16px; bottom: 14px; display: flex; flex-direction: column; gap: 2px; pointer-events: none; }
+#trainmap .title { position: absolute; left: 62px; top: 10px; display: flex; flex-direction: column; gap: 2px; pointer-events: none; }
 #trainmap .title b { font-size: 22px; font-weight: 600; letter-spacing: .04em; color: var(--text-strong); }
-#trainmap .title small { font-size: 12px; color: var(--muted); }
+#trainmap .title .hint { font-size: 13px; color: var(--text-2); }
 
 /* A phone, upright or sideways, folds the line list to the lit line. */
 
@@ -430,5 +436,6 @@ body.focus #clock, body.editing #clock, body.focus #depth, body.editing #depth {
   #trainmap .row.lit::after { content: '▾'; opacity: .7; }
   #trainmap .side.open .row.lit::after { content: '▴'; }
   #trainmap .side:not(.open) .row b { display: none; }
-  #trainmap .title small { display: none; }
+  #trainmap .title { left: 16px; top: 60px; }
+  #trainmap .title .hint { max-width: 14em; }
 }

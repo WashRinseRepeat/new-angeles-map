@@ -153,16 +153,28 @@ const click = (sel, o) => page.click(sel, { timeout: 3000, ...o });
 const show = async line => {
   if (await page.isHidden('#trainmap')) await click('[data-tab=ride]');
   if (line && await page.isHidden(`#trainmap .row[data-line="${line}"]`)) await click('#trainmap .row.lit');
-  if (line) await click(`#trainmap .row[data-line="${line}"]`);
+  if (!line) return;
+  const again = (await lit()).includes(line);
+  await click(`#trainmap .row[data-line="${line}"]`);
+
+  // A click on the already-lit row opens the list on a phone, so show() folds it again. A pick of another line must
+  // fold the list by itself, and show() throws if it stays open.
+
+  if (again && await page.$('#trainmap .side.open')) await click('#trainmap .row.lit');
+  else if (await page.$('#trainmap .side.open')) throw new Error(`list stayed open after picking ${line}`);
 };
 const lit = () => page.$$eval('#trainmap path.line.lit', e => e.map(x => x.dataset.line));
 const rides = () => page.$$eval('#trainmap .ride', e => e.map(x => x.getAttribute('aria-label')));
 const stn = n => click(`#trainmap [data-st="${n}"]`);
 
+const marked = () => page.$$eval('#trainmap .stn.mark text', e => e.map(x => x.textContent));
+
+// The map opens with the Grand Loop lit and The Beanstalk marked, so its ride buttons show at once.
+
 await check('map-open', async () => {
   await show();
-  const l = await lit();
-  return l.join() === 'Grand Loop' && !(await page.isHidden('#trainmap')) && !(await rides()).length || `lit ${l}`;
+  const l = await lit(), m = await marked(), a = await rides();
+  return l.join() === 'Grand Loop' && !(await page.isHidden('#trainmap')) && m.join() === 'The Beanstalk' && a.length === 2 || `lit ${l}, marked ${m}, ${a}`;
 });
 await check('map-pick', async () => {
   await show('City Loop');
@@ -195,17 +207,67 @@ await check('map-ride', async () => {
 await check('map-reopen', async () => {
   await page.evaluate(async () => (await import(new URL('engine/ride.js', location.href).href)).stopRide());
   await show();
-  const l = await lit();
-  return l.join() === 'Grand Loop' && !(await rides()).length || `lit ${l}`;
+  const l = await lit(), m = await marked(), a = await rides();
+  return l.join() === 'Grand Loop' && m.join() === 'The Beanstalk' && a.length === 2 || `lit ${l}, marked ${m}, ${a}`;
 });
+
+// On a desktop and on a phone the open map marks The Beanstalk and shows its ride buttons. The hint sits in the top
+// quarter of the screen. The title block meets no close button, line list, track, label, ride pill or cable, and the
+// folded line list meets no track or label. Three more window sizes test the map's fit round both.
+
+await check('map-open-preselect', async () => {
+  const bad = [];
+  try {
+    for (const [width, height] of [[1440, 900], [375, 812], [1024, 768], [1280, 800], [768, 1024]]) {
+      await page.keyboard.press('Escape');
+      await page.setViewportSize({ width, height });
+      await show();
+      const m = await marked(), a = await rides();
+      const h = await page.evaluate(async () => {
+        await document.fonts.ready;
+        await window.__pump(2);
+        const el = document.getElementById('trainmap'), e = el.querySelector('.hint'), r = e?.getBoundingClientRect();
+        if (!e) return null;
+        const meets = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom, hits = [];
+        const test = (who, t, sels, paths) => {
+          for (const [name, sel] of sels)
+            for (const o of el.querySelectorAll(sel)) if (meets(t, o.getBoundingClientRect())) hits.push(`${who} x ${name} ${o.textContent.trim().slice(0, 20)}`);
+          for (const p of el.querySelectorAll(paths)) {
+            const M = p.getScreenCTM(), n = p.getTotalLength(), w = parseFloat(getComputedStyle(p).strokeWidth) / 2 * M.a;
+            for (let s = 0; s <= n; s += Math.max(.5, n / 4000)) {
+              const q = p.getPointAtLength(s).matrixTransform(M);
+              if (q.x > t.left - w && q.x < t.right + w && q.y > t.top - w && q.y < t.bottom + w) { hits.push(`${who} x ${p.dataset.line ?? 'cable'}`); break; }
+            }
+          }
+        };
+        test('title', el.querySelector('.title').getBoundingClientRect(), [['close', '.x'], ['list', '.side'], ['label', '.base text'], ['pill', '.ride .pill']], 'svg .ln path.line, svg .cable');
+        test('list', el.querySelector('.side').getBoundingClientRect(), [['label', '.base text']], 'svg .ln path.line');
+        return { text: e.textContent, w: r.width, h: r.height, top: r.bottom <= innerHeight / 4, in: r.left >= 0 && r.top >= 0 && r.right <= innerWidth,
+          shown: getComputedStyle(e).visibility === 'visible' && +getComputedStyle(e).opacity > .5, hits };
+      });
+      if (m.join() !== 'The Beanstalk' || a.length !== 2) bad.push(`${width}: marked ${m}, ${a.length} buttons`);
+      if (!h || h.text !== 'Pick a line, then a station, then a direction' || h.w < 1 || h.h < 1 || !h.in || !h.top || !h.shown || h.hits.length) bad.push(`${width}: hint ${JSON.stringify(h)}`);
+    }
+  } finally {
+    await page.keyboard.press('Escape');
+    await page.setViewportSize({ width: 640, height: 400 });
+  }
+  return !bad.length || bad.join('; ');
+});
+
+// A fresh map has The Beanstalk's buttons. A click on Rutherford moves them there, a second click keeps them, and a
+// click on empty map clears them.
+
 await check('map-clicks', async () => {
-  await show('Grand Loop');
+  await page.keyboard.press('Escape');
+  await show();
+  const a0 = (await rides()).length;
   await stn('Rutherford');
   await stn('Rutherford');
-  const a = (await rides()).length;
+  const a = (await rides()).length, m = await marked();
   await click('#trainmap svg', { position: { x: 630, y: 390 } });
   const b = (await rides()).length, l = await lit();
-  return a === 2 && b === 0 && l.join() === 'Grand Loop' || `${a} ${b} ${l}`;
+  return a0 === 2 && a === 2 && m.join() === 'Rutherford' && b === 0 && l.join() === 'Grand Loop' || `${a0} ${a} ${m} ${b} ${l}`;
 });
 await check('map-offline-station', async () => {
   await show('City Loop');
@@ -282,14 +344,14 @@ await check('style-glow', async () => {
       white: cs(c).stroke === 'rgb(255, 255, 255)' && cs(l).stroke !== cs(c).stroke,
       glow: cs(g).stroke === cs(l).stroke && cs(g).filter !== 'none' && parseFloat(cs(g).strokeWidth) > parseFloat(cs(l).strokeWidth),
       thin: parseFloat(cs(c).strokeWidth) < parseFloat(cs(l).strokeWidth),
-      dim: q('path.line:not(.lit)').every(p => +cs(p).opacity >= .5 && +cs(p).opacity <= .7 && cs(p).filter === 'none'),
+      dim: q('path.line:not(.lit)').every(p => +cs(p).opacity * +cs(p.parentNode).opacity >= .5 && +cs(p).opacity * +cs(p.parentNode).opacity <= .7 && cs(p).filter === 'none'),
     };
     return Object.values(r).every(Boolean) || JSON.stringify(r);
   });
 });
 
-// Each station tick leaves its track at 90°, and the lit line's ticks glow with it. Each interchange capsule sits at
-// 0°, 45°, 90° or 135°. It lights each line in turn.
+// Each station tick leaves its track at 90°. style-tick-join tests how it joins its line. Each interchange capsule sits
+// at 0°, 45°, 90° or 135°. It lights each line in turn.
 
 await check('style-ticks', async () => {
   await show('Grand Loop');
@@ -307,10 +369,6 @@ await check('style-ticks', async () => {
         const cos = ((x1 - x0) * (b.x - a.x) + (y1 - y0) * (b.y - a.y)) / Math.hypot(x1 - x0, y1 - y0) / Math.hypot(b.x - a.x, b.y - a.y);
         if (dist > 1 || Math.abs(cos) > .01) bad.add(`${t.dataset.line} tick ${t.dataset.name}: off ${dist.toFixed(1)}, cos ${cos.toFixed(3)}`);
       }
-      const lit = el.querySelectorAll(`path.tick[data-line="${name}"]`).length;
-      const glow = [...el.querySelectorAll('path.tick-glow')], core = [...el.querySelectorAll('path.tick-core')];
-      if (glow.length !== lit || core.length !== lit || glow.some(g => g.dataset.line !== name || getComputedStyle(g).filter === 'none') ||
-        core.some(c => getComputedStyle(c).stroke !== 'rgb(255, 255, 255)')) bad.add(`${name}: ${lit} ticks, ${glow.length} glows, ${core.length} cores`);
       for (const c of el.querySelectorAll('path.cap-o')) {
         caps++;
         const [x0, y0, x1, y1] = ends(c);
@@ -322,6 +380,161 @@ await check('style-ticks', async () => {
     el.querySelector('.row[data-line="Grand Loop"]').click();
     return ticks > 20 && caps > 20 && !bad.size || [...bad].join('; ') || `${ticks} ticks, ${caps} capsules`;
   });
+});
+
+// Each tick is drawn as part of its line. It has the line's stroke colour and width, and a dim line's opacity sits on
+// a group that holds both, so the overlap never brightens. On the lit line the glow and the white core run on into the
+// tick. It lights each line in turn.
+
+await check('style-tick-join', async () => {
+  await show('Grand Loop');
+  return page.evaluate(() => {
+    const el = document.getElementById('trainmap'), bad = new Set(), cs = e => getComputedStyle(e);
+    const fade = (e, top) => { let o = 1; for (; e && e !== top; e = e.parentNode) o *= +cs(e).opacity; return o; };
+    let ticks = 0;
+    for (const name of [...el.querySelectorAll('.row')].map(r => r.dataset.line)) {
+      el.querySelector(`.row[data-line="${name}"]`).click();
+      for (const t of el.querySelectorAll('path.tick')) {
+        ticks++;
+        const line = el.querySelector(`path.line[data-line="${t.dataset.line}"]`), at = `${name} / ${t.dataset.line} / ${t.dataset.name}`;
+        let top = t.parentNode;
+        while (!top.contains(line)) top = top.parentNode;
+        if (cs(t).stroke !== cs(line).stroke || cs(t).strokeWidth !== cs(line).strokeWidth) bad.add(`${at}: stroke ${cs(t).stroke} ${cs(t).strokeWidth}, line ${cs(line).stroke} ${cs(line).strokeWidth}`);
+        if (fade(t, top) !== 1 || fade(line, top) !== 1) bad.add(`${at}: opacity ${fade(t, top)} on the tick, ${fade(line, top)} on the line`);
+        if (t.dataset.line !== name) continue;
+        const [x0, y0, x1, y1] = t.getAttribute('d').match(/-?[\d.]+/g).map(Number), p = new DOMPoint(x0 + (x1 - x0) * .8, y0 + (y1 - y0) * .8);
+        for (const k of ['glow', 'core']) if (!el.querySelector(`path.${k}[data-line="${name}"]`)?.isPointInStroke(p)) bad.add(`${at}: no ${k} on the tick`);
+      }
+    }
+    el.querySelector('.row[data-line="Grand Loop"]').click();
+    return ticks > 20 && !bad.size || [...bad].slice(0, 20).join('; ') || `${ticks} ticks`;
+  });
+});
+
+// Each interchange capsule covers every line that stops at its station. Every point of each such line within 6 units
+// of the station's grid point, with half the line's width, lies inside the capsule's white outline. It lights each
+// line in turn, since the lit line is wider.
+
+await check('style-capsule-cover', async () => {
+  await show('Grand Loop');
+  return page.evaluate(async () => {
+    const { SETTING } = await import(new URL('engine/setting.js', location.href).href);
+    const sc = SETTING.transport.maglev.schematic, el = document.getElementById('trainmap'), bad = new Set();
+    const seg = (p, a, b) => {
+      const v = [b[0] - a[0], b[1] - a[1]], l2 = v[0] ** 2 + v[1] ** 2, t = l2 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * v[0] + (p[1] - a[1]) * v[1]) / l2)) : 0;
+      return Math.hypot(p[0] - a[0] - v[0] * t, p[1] - a[1] - v[1] * t);
+    };
+    let caps = 0;
+    for (const name of [...el.querySelectorAll('.row')].map(r => r.dataset.line)) {
+      el.querySelector(`.row[data-line="${name}"]`).click();
+      for (const c of el.querySelectorAll('path.cap-o')) {
+        caps++;
+        const st = c.closest('.stn').querySelector('text').textContent, [x0, y0, x1, y1] = c.getAttribute('d').match(/-?[\d.]+/g).map(Number);
+        const a = [x0, y0], b = [x1, y1], o = sc.stations[st].slice(0, 2).map(v => v * 40), R = parseFloat(getComputedStyle(c).strokeWidth) / 2;
+        for (const [ln, l] of Object.entries(sc.lines)) {
+          if (!l.path.some(e => e.replace('|', '') === st)) continue;
+          const p = el.querySelector(`path.line[data-line="${ln}"]`), n = p.getTotalLength(), w = parseFloat(getComputedStyle(p).strokeWidth) / 2;
+          let worst = 0;
+          for (let s = 0; s <= n; s += .25) {
+            const q = p.getPointAtLength(s);
+            if (Math.hypot(q.x - o[0], q.y - o[1]) <= 6) worst = Math.max(worst, seg([q.x, q.y], a, b) + w);
+          }
+          if (worst > R + .01) bad.add(`${name} lit: ${st} / ${ln} reaches ${worst.toFixed(2)}, capsule ${R.toFixed(2)}`);
+        }
+      }
+    }
+    el.querySelector('.row[data-line="Grand Loop"]').click();
+    return caps > 20 && !bad.size || [...bad].join('; ') || `${caps} capsules`;
+  });
+});
+
+// Each label of a lit-line station sits in a soft oval that breathes at rest, and dim-line labels have none. Hover
+// brightens the oval and shows a pointer. A tap on a label marks its station, and each label's tap target is at least
+// 44 px tall. No oval meets a ride pill or another label. A keyboard-focused marked station shows a focus ring unlike
+// its mark ring. With reduced motion the ovals stand still. It runs on a desktop and on a phone.
+
+await check('style-station-cue', async () => {
+  const bad = [];
+  try {
+    for (const [width, height] of [[1440, 900], [375, 812]]) {
+      await page.keyboard.press('Escape');
+      await page.setViewportSize({ width, height });
+      await show();
+      const state = () => page.evaluate(async () => {
+        await document.fonts.ready;
+        await window.__pump(2);
+        const el = document.getElementById('trainmap'), cs = e => getComputedStyle(e), bad = [];
+        const meets = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > .5 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > .5;
+        const pills = [...el.querySelectorAll('.ride .pill')].map(p => p.getBoundingClientRect()), texts = [...el.querySelectorAll('.base text')];
+        let on = 0;
+        for (const g of el.querySelectorAll('.stn')) {
+          const t = g.querySelector('text'), o = g.querySelector('.oval'), tap = g.querySelector('.ltap'), name = t.textContent;
+          const shown = cs(t).visibility !== 'hidden', drawn = o && cs(o).display !== 'none' && cs(o).stroke !== 'none' && +cs(o).strokeOpacity > 0;
+          if (!g.classList.contains('on')) { if (drawn || tap) bad.push(`${name}: dim station has an oval or tap target`); continue; }
+          if (!shown) { if (drawn) bad.push(`${name}: hidden label keeps its oval`); continue; }
+          on++;
+          if (!drawn) { bad.push(`${name}: no oval`); continue; }
+          const r = o.getBoundingClientRect(), b = t.getBoundingClientRect();
+          if (r.left > b.left || r.right < b.right || r.top > b.top || r.bottom < b.bottom) bad.push(`${name}: oval does not hold its label`);
+          if (pills.some(p => meets(r, p))) bad.push(`${name}: oval meets a ride pill`);
+          for (const x of texts) if (x !== t && cs(x).visibility !== 'hidden' && meets(r, x.getBoundingClientRect())) bad.push(`${name}: oval meets ${x.textContent}`);
+          if (!tap || tap.dataset.st !== name || tap.getBoundingClientRect().height < 44) bad.push(`${name}: tap target ${tap?.getBoundingClientRect().height.toFixed(1)} px`);
+        }
+        const o = el.querySelector('.stn.on .oval');
+        return { bad, on, anim: o && cs(o).animationName, op: o && +cs(o).strokeOpacity };
+      });
+      const rest = await state();
+      bad.push(...rest.bad.map(b => `${width} open: ${b}`));
+      if (rest.on < 10 || rest.anim === 'none') bad.push(`${width}: ${rest.on} ovals, animation ${rest.anim}`);
+
+      // A tap on the middle of a label, away from the ride buttons, marks its station.
+
+      const c = await page.evaluate(() => {
+        const r = [...document.querySelectorAll('#trainmap .stn.on text')].find(t => t.textContent === 'Laguna Velasco').getBoundingClientRect();
+        return [r.x + r.width / 2, r.y + r.height / 2];
+      });
+      await page.mouse.click(...c);
+      const m = await marked();
+      await page.keyboard.press('Escape');
+      await show();
+      await stn('Rutherford');
+      bad.push(...(await state()).bad.map(b => `${width} Rutherford: ${b}`));
+      if (m.join() !== 'Laguna Velasco') bad.push(`${width}: label tap marked ${m}`);
+    }
+
+    // Hover on a label brightens its oval and shows a pointer.
+
+    await page.keyboard.press('Escape');
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await show();
+    const op = () => page.evaluate(() => {
+      const g = [...document.querySelectorAll('#trainmap .stn.on')].find(g => g.querySelector('text').textContent === 'Rabotgorod');
+      const o = g.querySelector('.oval'), t = g.querySelector('.ltap');
+      return { op: o ? +getComputedStyle(o).strokeOpacity : 0, cursor: t ? getComputedStyle(t).cursor : 'none' };
+    });
+    const before = await op();
+    if (await page.$('#trainmap .ltap[data-st="Rabotgorod"]')) await page.hover('#trainmap .ltap[data-st="Rabotgorod"]', { timeout: 3000 });
+    const hover = await op();
+    await page.mouse.move(0, 0);
+    if (!(hover.op > before.op) || hover.op < .9 || hover.cursor !== 'pointer') bad.push(`hover ${JSON.stringify({ before, hover })}`);
+
+    await stn('Rutherford');
+    await page.focus('#trainmap .stn.mark .hit');
+    await page.keyboard.press('Shift');
+    const focus = await page.evaluate(() => {
+      const h = document.querySelector('#trainmap .stn.mark .hit'), c = getComputedStyle(h);
+      return h.matches(':focus-visible') && c.stroke !== 'none' && +c.strokeOpacity > .9 && c.stroke !== getComputedStyle(document.querySelector('#trainmap .stn.mark .ring')).stroke;
+    });
+    if (!focus) bad.push('marked station has no focus ring');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const still = await page.evaluate(() => { const o = document.querySelector('#trainmap .stn.on .oval'); return o ? getComputedStyle(o).animationName : 'no oval'; });
+    if (still !== 'none') bad.push(`reduced motion animation ${still}`);
+  } finally {
+    await page.emulateMedia({ reducedMotion: null });
+    await page.keyboard.press('Escape');
+    await page.setViewportSize({ width: 640, height: 400 });
+  }
+  return !bad.length || `${bad.length} faults: ${bad.slice(0, 25).join('; ')}`;
 });
 
 // No map label crosses a drawn line or another label, in screen space. It lights each line in turn. The ride buttons
@@ -410,7 +623,7 @@ await check('style-ride-buttons', async () => {
             const M = svg.getScreenCTM(), s = M.a, gap0 = rideGap(svg), i = order.indexOf(st), next = [order.at(i - 1), order[(i + 1) % order.length]];
             const lit = svg.querySelector('path.line.lit'), track = Array.from({ length: Math.floor(lit.getTotalLength() * 4) + 1 }, (_, i) => lit.getPointAtLength(i / 4).matrixTransform(M));
             const closed = gap(track[0], track.at(-1)) < 8, j = track.reduce((b, q, k) => k < track.length - 80 && gap(q, track.at(-1)) < 3 && (b < 0 || gap(q, track.at(-1)) < gap(track[b], track.at(-1))) ? k : b, -1);
-            const parts = [...svg.querySelectorAll('.stn.mark text, .stn.mark .tick, .stn.mark .ring, .stn.mark .cap-o')].map(e => ({ e, r: e.getBoundingClientRect() }));
+            const parts = [...svg.querySelectorAll(`.stn.mark text, .ln.lit .tick[data-name="${CSS.escape(st)}"], .stn.mark .ring, .stn.mark .cap-o`)].map(e => ({ e, r: e.getBoundingClientRect() }));
             const near = name => {
               const h = el.querySelector(`.hit[data-st="${CSS.escape(name)}"]`).getBoundingClientRect(), c = { x: h.x + h.width / 2, y: h.y + h.height / 2 };
               const d = track.map(q => gap(q, c)), m = Math.min(...d);
@@ -490,6 +703,50 @@ await check('style-ride-buttons', async () => {
   return n > 80 && !bad.length || `${bad.length} faults in ${n} buttons: ${bad.slice(0, 30).join('; ')}`;
 });
 
+// While ride buttons show, no visible station label overlaps a ride pill. A label a pill would cover moves to a free
+// side or hides. It marks every station of every line, on a desktop and on a phone.
+
+await check('style-label-not-clipped', async () => {
+  const bad = [];
+  let n = 0;
+  try {
+    for (const [width, height] of [[1440, 900], [375, 812]]) {
+      await page.keyboard.press('Escape');
+      await page.setViewportSize({ width, height });
+      await show();
+      const r = await page.evaluate(async () => {
+        const el = document.getElementById('trainmap'), bad = [];
+        const settle = async () => { await document.fonts.ready; await window.__pump(2); };
+        const meets = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > .5 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > .5;
+        const shown = t => { const c = getComputedStyle(t); return c.visibility !== 'hidden' && c.display !== 'none' && +c.opacity > 0; };
+        let n = 0;
+        await settle();
+        for (const row of [...el.querySelectorAll('.row')].map(r => r.dataset.line)) {
+          el.querySelector(`.row[data-line="${row}"]`).click();
+          await settle();
+          for (const st of [...el.querySelectorAll('[data-st]')].map(h => h.dataset.st)) {
+            el.querySelector(`[data-st="${st}"]`).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            await settle();
+            const pills = [...el.querySelectorAll('.ride .pill')].map(p => p.getBoundingClientRect());
+            for (const t of el.querySelectorAll('.stn text')) {
+              n++;
+              if (shown(t) && pills.some(p => meets(t.getBoundingClientRect(), p))) bad.push(`${row} / ${st}: pill covers ${t.textContent}`);
+            }
+          }
+        }
+        el.querySelector('.row[data-line="Grand Loop"]').click();
+        return { bad, n };
+      });
+      bad.push(...r.bad.map(b => `${width}: ${b}`));
+      n += r.n;
+    }
+  } finally {
+    await page.keyboard.press('Escape');
+    await page.setViewportSize({ width: 640, height: 400 });
+  }
+  return n > 500 && !bad.length || `${bad.length} covered labels in ${n}: ${bad.slice(0, 20).join('; ')}`;
+});
+
 // On a phone the list folds to the lit line. A tap opens all five rows, and a pick folds it again. Nothing scrolls sideways.
 
 await check('style-phone', async () => {
@@ -504,6 +761,26 @@ await check('style-phone', async () => {
     await click('#trainmap .row[data-line="City Loop"]');
     const c = await rows(), l = await lit(), w = await page.evaluate(() => document.documentElement.scrollWidth);
     return a === 1 && b === 5 && c === 1 && l.join() === 'City Loop' && w <= 375 || JSON.stringify({ a, b, c, l, w });
+  } finally {
+    await page.keyboard.press('Escape');
+    await page.setViewportSize({ width: 640, height: 400 });
+  }
+});
+// On a phone a pick from the open list folds it to the picked line.
+
+await check('map-list-fold', async () => {
+  await page.keyboard.press('Escape');
+  await page.setViewportSize({ width: 375, height: 812 });
+  try {
+    await show();
+    await click('#trainmap .row.lit');
+    const opened = await page.$$eval('#trainmap .row', e => e.filter(x => x.getBoundingClientRect().height > 0).length);
+    await click('#trainmap .row[data-line="City Loop"]');
+    const r = await page.evaluate(() => ({
+      open: !!document.querySelector('#trainmap .side.open'),
+      rows: [...document.querySelectorAll('#trainmap .row')].filter(x => x.getBoundingClientRect().height > 0).map(x => x.dataset.line),
+    }));
+    return opened === 5 && !r.open && r.rows.join() === 'City Loop' || JSON.stringify({ opened, ...r });
   } finally {
     await page.keyboard.press('Escape');
     await page.setViewportSize({ width: 640, height: 400 });

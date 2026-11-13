@@ -118,37 +118,71 @@ function ridesFor(L) {
   return out;
 }
 
-// A station on one line is a tick at 90° to its track, pointing to its label. The lit line's ticks glow with it. An
-// interchange is a capsule on the 0°, 45°, 90° or 135° axis that keeps the points where its lines pass closest to it.
+// The lines that stop at station n, each once, with the index of its drawn point.
 
-function station(n, [, , side], L) {
-  const spots = lines.flatMap(l => l.keys.flatMap((k, i) => k === n ? [{ l, i: l.at[i] }] : []))
-    .filter((s, j, a) => a.findIndex(t => t.l === s.l) === j);
-  const ps = spots.map(s => s.l.pts[s.i]), c = [ps.reduce((t, p) => t + p[0], 0) / ps.length, ps.reduce((t, p) => t + p[1], 0) / ps.length];
-  const [ux, uy, an] = LABEL[side] ?? LABEL.e, on = spots.some(s => s.l === L), k = (spots.length > 1 ? 12 : 16) + Math.max(...ps.map(p => len(sub(p, c))));
-  let mk;
-  if (spots.length === 1) {
-    const { l, i } = spots[0], p = l.pts[i], q = i + 1 < l.pts.length && len(sub(l.pts[i + 1], p)) > .01 ? l.pts[i + 1] : l.pts[i - 1];
-    const t = sub(q, p);
-    let nx = -t[1] / len(t), ny = t[0] / len(t);
-    if (nx * ux + ny * uy < 0) [nx, ny] = [-nx, -ny];
-    const tick = cls => `<path class="${cls}" data-line="${esc(l.name)}" data-name="${esc(n)}" d="M${f(p)}L${f([p[0] + nx * 11, p[1] + ny * 11])}" style="--c:${l.color}"/>`;
-    mk = l === L ? tick('tick-glow') + tick('tick on') + tick('tick-core') : tick('tick');
-  } else {
-    let best;
-    for (const [ax, ay] of [[1, 0], [Math.SQRT1_2, Math.SQRT1_2], [0, 1], [-Math.SQRT1_2, Math.SQRT1_2]]) {
-      const along = ps.map(p => (p[0] - c[0]) * ax + (p[1] - c[1]) * ay), across = ps.map(p => (p[1] - c[1]) * ax - (p[0] - c[0]) * ay);
-      const spread = Math.max(...across) - Math.min(...across), lo = Math.min(...along), hi = Math.max(...along);
-      if (!best || spread < best.spread - 1e-6) best = { spread, ends: hi - lo < .5 ? [c, c] : [lo, hi].map(v => [c[0] + ax * v, c[1] + ay * v]) };
-    }
-    const g = p => p.map(v => v.toFixed(2)).join(' '), [a, b] = best.ends, d = `M${g(a)}L${g(b)}`;
-    mk = `<path class="cap-o" d="${d}"/><path class="cap-i" d="${d}"/>`;
+const spotsAt = n => lines.flatMap(l => l.keys.flatMap((k, i) => k === n ? [{ l, i: l.at[i] }] : []))
+  .filter((s, j, a) => a.findIndex(t => t.l === s.l) === j);
+
+// A station on one line is a tick at 90° to its track, pointing to its label. It is drawn with its line, so it shares
+// the line's stroke, glow and core.
+
+function tickAt(n, [, , side]) {
+  const sp = spotsAt(n);
+  if (sp.length !== 1) return null;
+  const { l, i } = sp[0], p = l.pts[i], q = i + 1 < l.pts.length && len(sub(l.pts[i + 1], p)) > .01 ? l.pts[i + 1] : l.pts[i - 1];
+  const [ux, uy] = LABEL[side] ?? LABEL.e, t = sub(q, p);
+  let nx = -t[1] / len(t), ny = t[0] / len(t);
+  if (nx * ux + ny * uy < 0) [nx, ny] = [-nx, -ny];
+  return { l, n, d: `M${f(p)}L${f([p[0] + nx * 11, p[1] + ny * 11])}` };
+}
+
+// An interchange is a capsule on the 0°, 45°, 90° or 135° axis. It spans the points where its lines stop and covers
+// every stretch of those lines within CAP_R units of the station, with half the lit line's width and a margin. The
+// samples run 1 unit past CAP_R, since they sit about 1 unit apart. The axis that needs the thinnest capsule wins.
+
+const CAP_R = 6, CAP_MIN = 7;
+const toSeg = (p, a, b) => {
+  const v = sub(b, a), l2 = v[0] ** 2 + v[1] ** 2, t = l2 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * v[0] + (p[1] - a[1]) * v[1]) / l2)) : 0;
+  return len(sub(p, [a[0] + v[0] * t, a[1] + v[1] * t]));
+};
+
+function capsule(spots, ps, c, o) {
+  const q = [...ps, ...spots.flatMap(({ l }) => l.samples.filter(s => len(sub(s, o)) <= CAP_R + 1))];
+  let best;
+  for (const [ax, ay] of [[1, 0], [Math.SQRT1_2, Math.SQRT1_2], [0, 1], [-Math.SQRT1_2, Math.SQRT1_2]]) {
+    const along = ps.map(p => (p[0] - c[0]) * ax + (p[1] - c[1]) * ay), lo = Math.min(...along), hi = Math.max(...along);
+    const ends = hi - lo < .5 ? [c, c] : [lo, hi].map(v => [c[0] + ax * v, c[1] + ay * v]);
+    const r = Math.max(CAP_MIN, Math.max(...q.map(p => toSeg(p, ...ends))) + 3.25 + 1);
+    if (!best || r < best.r - 1e-6 || r < best.r + 1e-6 && hi - lo < best.span) best = { r, ends, span: hi - lo };
   }
-  const y = c[1] + uy * k + (uy > 0 ? 9 : uy < 0 ? 0 : 4.5);
-  return `<g class="stn${on ? ' on' : ''}${n === mark ? ' mark' : ''}">${mk}
-    ${n === mark ? `<circle class="ring" cx="${f([c[0]])}" cy="${f([c[1]])}" r="13"/>` : ''}
-    <text x="${f([c[0] + ux * k])}" y="${f([y])}" text-anchor="${an}">${esc(n)}</text>
-    ${on ? `<circle class="hit" data-st="${esc(n)}" role="button" tabindex="0" aria-label="${esc(n)}" cx="${f([c[0]])}" cy="${f([c[1]])}" r="14"/>` : ''}</g>`;
+  return best;
+}
+
+// A label k units from its station centre c, on the given side. The baseline drops so the text centres on its side.
+
+const labelPos = (c, k, side) => {
+  const [ux, uy, an] = LABEL[side] ?? LABEL.e;
+  return { x: f([c[0] + ux * k]), y: f([c[1] + uy * k + (uy > 0 ? 9 : uy < 0 ? 0 : 4.5)]), an };
+};
+
+// A station's marker, label, mark ring and hit target. Stations of the lit line carry the cue class. Their label sits
+// in an oval with a tap target, which placeOvals() sizes once the label has its final spot.
+
+function station(n, s, L) {
+  const spots = spotsAt(n), ps = spots.map(s => s.l.pts[s.i]);
+  const c = [ps.reduce((t, p) => t + p[0], 0) / ps.length, ps.reduce((t, p) => t + p[1], 0) / ps.length];
+  const on = spots.some(s => s.l === L), far = Math.max(...ps.map(p => len(sub(p, c))));
+  let mk = '', r = 0;
+  if (spots.length > 1) {
+    const cap = capsule(spots, ps, c, P(s)), g = p => p.map(v => v.toFixed(2)).join(' '), [a, b] = cap.ends, d = `M${g(a)}L${g(b)}`;
+    r = cap.r;
+    mk = `<path class="cap-o" d="${d}" style="stroke-width:${(2 * r).toFixed(2)}px"/><path class="cap-i" d="${d}" style="stroke-width:${(2 * r - 4.5).toFixed(2)}px"/>`;
+  }
+  const k = (r ? r + 5 : 16) + far, lp = labelPos(c, k, s[2]), at = `cx="${f([c[0]])}" cy="${f([c[1]])}"`;
+  return `<g class="stn${on ? ' on cue' : ''}${n === mark ? ' mark' : ''}">${mk}
+    ${n === mark ? `<circle class="ring" ${at} r="${Math.max(13, r + 5).toFixed(1)}"/>` : ''}
+    ${on ? '<rect class="oval"/>' : ''}<text x="${lp.x}" y="${lp.y}" text-anchor="${lp.an}" data-c="${f(c)}" data-k="${k.toFixed(1)}" data-side="${s[2]}">${esc(n)}</text>${on ? `<rect class="ltap" data-st="${esc(n)}"/>` : ''}
+    ${on ? `<circle class="hit" data-st="${esc(n)}" role="button" tabindex="0" aria-label="${esc(n)}" ${at} r="${Math.max(14, r + 6).toFixed(1)}"/>` : ''}</g>`;
 }
 
 function landmark({ name, shape, at }) {
@@ -161,12 +195,22 @@ function landmark({ name, shape, at }) {
 function draw() {
   const sc = opts.schematic, L = lines.find(l => l.name === lit), svg = el.querySelector('svg');
   const rides = L && mark ? ridesFor(L) : [];
-  const path = (l, cls) => `<path class="${cls}" data-line="${esc(l.name)}" d="${l.d}" style="--c:${l.color}"/>`;
+  const ticks = Object.entries(sc.stations).map(([n, s]) => tickAt(n, s)).filter(Boolean);
+
+  // A line and its ticks share one group. A dim line's opacity sits on the group, so a tick never brightens where it
+  // meets its track. The lit line's glow and core run on through its ticks.
+
+  const group = l => {
+    const a = `data-line="${esc(l.name)}"`, own = ticks.filter(t => t.l === l), td = own.map(t => t.d).join('');
+    const tk = own.map(t => `<path class="tick" ${a} data-name="${esc(t.n)}" d="${t.d}"/>`).join('');
+    return `<g class="ln${l === L ? ' lit' : ''}" ${a} style="--c:${l.color}">` + (l === L
+      ? `<path class="glow" ${a} d="${l.d}${td}"/><path class="line lit" ${a} d="${l.d}"/>${tk}<path class="core" ${a} d="${l.d}${td}"/>`
+      : `<path class="line" ${a} d="${l.d}"/>${tk}`) + '</g>';
+  };
   el.querySelector('.rows').innerHTML = lines.map(l => `<button class="row${l.name === lit ? ' lit' : ''}" data-line="${esc(l.name)}" style="--c:${l.color}">
     <i></i><span>${esc(l.name)}</span><b>${l.stops}</b></button>`).join('');
   svg.querySelector('.base').innerHTML = `<g class="lms">${(sc.landmarks ?? []).map(landmark).join('')}</g>` +
-    lines.filter(l => l !== L).map(l => path(l, 'line')).join('') +
-    (L ? path(L, 'glow') + path(L, 'line lit') + path(L, 'core') : '') +
+    lines.filter(l => l !== L).map(group).join('') + (L ? group(L) : '') +
     Object.entries(sc.stations).map(([n, s]) => station(n, s, L)).join('');
   svg.querySelector('.rides').innerHTML = rides.map(a => `<g class="chev" data-dir="${a.dir}"></g>`).join('') +
     rides.map(a => `<g class="ride" role="button" tabindex="0" data-dir="${a.dir}" data-to="${esc(a.name)}" aria-label="Ride ${compass(a.leg)} to ${esc(a.name)}" style="--c:${L.color}">
@@ -174,20 +218,110 @@ function draw() {
 
   // The view fits the drawn map and its labels. The Beanstalk's cable runs on past the top edge.
 
-  const b = svg.querySelector('.base').getBBox(), pad = 28;
-  svg.setAttribute('viewBox', [b.x - pad, b.y - pad, b.width + 2 * pad, b.height + 2 * pad].map(v => v.toFixed(1)).join(' '));
+  const b = svg.querySelector('.base').getBBox();
+  fit(svg, b);
   const root = sc.landmarks?.find(l => l.shape === 'beanstalk');
   svg.querySelector('.cable').setAttribute('d', root ? (([x, y]) => `M${x} ${y - 32 * SIZE.beanstalk}V${b.y - 4000}`)(P(root.at)) : '');
   placeRideButtons(svg, rides);
+  dodgePills(svg);
+  placeOvals(svg);
 }
 
-// Chevrons every 16 px along a leg, clear of both stations, or one at the middle of a short leg. Each one pulses a
-// little later than the one before it, so the light runs the way the train goes. k is SVG units per screen pixel.
+// Each lit-line label sits in a soft oval, padded in screen pixels round its text. The padding shrinks where the oval
+// would meet a ride pill or another label. A hidden label has no oval. A clear tap target 46 px tall and wide or more
+// covers the oval, so a tap on the name marks the station.
 
-function chevrons(leg, k) {
+function placeOvals(svg) {
+  const k = 1 / svg.getScreenCTM().a, pills = [...svg.querySelectorAll('.ride .pill')].map(p => p.getBoundingClientRect());
+  const texts = [...svg.querySelectorAll('.base text')], meets = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+  const set = (e, x, y, w, h, rx) => Object.entries({ x, y, width: w, height: h, rx }).forEach(([a, v]) => e.setAttribute(a, v.toFixed(2)));
+  for (const g of svg.querySelectorAll('.stn.cue')) {
+    const [o, t, tap] = ['.oval', 'text', '.ltap'].map(q => g.querySelector(q));
+    if (t.style.visibility) { o.remove(); tap.remove(); continue; }
+    const b = t.getBBox(), r = t.getBoundingClientRect(), near = [...pills, ...texts.filter(x => x !== t && !x.style.visibility).map(x => x.getBoundingClientRect())];
+    const [px, py] = [[8, 4], [5, 3], [2, 1.5], [0, 0]].find(([px, py]) => !near.some(z => meets({ left: r.left - px, right: r.right + px, top: r.top - py, bottom: r.bottom + py }, z)));
+    const w = b.width + 2 * px * k, h = b.height + 2 * py * k, tw = Math.max(w, 46 * k), th = Math.max(h, 46 * k);
+    set(o, b.x - px * k, b.y - py * k, w, h, h / 2);
+    set(tap, b.x + b.width / 2 - tw / 2, b.y + b.height / 2 - th / 2, tw, th, 0);
+  }
+}
+
+// The map fits the whole screen with a 28 unit margin. If a track or label would then touch the title block or the
+// folded line list, the map fits into the free area beside or below them that keeps the largest scale instead. The
+// list's folded box is kept while it is open on a phone, so opening it does not shrink the map. Each open measures
+// it afresh, since the map always opens with the list folded.
+
+let sideBox;
+function fit(svg, b) {
+  const pad = 28, w = b.width + 2 * pad, h = b.height + 2 * pad, { width: W, height: H } = svg.getBoundingClientRect(), m = 8;
+  const scale = r => Math.min(r.w / w, r.h / h), put = r => {
+    const s = scale(r), cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+    svg.setAttribute('viewBox', [cx - (r.x + r.w / 2) / s, cy - (r.y + r.h / 2) / s, W / s, H / s].map(v => v.toFixed(1)).join(' '));
+  };
+  svg.dataset.fit = `${w.toFixed(1)} ${h.toFixed(1)}`;
+  put({ x: 0, y: 0, w: W, h: H });
+  const side = el.querySelector('.side');
+  if (!side.classList.contains('open') || !sideBox) sideBox = side.getBoundingClientRect();
+  const t = el.querySelector('.title').getBoundingClientRect(), l = sideBox;
+  if (!touches(svg, [t, l])) return;
+  const top = Math.max(t.bottom, l.bottom) + m, left = t.right + m, right = l.left - m;
+  const free = [{ x: 0, y: top, w: W, h: H - top }, { x: left, y: 0, w: right - left, h: H },
+    { x: 0, y: t.bottom + m, w: right, h: H - t.bottom - m }, { x: left, y: l.bottom + m, w: W - left, h: H - l.bottom - m }];
+  put(free.filter(r => r.w > 0 && r.h > 0).reduce((a, r) => scale(r) > scale(a) ? r : a));
+}
+
+// Whether a drawn track or a label comes within 4 px of any of the screen boxes.
+
+function touches(svg, boxes) {
+  const M = svg.getScreenCTM(), near = (q, r = 0) => boxes.some(o => q.x > o.left - 4 - r && q.x < o.right + 4 + r && q.y > o.top - 4 - r && q.y < o.bottom + 4 + r);
+  const meets = a => boxes.some(o => a.left < o.right + 4 && o.left - 4 < a.right && a.top < o.bottom + 4 && o.top - 4 < a.bottom);
+  if ([...svg.querySelectorAll('.base text')].some(e => meets(e.getBoundingClientRect()))) return true;
+  return [...svg.querySelectorAll('.ln path.line')].some(p => {
+    const n = p.getTotalLength(), r = parseFloat(getComputedStyle(p).strokeWidth) / 2 * M.a;
+    return Array.from({ length: Math.ceil(n / 3) + 1 }, (_, i) => p.getPointAtLength(Math.min(n, i * 3)).matrixTransform(M)).some(q => near(q, r));
+  });
+}
+
+// A station label that a ride pill covers moves to the side of its station with the least overlap with pills, lines
+// and other labels. Each side is tried at its usual distance and 14 units further out, and pills weigh most. A label
+// that no spot can clear hides. draw() rebuilds every label, so each label
+// is back on its own side once the buttons go away.
+
+function dodgePills(svg) {
+  const pills = [...svg.querySelectorAll('.ride .pill')].map(p => p.getBoundingClientRect());
+  if (!pills.length) return;
+  const M = svg.getScreenCTM(), area = (a, b) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+  const texts = [...svg.querySelectorAll('.base text')], track = [...svg.querySelectorAll('.ln path.line')].flatMap(p => {
+    const n = p.getTotalLength();
+    return Array.from({ length: Math.ceil(n / 3) + 1 }, (_, i) => p.getPointAtLength(Math.min(n, i * 3)).matrixTransform(M));
+  });
+  const cost = t => {
+    const b = t.getBoundingClientRect(), pad = { left: b.left - 3, right: b.right + 3, top: b.top - 3, bottom: b.bottom + 3 };
+    const hit = pills.reduce((s, p) => s + area(b, p), 0);
+    return { hit, score: hit * 1000 + (+t.getAttribute('data-out') || 0) + track.filter(q => q.x > pad.left && q.x < pad.right && q.y > pad.top && q.y < pad.bottom).length * 50 +
+      texts.reduce((s, o) => o === t || o.style.visibility ? s : s + area(b, o.getBoundingClientRect()), 0) };
+  };
+  for (const t of svg.querySelectorAll('.stn text')) {
+    if (!cost(t).hit) continue;
+    const c = t.dataset.c.split(' ').map(Number), k = +t.dataset.k, put = ([side, out]) => {
+      const { x, y, an } = labelPos(c, k + out, side);
+      Object.entries({ x, y, 'text-anchor': an, 'data-out': out }).forEach(([a, v]) => t.setAttribute(a, v));
+    };
+    const spots = [0, 14].flatMap(out => [t.dataset.side, ...Object.keys(LABEL)].map(side => [side, out]));
+    const best = spots.map(sp => (put(sp), { sp, ...cost(t) })).reduce((a, b) => b.score < a.score ? b : a);
+    put(best.sp);
+    if (best.hit) t.style.visibility = 'hidden';
+  }
+}
+
+// Chevrons every 16 px along a leg, clear of both stations, or one at the middle of a short leg. They start outside
+// the mark ring of radius r0. Each one pulses a little later than the one before it, so the light runs the way the
+// train goes. k is SVG units per screen pixel.
+
+function chevrons(leg, k, r0) {
   const segs = leg.slice(1).map((q, i) => ({ p: leg[i], d: sub(q, leg[i]) })), total = segs.reduce((t, g) => t + len(g.d), 0);
   const ts = [];
-  for (let t = 10 * k; t < total - 8 * k; t += 16 * k) ts.push(t);
+  for (let t = Math.max(10 * k, r0 + 4 * k); t < total - 8 * k; t += 16 * k) ts.push(t);
   let i = 0, at = 0;
   return (ts.length ? ts : [total / 2]).map((t, n) => {
     while (at + len(segs[i].d) < t) at += len(segs[i++].d);
@@ -214,7 +348,7 @@ const compass = leg => {
 
 export const RIDE_GAP = 128, RIDE_FLOOR = 96;
 export const rideGap = svg => {
-  const vb = svg.viewBox.baseVal, desk = Math.min(1440 / vb.width, 900 / vb.height);
+  const [w, h] = svg.dataset.fit.split(' ').map(Number), desk = Math.min(1440 / w, 900 / h);
   return Math.max(RIDE_FLOOR, RIDE_GAP * Math.min(1, svg.getScreenCTM().a / desk));
 };
 const TAP = 48, PILL = 34, PAD = 14;
@@ -265,7 +399,7 @@ function placeRideButtons(svg, rides) {
     const q = P.getPointAtLength(i / 2);
     return [q.x, q.y];
   });
-  svg.querySelectorAll('.chev').forEach((g, i) => { g.innerHTML = chevrons(rides[i].leg, k); });
+  svg.querySelectorAll('.chev').forEach((g, i) => { g.innerHTML = chevrons(rides[i].leg, k, +ring.getAttribute('r')); });
   svg.querySelectorAll('.ride').forEach((g, i) => {
     const [tap, pill, arrow, text] = g.children, d = firstStep(rides[i].leg);
     Object.assign(text.style, { fontSize: `${14 * k}px`, strokeWidth: `${2 * k}px` });
@@ -288,10 +422,10 @@ function build() {
       <pattern id="tmDots" width="${G}" height="${G}" patternUnits="userSpaceOnUse"><circle cx="0" cy="0" r="1.1"/></pattern>
     </defs><rect class="dots" x="-4000" y="-4000" width="8000" height="8000"/><path class="cable"/><g class="base"></g><g class="rides"></g></svg>
     <div class="side panel"><div class="rows"></div></div><button class="x" aria-label="Close">✕</button>
-    <div class="title"><span class="kicker">Maglev</span><b>Network map</b><small>Pick a line, then a station</small></div>`;
+    <div class="title"><span class="kicker">Maglev</span><b>Network map</b><small class="hint">Pick a line, then a station, then a direction</small></div>`;
   document.body.append(el);
   el.onclick = e => {
-    const t = e.target, row = t.closest('.row, path.line'), st = t.closest('[data-st]'), ar = t.closest('.ride');
+    const t = e.target, row = t.closest('.row, .ln'), st = t.closest('[data-st]'), ar = t.closest('.ride');
     if (t.closest('.x')) return opts.onClose();
     if (ar) {
       const R = opts.rides.find(r => r.name === lit);
@@ -335,15 +469,17 @@ function redraw() {
   if (sel) el.querySelector(sel)?.focus();
 }
 
-// Opens with the Grand Loop lit and nothing marked. The map must show before draw() measures it.
+// Opens with the Grand Loop lit and The Beanstalk marked, so its ride buttons show at once. The map must show before
+// draw() measures it.
 
 export function openTrainMap(o) {
   opts = o;
   if (!el) build();
   lines = prepare(o);
   lit = lines.find(l => l.name === 'Grand Loop') ? 'Grand Loop' : lines[0]?.name;
-  mark = null;
+  mark = lines.find(l => l.name === lit)?.keys.includes('The Beanstalk') ? 'The Beanstalk' : null;
   el.querySelector('.side').classList.remove('open');
+  sideBox = null;
   el.hidden = false;
   draw();
   el.querySelector('.row.lit')?.focus();
